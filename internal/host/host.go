@@ -1159,6 +1159,7 @@ func (h *Host) Snapshot() UISnapshot {
 		snap.Phase = string(progress.Phase)
 		snap.Flow = string(progress.Flow)
 		snap.CurrentChapter = progress.CurrentChapter
+		snap.CurrentUnit = currentUnitOrdinal(h.store.Drafts, progress.InProgressChapter)
 		snap.TotalChapters = progress.TotalChapters
 		snap.CompletedCount = len(progress.CompletedChapters)
 		snap.TotalWordCount = progress.TotalWordCount
@@ -1198,6 +1199,17 @@ func (h *Host) Snapshot() UISnapshot {
 	h.fillDetails(&snap, progress)
 
 	return snap
+}
+
+func currentUnitOrdinal(drafts *storepkg.DraftStore, chapter int) int {
+	if drafts == nil || chapter <= 0 {
+		return 0
+	}
+	writing, err := drafts.LoadWritingProgress(chapter)
+	if err != nil || writing == nil {
+		return 0
+	}
+	return writing.CompletedUnits
 }
 
 // fillContextStatus 填充上下文健康度信息。
@@ -1623,6 +1635,31 @@ func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Eve
 	return h.superviseImport(ch, opts), nil
 }
 
+// StartImport is the Host-owned async entry used by web clients. It drains
+// the import stream and republishes progress through the normal Host events.
+func (h *Host) StartImport(opts imp.Options) error {
+	ch, err := h.ImportFrom(context.Background(), opts)
+	if err != nil {
+		return err
+	}
+	if !h.launchAsync(func() {
+		for ev := range ch {
+			summary := ev.Message
+			level := ev.Level
+			if ev.Err != nil {
+				if level == "" {
+					level = "error"
+				}
+				summary = fmt.Sprintf("%s: %v", summary, ev.Err)
+			}
+			h.emitEvent(Event{Time: ev.Time, Category: "IMPORT", Summary: summary, Level: level})
+		}
+	}) {
+		return fmt.Errorf("Host is closing; cannot start import")
+	}
+	return nil
+}
+
 // ImportResumeHint 返回未完成导入的一行提示（无则空串），供 TUI 启动时主动告知（RFC §18.2）。
 // 只在启动时调用一次：内部会重算工作区各工件的 InputDigest，不适合放进快照轮询。
 func (h *Host) ImportResumeHint() string {
@@ -1673,6 +1710,16 @@ func (h *Host) importModelRuntime(role string, model agentcore.ChatModel) imp.Mo
 
 // Simulate 读取 simulate 目录并生成或增量更新仿写画像。
 func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("get working dir: %w", err)
+	}
+	return h.SimulateFrom(ctx, filepath.Join(wd, "simulate"))
+}
+
+// SimulateFrom runs the imitation pipeline against an explicit source
+// directory. The operation remains owned by Host so exclusivity is enforced.
+func (h *Host) SimulateFrom(ctx context.Context, sourceDir string) (<-chan sim.Event, error) {
 	if err := h.acquireExclusive("生成仿写画像"); err != nil {
 		return nil, err
 	}
@@ -1681,10 +1728,10 @@ func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
 	h.exclusiveCancel = cancel
 	h.mu.Unlock()
 
-	wd, err := os.Getwd()
-	if err != nil {
+	sourceDir = strings.TrimSpace(sourceDir)
+	if sourceDir == "" {
 		h.releaseExclusive()
-		return nil, fmt.Errorf("get working dir: %w", err)
+		return nil, fmt.Errorf("simulation source directory is required")
 	}
 	deps := sim.Deps{
 		Store: h.store,
@@ -1694,12 +1741,54 @@ func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
 			Merge:  h.bundle.Prompts.SimulationMerge,
 		},
 	}
-	ch, err := sim.Run(ctx, deps, sim.Options{SourceDir: filepath.Join(wd, "simulate")})
+	ch, err := sim.Run(ctx, deps, sim.Options{SourceDir: sourceDir})
 	if err != nil {
 		h.releaseExclusive()
 		return nil, err
 	}
 	return superviseExclusive(h, ch), nil
+}
+
+// StartSimulation is the Host-owned async entry used by web clients.
+func (h *Host) StartSimulation(sourceDir string) error {
+	ch, err := h.SimulateFrom(context.Background(), sourceDir)
+	if err != nil {
+		return err
+	}
+	if !h.launchAsync(func() {
+		for ev := range ch {
+			summary := ev.Message
+			level := ""
+			if ev.Err != nil {
+				level = "error"
+				summary = fmt.Sprintf("%s: %v", summary, ev.Err)
+			}
+			h.emitEvent(Event{Time: ev.Time, Category: "SIMULATE", Summary: summary, Level: level})
+		}
+	}) {
+		return fmt.Errorf("Host is closing; cannot start simulation")
+	}
+	return nil
+}
+
+// ApplyWritingRules replaces the settings-page writing-rules contribution in the
+// runtime user-rules snapshot. It is intentionally a Host method so web handlers
+// do not write runtime state behind Host's back.
+func (h *Host) ApplyWritingRules(text string) error {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return fmt.Errorf("writing rules are required")
+	}
+	h.interMu.Lock()
+	defer h.interMu.Unlock()
+	snap, _, err := h.userRules.ReplaceSettingsRule(context.Background(), text)
+	if err != nil {
+		return err
+	}
+	if snap != nil {
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: "Writing rules updated", Level: "info"})
+	}
+	return nil
 }
 
 // ImportSimulationProfile 导入此前生成的仿写画像。

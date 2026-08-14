@@ -86,6 +86,29 @@ func TestBuildSnapshot_DegradedPropagates(t *testing.T) {
 	}
 }
 
+func TestStripSource_RemovesMatchingPreferenceSection(t *testing.T) {
+	snap := OverlaySnapshot(BuildSnapshot([]Candidate{
+		{Source: "system_defaults", Preferences: "基线"},
+		{Source: "runtime_update", Preferences: "运行中规则"},
+	}), Candidate{Source: "settings_update", Preferences: "旧设置"})
+	got := StripSource(snap, "settings_update")
+	n := 0
+	for _, src := range got.Sources {
+		if src == "settings_update" {
+			n++
+		}
+	}
+	if n != 0 {
+		t.Fatalf("settings_update 应从 Sources 去掉，got %v", got.Sources)
+	}
+	if strings.Contains(got.Preferences, "旧设置") {
+		t.Fatalf("settings_update 正文应去掉，prefs=%s", got.Preferences)
+	}
+	if !strings.Contains(got.Preferences, "运行中规则") {
+		t.Fatalf("其它来源应保留，prefs=%s", got.Preferences)
+	}
+}
+
 func TestSystemDefaults_MatchesLegacyDefaultMD(t *testing.T) {
 	d := SystemDefaults().Structured
 	if len(d.ForbiddenPhrases) != 4 {

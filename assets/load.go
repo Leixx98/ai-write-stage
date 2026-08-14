@@ -2,6 +2,7 @@ package assets
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,100 @@ import (
 
 	"github.com/voocel/ainovel-cli/internal/tools"
 )
+
+// promptPresetDocument is the persisted web-workbench prompt configuration.
+// It intentionally mirrors the small, stable JSON contract used by the web
+// settings endpoint without coupling the assets package to the web package.
+type promptPresetDocument struct {
+	Version      int    `json:"version"`
+	ActivePreset string `json:"active_preset"`
+	Presets      map[string]struct {
+		Prompts map[string]string `json:"prompts"`
+	} `json:"presets"`
+	Prompts map[string]string `json:"prompts"`
+}
+
+// LoadPromptOverrides reads the active prompt preset saved by the web
+// workbench. A missing file is a normal first-run condition and returns nil.
+// Invalid files are returned as errors so callers can report the problem and
+// continue with the embedded defaults.
+func LoadPromptOverrides(outputDir string) (map[string]string, error) {
+	if strings.TrimSpace(outputDir) == "" {
+		return nil, nil
+	}
+	path := filepath.Join(outputDir, "meta", "web", "prompts.json")
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var doc promptPresetDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	// Version 1 was a flat {"prompts":{...}} document. Treat it as the
+	// active values for backwards compatibility; v2 selects the named preset.
+	if doc.Version < 2 || len(doc.Presets) == 0 {
+		return clonePromptMap(doc.Prompts), nil
+	}
+	active := doc.ActivePreset
+	preset, ok := doc.Presets[active]
+	if !ok {
+		return clonePromptMap(doc.Prompts), nil
+	}
+	if len(preset.Prompts) == 0 {
+		return clonePromptMap(doc.Prompts), nil
+	}
+	return clonePromptMap(preset.Prompts), nil
+}
+
+func clonePromptMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+// ApplyPromptOverrides applies the active web prompt preset to a startup
+// bundle. The bundle is a startup snapshot: saving a preset in the running
+// web UI takes effect on the next process restart, avoiding races with active
+// subagents and prompt-cache keys.
+func ApplyPromptOverrides(bundle *Bundle, values map[string]string) {
+	if bundle == nil {
+		return
+	}
+	for key, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		switch key {
+		case "architect":
+			// The UI exposes one architect prompt while the runtime has short
+			// and long planning workers. Keep them in sync.
+			bundle.Prompts.ArchitectShort = value
+			bundle.Prompts.ArchitectLong = value
+		case "architect_short":
+			bundle.Prompts.ArchitectShort = value
+		case "architect_long":
+			bundle.Prompts.ArchitectLong = value
+		case "chapter_planner":
+			bundle.Prompts.ChapterPlanner = value
+		case "writer":
+			bundle.Prompts.Writer = value
+		case "editor":
+			bundle.Prompts.Editor = value
+		case "prompter":
+			bundle.Prompts.Prompter = value
+		}
+	}
+}
 
 //go:embed prompts/*.md
 var promptsFS embed.FS
@@ -31,6 +126,7 @@ type Prompts struct {
 	ChapterPlanner   string
 	Writer           string // 协议模板,含 {{VOICE}} 占位符;终稿经 BuildWriterPrompt 组装
 	Editor           string
+	Prompter         string
 	ImportSegment    string // 语义切分：识别章节/卷/附属文本边界
 	ImportAnalyze    string // 连续批次逐章事实提取
 	ImportSynthesize string // 分层综合与卷弧划分（全书 BookSynthesis）
@@ -180,6 +276,7 @@ func loadPrompts() Prompts {
 		ChapterPlanner:   WithSimulationGuidance(mustRead(promptsFS, "prompts/chapter-planner.md"), "architect"),
 		Writer:           WithSimulationGuidance(mustRead(promptsFS, "prompts/writer.md"), "writer"),
 		Editor:           WithSimulationGuidance(mustRead(promptsFS, "prompts/editor.md"), "editor"),
+		Prompter:         mustRead(promptsFS, "prompts/prompter.md"),
 		ImportSegment:    mustRead(promptsFS, "prompts/import-segment.md"),
 		ImportAnalyze:    mustRead(promptsFS, "prompts/import-analyze.md"),
 		ImportSynthesize: mustRead(promptsFS, "prompts/import-synthesize.md"),

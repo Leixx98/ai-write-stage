@@ -20,6 +20,9 @@
 - **可选逐章验收** — 默认仍全自动；需要精细控制时用 `/review on`，每次 `/next` 只放行一个新章节，返工和崩溃恢复不会误消耗许可
 - **统一 TUI 入口** — 交互界面实时观察进度，也支持携带一句需求直接启动
 - **多 LLM 支持** — OpenRouter / Anthropic / Gemini / OpenAI 等等随意切换
+- **小说图片桥接** — writing unit 完成后可由 Prompter 生成结构化 JSON，经过 Schema 校验和字段绑定后自动提交 ComfyUI；支持严格模式、取消、重试和图片预览
+
+ComfyUI 画布和小说 unit 图片桥接的配置步骤见 [ComfyUI 画布指南](docs/comfyui-canvas-user-guide.md) 和 [小说图片桥接指南](docs/novel-comfy-bridge-user-guide.md)。
 
 ## 架构
 
@@ -701,5 +704,13 @@ output/{novel_name}/
 ## License
 
 MIT
+
+## Web 工作台与 ComfyUI
+
+推荐从画布工作台开始使用 ComfyUI：导入 API workflow、在节点上暴露字段、切换 Test canvas 运行并预览图片的完整步骤见 [docs/comfyui-canvas-user-guide.md](docs/comfyui-canvas-user-guide.md)。该指南也列出了启动、端到端验收和严格模式排错命令。
+
+底层接口、兼容端点、任务状态和当前自动化边界见 [docs/web-workbench-comfyui.md](docs/web-workbench-comfyui.md)。构建、测试和服务启动命令需要由部署者在本地执行。
+
+ComfyUI 多实例、API workflow/config 双文件、节点浏览、动态字段、媒体引用和输出预览的当前实现与限制见 [docs/comfyui-infinite-canvas.md](docs/comfyui-infinite-canvas.md)。
 
 本项目积极参与并认可 [linux.do 社区](https://linux.do/)。

@@ -150,6 +150,55 @@ func OverlaySnapshot(base Snapshot, cand Candidate) Snapshot {
 	return out
 }
 
+// StripSource removes one source label and its preference section from a snapshot.
+// Structured fields are left unchanged because the merged snapshot does not retain
+// per-source structured history. Callers that need a replacement overlay the new
+// candidate after stripping.
+func StripSource(base Snapshot, source string) Snapshot {
+	out := base
+	out.Sources = filterSource(out.Sources, source)
+	out.Preferences = stripPreferenceSection(out.Preferences, source)
+	return out
+}
+
+func filterSource(in []string, skip string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s != skip {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func stripPreferenceSection(prefs, source string) string {
+	prefs = strings.TrimSpace(prefs)
+	if prefs == "" || strings.TrimSpace(source) == "" {
+		return prefs
+	}
+	marker := "## [" + source + "]"
+	parts := strings.Split(prefs, "\n\n## [")
+	kept := make([]string, 0, len(parts))
+	for i, part := range parts {
+		section := part
+		if i > 0 {
+			section = "## [" + part
+		}
+		header, _, found := strings.Cut(section, "\n")
+		if !found {
+			header = section
+		}
+		if strings.TrimSpace(header) == marker {
+			continue
+		}
+		kept = append(kept, section)
+	}
+	return strings.Join(kept, "\n\n")
+}
+
 // mergeFatigueWords 按词叠加疲劳词阈值，src 覆盖 dst 中的同词阈值（就近优先）。
 // 让用户只需新增少量疲劳词，而不必重列内置基线。
 func mergeFatigueWords(dst, src map[string]int) map[string]int {

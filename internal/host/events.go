@@ -61,6 +61,7 @@ type UISnapshot struct {
 	Phase                string
 	Flow                 string
 	CurrentChapter       int
+	CurrentUnit          int
 	TotalChapters        int
 	CompletedCount       int
 	TotalWordCount       int

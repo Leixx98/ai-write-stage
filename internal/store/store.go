@@ -32,6 +32,7 @@ type Store struct {
 	Usage       *UsageStore
 	Simulation  *SimulationStore
 	Decisions   *DecisionStore
+	ComfyUI     *ComfyUIStore
 
 	crossMu sync.Mutex // 串行化跨域协调；不代表多个文件具备事务原子性
 }
@@ -58,6 +59,7 @@ func NewStore(dir string) *Store {
 		Usage:       NewUsageStore(newIO(dir)),
 		Simulation:  NewSimulationStore(newIO(dir)),
 		Decisions:   NewDecisionStore(newIO(dir)),
+		ComfyUI:     NewComfyUIStore(newIO(dir)),
 	}
 }
 

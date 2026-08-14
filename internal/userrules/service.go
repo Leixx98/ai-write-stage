@@ -12,9 +12,10 @@ import (
 
 // Service 编排用户规则快照的生成与更新：归一化各来源 → 确定性合并 → 落盘。
 //
-// 两个调用方共用同一套逻辑：
+// 调用方：
 //   - 开书/刷新：Build / GetOrBuild，由 Host 确定性调用。
 //   - 运行中更新：Arbiter 提取 rules 后，Host 调用 AddRuntimeRule。
+//   - 设置页全文：Host 调用 ReplaceSettingsRule，替换而非叠加。
 type Service struct {
 	store     *store.Store
 	norm      *Normalizer
@@ -78,6 +79,22 @@ func (s *Service) AddRuntimeRule(ctx context.Context, text string) (*rules.Snaps
 	}
 	cand := s.normalizeOrDegrade(ctx, "runtime_update", text)
 	merged := rules.OverlaySnapshot(*cur, cand)
+	if err := s.store.UserRules.Save(&merged); err != nil {
+		return nil, cand, err
+	}
+	return &merged, cand, nil
+}
+
+// ReplaceSettingsRule 把设置页写作要求作为 settings_update 写入快照。
+// 同一来源只保留一条：先去掉旧的 settings_update，再叠加新文本，避免重复保存叠层。
+func (s *Service) ReplaceSettingsRule(ctx context.Context, text string) (*rules.Snapshot, rules.Candidate, error) {
+	cur, err := s.GetOrBuild(ctx)
+	if err != nil {
+		return nil, rules.Candidate{}, err
+	}
+	base := rules.StripSource(*cur, "settings_update")
+	cand := s.normalizeOrDegrade(ctx, "settings_update", text)
+	merged := rules.OverlaySnapshot(base, cand)
 	if err := s.store.UserRules.Save(&merged); err != nil {
 		return nil, cand, err
 	}

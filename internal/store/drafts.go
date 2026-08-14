@@ -38,6 +38,21 @@ func writingUnitPath(chapter, ordinal int) string {
 	return fmt.Sprintf("drafts/%02d.units/%03d.md", chapter, ordinal)
 }
 
+// LoadWritingUnit returns the persisted source text for one writing unit.
+func (s *DraftStore) LoadWritingUnit(chapter, ordinal int) (string, error) {
+	if chapter <= 0 || ordinal <= 0 {
+		return "", fmt.Errorf("invalid writing unit chapter=%d ordinal=%d", chapter, ordinal)
+	}
+	data, err := s.io.ReadFile(writingUnitPath(chapter, ordinal))
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 // LoadWritingProgress 从章节计划和独立 unit 工件推导进度。连续前缀之外的孤立
 // unit 不计为已完成，避免损坏工件使 Writer 跳过中间正文。
 func (s *DraftStore) LoadWritingProgress(chapter int) (*domain.WritingProgress, error) {

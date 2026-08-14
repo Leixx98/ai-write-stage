@@ -107,6 +107,8 @@ func newHandler(rt *host.Host, version string) http.Handler {
 	})
 	mux.HandleFunc("/api/events", events.handler)
 	mux.HandleFunc("/api/stream", streams.handler)
+	mux.HandleFunc("/api/v2/events", events.handler)
+	mux.HandleFunc("/api/v2/stream", streams.handler)
 	mux.HandleFunc("/api/start", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -142,6 +144,7 @@ func newHandler(rt *host.Host, version string) http.Handler {
 		writeJSON(w, http.StatusAccepted, map[string]any{"stopped": rt.Abort()})
 	})
 	mux.HandleFunc("/api/units/", unitMediaHandler(rt))
+	registerV2(mux, rt)
 	return withNoCache(mux)
 }
 

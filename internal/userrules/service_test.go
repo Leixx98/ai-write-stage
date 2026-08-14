@@ -1,6 +1,7 @@
 package userrules
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/voocel/ainovel-cli/internal/rules"
@@ -87,5 +88,57 @@ func TestService_AddRuntimeRule_PersistsAndReturnsCandidate(t *testing.T) {
 	}
 	if reloaded.Status != rules.StatusDegraded {
 		t.Fatalf("含降级来源，status 应为 degraded，got %q", reloaded.Status)
+	}
+}
+
+func TestService_ReplaceSettingsRule_ReplacesNotStacks(t *testing.T) {
+	svc, st := newDegradedService(t)
+	const first = "少用比喻"
+	const second = "对话短句为主"
+	if _, _, err := svc.ReplaceSettingsRule(t.Context(), first); err != nil {
+		t.Fatalf("第一次替换不应报错：%v", err)
+	}
+	merged, _, err := svc.ReplaceSettingsRule(t.Context(), second)
+	if err != nil {
+		t.Fatalf("第二次替换不应报错：%v", err)
+	}
+	n := 0
+	for _, src := range merged.Sources {
+		if src == "settings_update" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("settings_update 应只出现一次，got %d in %v", n, merged.Sources)
+	}
+	if strings.Contains(merged.Preferences, first) {
+		t.Fatalf("旧文本应被替换，prefs=%s", merged.Preferences)
+	}
+	if strings.Count(merged.Preferences, second) != 1 {
+		t.Fatalf("新文本应出现一次，prefs=%s", merged.Preferences)
+	}
+	reloaded, err := st.UserRules.Load()
+	if err != nil || reloaded == nil {
+		t.Fatalf("替换后应落盘：err=%v", err)
+	}
+	if strings.Count(reloaded.Preferences, second) != 1 || strings.Contains(reloaded.Preferences, first) {
+		t.Fatalf("落盘内容应是替换后的文本，prefs=%s", reloaded.Preferences)
+	}
+}
+
+func TestService_ReplaceSettingsRule_KeepsRuntimeUpdate(t *testing.T) {
+	svc, _ := newDegradedService(t)
+	if _, _, err := svc.AddRuntimeRule(t.Context(), "以后少用比喻"); err != nil {
+		t.Fatalf("AddRuntimeRule：%v", err)
+	}
+	merged, _, err := svc.ReplaceSettingsRule(t.Context(), "对话短句为主")
+	if err != nil {
+		t.Fatalf("ReplaceSettingsRule：%v", err)
+	}
+	if !strings.Contains(merged.Preferences, "以后少用比喻") {
+		t.Fatalf("Arbiter runtime_update 应保留，prefs=%s", merged.Preferences)
+	}
+	if !strings.Contains(merged.Preferences, "对话短句为主") {
+		t.Fatalf("设置页文本应写入，prefs=%s", merged.Preferences)
 	}
 }

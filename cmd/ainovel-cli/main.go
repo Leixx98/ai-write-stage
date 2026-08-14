@@ -109,6 +109,14 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 	// 否则默认配置下 <书目录>/style/ 的本书级文风覆盖永远不会被加载。
 	cfg.FillDefaults()
 	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir))
+	// Prompt presets are a startup snapshot. The web settings page can save
+	// changes while this process is running, but active workers keep the prompt
+	// bundle they were built with; restart to apply a newly selected preset.
+	if overrides, err := assets.LoadPromptOverrides(cfg.OutputDir); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: load prompt preset: %v (using embedded prompts)\n", err)
+	} else {
+		assets.ApplyPromptOverrides(&bundle, overrides)
+	}
 	if opts.Headless {
 		prompt, err := loadPrompt(opts)
 		if err != nil {
