@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,12 +146,18 @@ func registerV2(mux *http.ServeMux, rt *host.Host) {
 func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 	p := strings.TrimPrefix(r.URL.Path, "/api/v2/")
 	switch {
+	case p == "chapters":
+		c.readerChapters(w, r)
+	case strings.HasPrefix(p, "chapters/"):
+		c.readerChapter(w, r, strings.TrimPrefix(p, "chapters/"))
 	case p == "comfyui/config":
 		c.config(w, r)
 	case p == "comfyui/test-connection":
 		c.testConnection(w, r)
 	case p == "comfyui/bridge":
 		c.bridgeConfig(w, r)
+	case p == "comfyui/prompter-presets":
+		c.prompterPresets(w, r)
 	case p == "comfyui/prompter/parse" && r.Method == http.MethodPost:
 		c.parsePrompterJSON(w, r)
 	case p == "comfyui/instances" && r.Method == http.MethodGet:
@@ -733,7 +740,153 @@ func (c *v2Controller) loadPromptSchema(workflowID string) (imagejob.PromptSchem
 	if err != nil {
 		return imagejob.PromptSchema{}, err
 	}
-	return imagejob.BuildPromptSchema(workflow.ID, canvas)
+	schema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
+	if err != nil {
+		return imagejob.PromptSchema{}, err
+	}
+	presets, err := c.mergedPrompterPresets()
+	if err != nil {
+		return imagejob.PromptSchema{}, err
+	}
+	schema.Presets = presets
+	if id := strings.TrimSpace(canvas.PrompterPreset); id != "" {
+		schema.Preset = id
+	}
+	return schema, nil
+}
+
+func (c *v2Controller) mergedPrompterPresets() ([]imagejob.PrompterPreset, error) {
+	doc, err := c.st.ComfyUI.LoadPrompterPresets()
+	if err != nil {
+		return nil, err
+	}
+	builtins := imagejob.PrompterPresets()
+	merged := make([]imagejob.PrompterPreset, 0, len(builtins)+len(doc.Presets))
+	seen := make(map[string]struct{}, len(builtins))
+	for _, preset := range builtins {
+		if saved, ok := doc.Presets[preset.ID]; ok {
+			if strings.TrimSpace(saved.Label) == "" {
+				saved.Label = preset.Label
+			}
+			if strings.TrimSpace(saved.Description) == "" {
+				saved.Description = preset.Description
+			}
+			preset = saved
+		}
+		merged = append(merged, preset)
+		seen[preset.ID] = struct{}{}
+	}
+	customIDs := make([]string, 0, len(doc.Presets))
+	for id := range doc.Presets {
+		if _, ok := seen[id]; !ok {
+			customIDs = append(customIDs, id)
+		}
+	}
+	sort.Strings(customIDs)
+	for _, id := range customIDs {
+		merged = append(merged, doc.Presets[id])
+	}
+	return merged, nil
+}
+
+func (c *v2Controller) prompterPresets(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		presets, err := c.mergedPrompterPresets()
+		if err != nil {
+			envelopeErr(w, 500, codeConfigInvalid, err)
+			return
+		}
+		envelope(w, 200, 0, map[string]any{"presets": presets}, "")
+		return
+	}
+	if r.Method != http.MethodPut {
+		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		Action     string `json:"action"`
+		Name       string `json:"name"`
+		WorkflowID string `json:"workflow_id"`
+		Template   string `json:"template"`
+		Overwrite  bool   `json:"overwrite"`
+	}
+	if err := decodeBody(r, &req); err != nil {
+		envelopeErr(w, 400, codeInvalidRequest, err)
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.WorkflowID = strings.TrimSpace(req.WorkflowID)
+	if req.Action != "save" && req.Action != "save_as" {
+		envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("unsupported prompter preset operation"))
+		return
+	}
+	if !validPresetName(req.Name) {
+		envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("preset name must be 1-64 characters"))
+		return
+	}
+	if req.WorkflowID == "" {
+		envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("workflow_id is required"))
+		return
+	}
+	if strings.TrimSpace(req.Template) == "" {
+		envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("提示词模板不能为空"))
+		return
+	}
+	if len([]rune(req.Template)) > 100000 {
+		envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("提示词模板不能超过 100000 个字符"))
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, err := c.st.ComfyUI.LoadWorkflow(req.WorkflowID); err != nil {
+		envelopeErr(w, 404, codeNotFound, fmt.Errorf("图片工作流不存在"))
+		return
+	}
+	doc, err := c.st.ComfyUI.LoadPrompterPresets()
+	if err != nil {
+		envelopeErr(w, 500, codeConfigInvalid, err)
+		return
+	}
+	_, customExists := doc.Presets[req.Name]
+	builtinExists := false
+	var label, description string
+	for _, preset := range imagejob.PrompterPresets() {
+		if preset.ID == req.Name {
+			builtinExists = true
+			label, description = preset.Label, preset.Description
+			break
+		}
+	}
+	if req.Action == "save_as" && (customExists || builtinExists) && !req.Overwrite {
+		envelopeErr(w, 409, codeConflict, fmt.Errorf("同名生图提示词预设已存在"))
+		return
+	}
+	if label == "" {
+		label = req.Name
+	}
+	doc.Presets[req.Name] = imagejob.PrompterPreset{ID: req.Name, Label: label, Description: description, Template: req.Template}
+	if err := c.st.ComfyUI.SavePrompterPresets(doc); err != nil {
+		envelopeErr(w, 500, codeConfigInvalid, err)
+		return
+	}
+	canvas, err := c.st.ComfyUI.LoadOrCreateWorkflowCanvas(req.WorkflowID)
+	if err != nil {
+		envelopeErr(w, 500, codeWorkflowInvalid, err)
+		return
+	}
+	canvas.PrompterPreset = req.Name
+	canvas.PrompterTemplate = req.Template
+	if err := c.st.ComfyUI.SaveWorkflowCanvas(req.WorkflowID, canvas); err != nil {
+		envelopeErr(w, 500, codeWorkflowInvalid, err)
+		return
+	}
+	schema, err := c.loadPromptSchema(req.WorkflowID)
+	if err != nil {
+		envelopeErr(w, 500, codePromptSchema, err)
+		return
+	}
+	envelope(w, 200, 0, schema, "")
 }
 
 func (c *v2Controller) parsePrompterJSON(w http.ResponseWriter, r *http.Request) {

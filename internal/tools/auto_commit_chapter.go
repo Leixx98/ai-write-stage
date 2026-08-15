@@ -37,10 +37,11 @@ func AutoCommitPlannedChapter(ctx context.Context, st *store.Store, styleStats *
 	}
 	// Unit files are the source of truth. Rebuild the draft immediately before
 	// commit so a stale draft or an older Finalizer rewrite cannot replace the
-	// local Writer's completed units.
+	// local Writer's completed units. Generated images are inserted immediately
+	// after their source units to keep the final chapter Markdown self-contained.
 	assignments := plan.WritingUnits()
 	last := len(assignments)
-	if _, _, err := st.Drafts.SaveWritingUnit(chapter, last, last, last, "rebuild completed units"); err != nil {
+	if _, err := st.Drafts.RebuildWritingUnitDraft(chapter, last); err != nil {
 		return nil, fmt.Errorf("rebuild completed unit draft: %w: %w", errs.ErrStoreWrite, err)
 	}
 

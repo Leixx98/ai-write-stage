@@ -205,8 +205,16 @@ func (e *engine) run(ctx context.Context) {
 					e.pauseWithNotify(notify.KindWorkerFailure, "自动提交器未配置，已暂停")
 					return
 				}
+				totalUnits := state.NextChapterWriting.TotalUnits
+				if err := e.waitForChapterImages(ctx, chapter, totalUnits); err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					e.pauseWithNotify(notify.KindWorkerFailure, fmt.Sprintf("第 %d 章生图状态读取失败，已暂停: %v", chapter, err))
+					return
+				}
 				e.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
-					Summary: fmt.Sprintf("第 %d 章 writing units 已完成，程序正在直接合并提交", chapter)})
+					Summary: fmt.Sprintf("第 %d 章章节合并中：按 Unit 正文与插图顺序生成 Markdown", chapter)})
 				if err := e.autoCommit(ctx, chapter); err != nil {
 					e.pauseWithNotify(notify.KindWorkerFailure, fmt.Sprintf("第 %d 章自动提交失败，已暂停: %v", chapter, err))
 					return
@@ -214,7 +222,7 @@ func (e *engine) run(ctx context.Context) {
 				e.lastKey, e.repeats, e.failedKey = "", 0, ""
 				e.lastWorkerErrorKey, e.lastWorkerError = "", nil
 				e.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
-					Summary: fmt.Sprintf("第 %d 章已直接提交，继续下一章", chapter)})
+					Summary: fmt.Sprintf("第 %d 章合并并提交完成，继续下一章", chapter)})
 				continue
 			}
 			inst = flow.Route(state)
@@ -277,6 +285,124 @@ func (e *engine) run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+const chapterImagePollInterval = 2 * time.Second
+
+type chapterImageProgress struct {
+	required   bool
+	completed  int
+	total      int
+	running    int
+	failed     int
+	notStarted int
+}
+
+func (p chapterImageProgress) ready() bool {
+	return !p.required || (p.running == 0 && p.notStarted == 0 && p.completed+p.failed == p.total)
+}
+
+func (p chapterImageProgress) summary(chapter int) string {
+	message := fmt.Sprintf("第 %d 章等待生图中：%d/%d 已完成", chapter, p.completed, p.total)
+	if p.running > 0 {
+		message += fmt.Sprintf("，%d 个生成中", p.running)
+	}
+	if p.failed > 0 {
+		message += fmt.Sprintf("，%d 个失败将跳过", p.failed)
+	}
+	if p.notStarted > 0 {
+		message += fmt.Sprintf("，%d 个等待创建任务", p.notStarted)
+	}
+	return message
+}
+
+// waitForChapterImages gates only the chapter commit. Unit writing and image
+// generation remain asynchronous; disabling automatic bridge generation keeps
+// the existing text-only workflow unchanged.
+func (e *engine) waitForChapterImages(ctx context.Context, chapter, totalUnits int) error {
+	lastSummary := ""
+	for {
+		progress, err := e.loadChapterImageProgress(chapter, totalUnits)
+		if err != nil {
+			return err
+		}
+		if progress.ready() {
+			if progress.required {
+				if progress.failed > 0 {
+					e.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
+						Summary: fmt.Sprintf("第 %d 章生图任务已结束：%d/%d 成功，%d 个失败；将跳过失败图片并继续合并", chapter, progress.completed, progress.total, progress.failed)})
+				} else {
+					e.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "success",
+						Summary: fmt.Sprintf("第 %d 章生图已全部完成（%d/%d），准备合并章节", chapter, progress.completed, progress.total)})
+				}
+			}
+			return nil
+		}
+		summary := progress.summary(chapter)
+		if summary != lastSummary {
+			level := "info"
+			if progress.failed > 0 {
+				level = "warn"
+			}
+			e.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: level, Summary: summary})
+			lastSummary = summary
+		}
+
+		timer := time.NewTimer(chapterImagePollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (e *engine) loadChapterImageProgress(chapter, totalUnits int) (chapterImageProgress, error) {
+	bridge, err := e.store.ComfyUI.LoadBridgeConfig()
+	if err != nil {
+		return chapterImageProgress{}, err
+	}
+	progress := chapterImageProgress{required: bridge.Enabled && bridge.AutoGenerate, total: totalUnits}
+	if !progress.required {
+		return progress, nil
+	}
+	jobs, err := e.store.ComfyUI.ListJobs()
+	if err != nil {
+		return chapterImageProgress{}, err
+	}
+	completedJobs := make(map[int]bool, totalUnits)
+	latestStatus := make(map[int]string, totalUnits)
+	for _, job := range jobs {
+		if job.Chapter != chapter || job.Ordinal <= 0 || job.Ordinal > totalUnits {
+			continue
+		}
+		latestStatus[job.Ordinal] = job.Status
+		if job.Status == "completed" {
+			completedJobs[job.Ordinal] = true
+		}
+	}
+	for ordinal := 1; ordinal <= totalUnits; ordinal++ {
+		imageExists, err := e.store.Drafts.WritingUnitImageExists(chapter, ordinal)
+		if err != nil {
+			return chapterImageProgress{}, err
+		}
+		if completedJobs[ordinal] && imageExists {
+			progress.completed++
+			continue
+		}
+		switch latestStatus[ordinal] {
+		case "failed", "timeout", "cancelled", "completed":
+			progress.failed++
+		case "prompting", "validating", "binding", "submitting", "queued", "running":
+			progress.running++
+		default:
+			progress.notStarted++
+		}
+	}
+	return progress, nil
 }
 
 func automaticCommitChapter(state flow.State) int {

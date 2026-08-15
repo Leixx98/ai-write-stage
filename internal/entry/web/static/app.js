@@ -18,6 +18,27 @@ let bridgeConfig = null;
 let bridgeSchema = null;
 let bridgeJob = null;
 let bridgePrompterPresets = [];
+const WELCOME_KEY = 'ainovel.web.welcome.v1';
+const MAX_EVENT_ITEMS = 500;
+const MAX_STREAM_ROUNDS = 32;
+const MAX_STREAM_CHARS = 256 * 1024;
+const STREAM_SEPARATOR = '\n\n';
+const STATE_REFRESH_DELAY_MS = 150;
+const IMAGE_RETRY_DELAY_MS = 3000;
+const streamView = $('stream');
+let streamRounds = [''];
+let streamChars = 0;
+let pendingStreamText = '';
+let streamNeedsRebuild = false;
+let streamRenderFrame = 0;
+let streamAutoFollow = true;
+let stateRefreshTimer = 0;
+let stateRefreshInFlight = false;
+let stateRefreshQueued = false;
+let eventSource = null;
+let streamSource = null;
+let eventReconnectTimer = 0;
+let streamReconnectTimer = 0;
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -66,6 +87,7 @@ function ui(key, fallback = key) { return UI_TEXT[key] || fallback; }
 
 function renderState(state = {}) {
   currentState = state;
+  syncWelcomeState(state);
   $('model').textContent = [state.Provider, state.ModelName, state.Style].filter(Boolean).join(' / ') || ui('modelNotConfigured');
   $('status').textContent = state.StatusLabel || ui('ready');
   $('status').className = `status ${state.IsRunning ? 'running' : ''}`;
@@ -83,44 +105,202 @@ async function refresh() {
     renderState(data.snapshot || data);
   } catch (error) { notify(`状态刷新失败：${error.message}`, 'toast', 'error'); }
 }
-function appendEvent(event) {
+function scheduleRefresh() {
+  stateRefreshQueued = true;
+  if (stateRefreshTimer || stateRefreshInFlight) return;
+  stateRefreshTimer = window.setTimeout(runScheduledRefresh, STATE_REFRESH_DELAY_MS);
+}
+async function runScheduledRefresh() {
+  stateRefreshTimer = 0;
+  if (!stateRefreshQueued || stateRefreshInFlight) return;
+  stateRefreshQueued = false;
+  stateRefreshInFlight = true;
+  try { await refresh(); }
+  finally {
+    stateRefreshInFlight = false;
+    if (stateRefreshQueued) scheduleRefresh();
+  }
+}
+function isNearBottom(element, threshold = 72) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= threshold;
+}
+function appendEvent(event, scroll = true) {
+  const follow = scroll && isNearBottom(events);
   const element = document.createElement('div');
   element.className = event.Level === 'error' ? 'event-error' : event.Level === 'warn' ? 'event-warn' : '';
   element.innerHTML = `<span class="event-time">${esc(new Date(event.Time || event.time || Date.now()).toLocaleTimeString())}</span><strong>${esc(event.Category || event.category || 'EVENT')}</strong> ${esc(event.Summary || event.summary || event.Detail || event.detail || '')}`;
   events.appendChild(element);
-  events.scrollTop = events.scrollHeight;
+  while (events.childElementCount > MAX_EVENT_ITEMS) events.firstElementChild.remove();
+  if (follow) events.scrollTop = events.scrollHeight;
+}
+function trimStreamHistory() {
+  while (streamRounds.length > MAX_STREAM_ROUNDS) {
+    streamChars -= streamRounds.shift().length;
+    streamNeedsRebuild = true;
+  }
+  while (streamChars > MAX_STREAM_CHARS && streamRounds.length > 1) {
+    streamChars -= streamRounds.shift().length;
+    streamNeedsRebuild = true;
+  }
+  if (streamChars > MAX_STREAM_CHARS) {
+    const last = streamRounds[0];
+    streamRounds[0] = last.slice(-MAX_STREAM_CHARS);
+    streamChars = streamRounds[0].length;
+    streamNeedsRebuild = true;
+  }
+}
+function queueStreamPayload(payload = {}) {
+  if (payload.clear) {
+    streamRounds.push('');
+    pendingStreamText += STREAM_SEPARATOR;
+  } else {
+    const delta = String(payload.delta || '');
+    if (!delta) return;
+    streamRounds[streamRounds.length - 1] += delta;
+    streamChars += delta.length;
+    pendingStreamText += delta;
+  }
+  trimStreamHistory();
+  if (!streamRenderFrame) {
+    streamRenderFrame = window.requestAnimationFrame(() => {
+      streamRenderFrame = 0;
+      renderPendingStream();
+    });
+  }
+}
+function renderPendingStream() {
+  if (!pendingStreamText && !streamNeedsRebuild) return;
+  if (streamNeedsRebuild) {
+    streamView.textContent = streamRounds.join(STREAM_SEPARATOR);
+  } else if (pendingStreamText) {
+    let textNode = streamView.firstChild;
+    if (!textNode) {
+      textNode = document.createTextNode('');
+      streamView.appendChild(textNode);
+    }
+    if (textNode.nodeType === Node.TEXT_NODE && !textNode.nextSibling) textNode.appendData(pendingStreamText);
+    else streamView.textContent = streamRounds.join(STREAM_SEPARATOR);
+  }
+  pendingStreamText = '';
+  streamNeedsRebuild = false;
+  if (streamAutoFollow) streamView.scrollTop = streamView.scrollHeight;
+}
+function flushStreamRender() {
+  if (streamRenderFrame) window.cancelAnimationFrame(streamRenderFrame);
+  streamRenderFrame = 0;
+  renderPendingStream();
 }
 async function replay() {
   try {
     const items = await api('/api/v2/replay');
     for (const item of items || []) {
-      if (item.kind === 'ui_event') appendEvent({ Time: item.time, Category: item.category, Summary: item.summary });
-      if (item.kind === 'stream_clear') $('stream').textContent += '\n\n';
-      if (item.kind === 'stream_delta') $('stream').textContent += item.payload?.delta || '';
+      if (item.kind === 'ui_event') appendEvent({ Time: item.time, Category: item.category, Summary: item.summary }, false);
+      if (item.kind === 'stream_clear') queueStreamPayload({ clear: true });
+      if (item.kind === 'stream_delta') queueStreamPayload({ delta: item.payload?.delta || '' });
     }
-    $('stream').scrollTop = $('stream').scrollHeight;
+    events.scrollTop = events.scrollHeight;
+    flushStreamRender();
   } catch (_) { /* replay is optional */ }
 }
+function connectEvents() {
+  window.clearTimeout(eventReconnectTimer);
+  eventSource?.close();
+  const source = new EventSource('/api/v2/events');
+  eventSource = source;
+  source.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      appendEvent(payload);
+      if ((payload.type || payload.Type || payload.Category || '').toString().startsWith('comfyui.job')) renderJob(payload.data || payload.Payload || payload);
+    } catch (_) { /* Ignore malformed events and keep the stream alive. */ }
+    scheduleRefresh();
+  };
+  source.onerror = () => {
+    if (eventSource !== source) return;
+    source.close();
+    eventSource = null;
+    eventReconnectTimer = window.setTimeout(connectEvents, 2500);
+  };
+}
+function connectStream() {
+  window.clearTimeout(streamReconnectTimer);
+  streamSource?.close();
+  const source = new EventSource('/api/v2/stream');
+  streamSource = source;
+  source.onmessage = (event) => {
+    try { queueStreamPayload(JSON.parse(event.data)); }
+    catch (_) { /* Ignore malformed deltas and keep the stream alive. */ }
+  };
+  source.onerror = () => {
+    if (streamSource !== source) return;
+    source.close();
+    streamSource = null;
+    streamReconnectTimer = window.setTimeout(connectStream, 2500);
+  };
+}
 function connect() {
-  const eventSource = new EventSource('/api/v2/events');
-  eventSource.onmessage = (event) => { try { const payload = JSON.parse(event.data); appendEvent(payload); if ((payload.type || payload.Type || payload.Category || '').toString().startsWith('comfyui.job')) renderJob(payload.data || payload.Payload || payload); } catch (_) {} refresh(); };
-  eventSource.onerror = () => { eventSource.close(); setTimeout(connect, 2500); };
-  const streamSource = new EventSource('/api/v2/stream');
-  streamSource.onmessage = (event) => { try { const payload = JSON.parse(event.data); $('stream').textContent += payload.clear ? '\n\n' : payload.delta || ''; $('stream').scrollTop = $('stream').scrollHeight; } catch (_) {} };
-  streamSource.onerror = () => streamSource.close();
+  connectEvents();
+  connectStream();
 }
 async function command(name, body = {}) {
   const path = commandRoutes[name];
   if (!path) throw new Error(`Unknown command: ${name}`);
-  try { await api(path, { method: 'POST', body: JSON.stringify(body) }); await refresh(); }
-  catch (error) { appendEvent({ Time: Date.now(), Category: 'ERROR', Level: 'error', Summary: error.message }); }
+  try { await api(path, { method: 'POST', body: JSON.stringify(body) }); await refresh(); return true; }
+  catch (error) { appendEvent({ Time: Date.now(), Category: 'ERROR', Level: 'error', Summary: error.message }); return false; }
+}
+function welcomeIsOpen() { return document.documentElement.classList.contains('welcome-pending'); }
+function closeWelcome() {
+  try { localStorage.setItem(WELCOME_KEY, 'seen'); } catch (_) { /* The session can still continue without storage. */ }
+  document.documentElement.classList.remove('welcome-pending');
+  document.documentElement.classList.add('welcome-seen');
+  window.requestAnimationFrame(() => $('prompt')?.focus());
+}
+function syncWelcomeState(state = {}) {
+  if (!welcomeIsOpen()) return;
+  const hasNovel = Boolean(state.NovelName || state.Phase);
+  $('welcome-new').hidden = hasNovel;
+  $('welcome-existing').hidden = !hasNovel;
+  if (hasNovel) $('welcome-novel-name').textContent = state.NovelName || '未命名作品';
+}
+async function startFromWelcome() {
+  const input = $('welcome-prompt');
+  const text = input.value.trim();
+  if (!text) {
+    $('welcome-error').textContent = '请先输入小说需求。';
+    input.focus();
+    return;
+  }
+  $('welcome-error').textContent = '';
+  $('welcome-start').disabled = true;
+  $('welcome-start').textContent = '正在启动...';
+  const started = await command('start', { prompt: text });
+  $('welcome-start').disabled = false;
+  $('welcome-start').textContent = '开始创作';
+  if (started) closeWelcome();
+  else $('welcome-error').textContent = '启动失败，请检查工作台事件中的错误信息后重试。';
 }
 function updateUnitImage(state) {
-  if (!state.CurrentChapter || !state.CurrentUnit) return;
   const image = $('unit-image');
-  image.src = `/api/v2/units/${encodeURIComponent(state.CurrentChapter)}/${encodeURIComponent(state.CurrentUnit)}/image`;
+  const placeholder = $('image-placeholder');
+  if (!state.CurrentChapter || !state.CurrentUnit) {
+    image.hidden = true;
+    placeholder.hidden = false;
+    return;
+  }
+  const src = `/api/v2/units/${encodeURIComponent(state.CurrentChapter)}/${encodeURIComponent(state.CurrentUnit)}/image`;
+  const now = Date.now();
+  const sameUnit = image.dataset.unitSrc === src;
+  const lastAttempt = Number(image.dataset.lastAttempt || 0);
+  if (sameUnit && (!image.hidden || now - lastAttempt < IMAGE_RETRY_DELAY_MS)) return;
+  if (!sameUnit) {
+    image.hidden = true;
+    placeholder.hidden = false;
+  }
+  image.dataset.unitSrc = src;
+  image.dataset.lastAttempt = String(now);
   image.onload = () => { image.hidden = false; $('image-placeholder').hidden = true; };
   image.onerror = () => { image.hidden = true; $('image-placeholder').hidden = false; };
+  image.src = src;
 }
 function showView(name) {
   document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active-view', view.id === name));
@@ -383,6 +563,27 @@ $('dynamic-fields').oninput = (event) => { if (event.target.dataset.fieldKey) fi
 $('send').onclick = () => { const text = $('prompt').value.trim(); if (!text) return; const fresh = !currentState || (!currentState.NovelName && !currentState.Phase); const name = fresh ? 'start' : currentState.IsRunning ? 'steer' : 'continue'; command(name, fresh ? { prompt: text } : { text }); $('prompt').value = ''; };
 $('pause').onclick = () => command(currentState?.IsRunning ? 'pause' : 'continue');
 $('prompt').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('send').click(); } });
+streamView.addEventListener('scroll', () => { streamAutoFollow = isNearBottom(streamView); }, { passive: true });
+window.addEventListener('beforeunload', () => {
+  eventSource?.close();
+  streamSource?.close();
+  window.clearTimeout(eventReconnectTimer);
+  window.clearTimeout(streamReconnectTimer);
+});
+$('welcome-skip')?.addEventListener('click', closeWelcome);
+$('welcome-enter')?.addEventListener('click', closeWelcome);
+$('welcome-start')?.addEventListener('click', startFromWelcome);
+$('welcome-prompt')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); startFromWelcome(); }
+});
+document.querySelectorAll('[data-welcome-example]').forEach((button) => {
+  button.addEventListener('click', () => {
+    $('welcome-prompt').value = button.dataset.welcomeExample || '';
+    $('welcome-error').textContent = '';
+    $('welcome-prompt').focus();
+  });
+});
+if (welcomeIsOpen()) window.requestAnimationFrame(() => $('welcome-prompt')?.focus());
 
 refresh();
 replay();
@@ -694,6 +895,21 @@ function applyPrompterEditorToWorkflow() {
 function renderPrompterPresets(data = null) {
   const select = $('bridge-prompter-preset');
   if (!select) return;
+  if (!qs('[data-action="save-prompter-preset"]')) {
+    const label = select.closest('label');
+    const toolbar = document.createElement('div');
+    toolbar.className = 'preset-toolbar bridge-prompter-toolbar';
+    label?.parentNode?.insertBefore(toolbar, label);
+    if (label) {
+      label.classList.add('preset-label');
+      label.htmlFor = select.id;
+      toolbar.appendChild(label);
+      toolbar.appendChild(select);
+    }
+    toolbar.insertAdjacentHTML('beforeend', '<button type="button" class="small" data-action="save-prompter-preset">覆盖保存</button><button type="button" class="small" data-action="save-prompter-preset-as">另存为</button>');
+    qs('[data-action="save-prompter-preset"]')?.addEventListener('click', () => savePrompterPreset($('bridge-prompter-preset')?.value, 'save', true));
+    qs('[data-action="save-prompter-preset-as"]')?.addEventListener('click', async () => { const name = window.prompt('请输入新的生图提示词预设名称'); if (name?.trim()) await savePrompterPreset(name.trim(), 'save_as', false); });
+  }
   if (Array.isArray(data?.presets) && data.presets.length) bridgePrompterPresets = data.presets;
   const current = selectedWorkflow?.prompter_preset || data?.preset || 'natural';
   select.innerHTML = bridgePrompterPresets.map((preset) => `<option value="${esc(preset.id)}" ${preset.id === current ? 'selected' : ''}>${esc(preset.label)}</option>`).join('');
@@ -720,6 +936,27 @@ function applyPrompterPreset(id) {
   }
   const help = $('bridge-prompter-preset-help');
   if (help) help.textContent = preset.description || '';
+}
+
+async function savePrompterPreset(name, action = 'save', overwrite = true) {
+  const workflowID = $('bridge-workflow-id')?.value || selectedWorkflow?.id;
+  const template = $('bridge-prompter-template')?.value || '';
+  if (!workflowID) return notify('请先选择已保存的工作流。', 'bridge-msg', 'error');
+  if (!name?.trim()) return notify('生图提示词预设名称不能为空。', 'bridge-msg', 'error');
+  if (!template.trim()) return notify('提示词模板不能为空。', 'bridge-msg', 'error');
+  try {
+    const data = await api('/api/v2/comfyui/prompter-presets', { method: 'PUT', body: JSON.stringify({ action, name: name.trim(), workflow_id: workflowID, template, overwrite }) });
+    if (selectedWorkflow) {
+      selectedWorkflow.prompter_preset = data.preset || name.trim();
+      selectedWorkflow.prompter_template = data.template || template;
+    }
+    const editor = $('bridge-prompter-template');
+    if (editor) editor.dataset.dirty = 'false';
+    renderPromptSchema(data);
+    notify('生图提示词已保存并应用到当前工作流。', 'bridge-msg', 'success');
+  } catch (error) {
+    notify(`生图提示词保存失败：${error.message}`, 'bridge-msg', 'error');
+  }
 }
 
 function renderPromptSchema(data = null, error = null) {

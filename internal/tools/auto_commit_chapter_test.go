@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -81,6 +83,42 @@ func TestAutoCommitPlannedChapterCommitsCompletedUnits(t *testing.T) {
 	}
 	if cp := st.Checkpoints.LatestByStep(domain.ChapterScope(1), "commit"); cp == nil {
 		t.Fatal("commit checkpoint missing")
+	}
+}
+
+func TestAutoCommitPlannedChapterInterleavesUnitImages(t *testing.T) {
+	st, _ := seededAutoCommitStore(t)
+	first := "第一段正文。"
+	second := "第二段正文。"
+	if _, _, err := st.Drafts.SaveWritingUnit(1, 1, 2, 1, first); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.Drafts.SaveWritingUnit(1, 2, 2, 2, second); err != nil {
+		t.Fatal(err)
+	}
+	imageDir := filepath.Join(st.Dir(), "drafts", "01.units")
+	if err := os.WriteFile(filepath.Join(imageDir, "001.png"), []byte("image-one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(imageDir, "002.png"), []byte("image-two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := AutoCommitPlannedChapter(context.Background(), st, NewStyleStatsIndex(st), 1); err != nil {
+		t.Fatalf("auto commit: %v", err)
+	}
+	content, err := st.Drafts.LoadChapterText(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join([]string{
+		first,
+		"![第 1 章 Unit 1 插图](../drafts/01.units/001.png)",
+		second,
+		"![第 1 章 Unit 2 插图](../drafts/01.units/002.png)",
+	}, "\n\n")
+	if content != want {
+		t.Fatalf("rich chapter mismatch:\n%s\nwant:\n%s", content, want)
 	}
 }
 

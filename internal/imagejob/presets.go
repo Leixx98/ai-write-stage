@@ -47,6 +47,11 @@ type PrompterPreset struct {
 	Template    string `json:"template"`
 }
 
+type PrompterPresetDocument struct {
+	Version int                       `json:"version"`
+	Presets map[string]PrompterPreset `json:"presets"`
+}
+
 func PrompterPresets() []PrompterPreset {
 	return []PrompterPreset{
 		{ID: PresetDanbooru, Label: "Illustrious / SDXL 动漫（Danbooru）", Description: "逗号分隔的英文 Danbooru tag，适合 Illustrious、NoobAI、Pony 等动漫模型。", Template: danbooruPrompterTemplate},

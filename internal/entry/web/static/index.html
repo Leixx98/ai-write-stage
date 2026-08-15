@@ -1,12 +1,64 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="welcome-pending">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ainovel Web Workbench</title>
+  <script>
+    try {
+      if (localStorage.getItem('ainovel.web.welcome.v1') === 'seen') {
+        document.documentElement.className = 'welcome-seen';
+      }
+    } catch (_) { /* Keep the welcome screen when browser storage is unavailable. */ }
+  </script>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/reader.css">
 </head>
 <body>
+  <section id="welcome" class="welcome-screen" aria-labelledby="welcome-title">
+    <button id="welcome-skip" class="welcome-skip" type="button">跳过欢迎页</button>
+    <div class="welcome-content">
+      <header class="welcome-heading">
+        <div class="welcome-kicker">AI NOVEL CREATION ENGINE</div>
+        <h1 id="welcome-title">A I N O V E L</h1>
+        <p>AI-Powered Novel Creation Engine</p>
+      </header>
+
+      <div class="welcome-rule" aria-hidden="true"></div>
+      <div class="welcome-features" aria-label="核心能力">
+        <div class="welcome-feature"><strong>&gt;&gt;</strong><span><b>多模型协作</b><small>云端章节规划 / 本地逐片段创作 / Editor 审阅</small></span></div>
+        <div class="welcome-feature"><strong>::</strong><span><b>断点恢复</b><small>崩溃或中断后从上次进度自动续写</small></span></div>
+        <div class="welcome-feature"><strong>&lt;&gt;</strong><span><b>实时干预</b><small>创作过程中随时调整剧情走向</small></span></div>
+        <div class="welcome-feature"><strong>##</strong><span><b>分层长篇</b><small>支持卷 - 弧 - 章分层结构的长篇创作</small></span></div>
+      </div>
+      <div class="welcome-rule" aria-hidden="true"></div>
+
+      <div id="welcome-new" class="welcome-new">
+        <div class="welcome-mode"><span>快速开始</span><small>输入完整需求，由 AI 直接规划并创作</small></div>
+        <label class="welcome-prompt-label" for="welcome-prompt">在下方输入你的小说需求开始创作</label>
+        <div class="welcome-prompt-row">
+          <textarea id="welcome-prompt" rows="2" maxlength="5000" placeholder="例如：写一部 12 章都市悬疑小说，主角是一名女法医"></textarea>
+          <button id="welcome-start" type="button">开始创作</button>
+        </div>
+        <div class="welcome-examples" aria-label="创作需求示例">
+          <button type="button" data-welcome-example="写一部 12 章都市悬疑小说，主角是一名女法医">写一部 12 章都市悬疑小说，主角是一名女法医</button>
+          <button type="button" data-welcome-example="创作一部仙侠长篇，主角从凡人修炼至飞升">创作一部仙侠长篇，主角从凡人修炼至飞升</button>
+          <button type="button" data-welcome-example="写一个科幻短篇，讲述 AI 觉醒后的伦理困境">写一个科幻短篇，讲述 AI 觉醒后的伦理困境</button>
+        </div>
+        <p id="welcome-error" class="welcome-error" role="alert"></p>
+      </div>
+
+      <div id="welcome-existing" class="welcome-existing" hidden>
+        <span>检测到已有创作项目</span>
+        <h2 id="welcome-novel-name">未命名作品</h2>
+        <p>工作台已恢复上次进度，可以直接继续创作。</p>
+        <button id="welcome-enter" type="button">进入工作台</button>
+      </div>
+      <p class="welcome-import">已有小说存稿想接着写？进入工作台后可在“设置”中导入。</p>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell">
   <header class="topbar">
     <div class="brand"><strong>ainovel</strong><span id="model">模型未配置</span></div>
     <nav class="tabs" aria-label="工作台导航">
@@ -26,9 +78,9 @@
         <section class="panel events"><h2>事件</h2><div id="events" class="scroll"></div></section>
         <section class="panel stream"><h2>流式输出</h2><pre id="stream" class="scroll"></pre></section>
       </section>
-      <aside class="panel detail"><h2>详情</h2><div id="detail" class="scroll"></div><div class="image-slot"><span id="image-placeholder">单元图片预览</span><img id="unit-image" alt="当前单元图片" hidden></div></aside>
+      <aside class="panel detail"><h2>详情</h2><div id="detail" class="scroll"></div><div class="image-slot"><span id="image-placeholder">单元图片预览</span><img id="unit-image" alt="当前单元图片" decoding="async" fetchpriority="low" hidden></div></aside>
     </div>
-    <footer class="controls"><input id="prompt" placeholder="输入请求或调整指令"><button id="send">发送</button><button id="pause">暂停</button></footer>
+    <footer class="controls"><input id="prompt" placeholder="输入请求或调整指令"><button id="send">发送</button><button id="pause">暂停</button><button id="reader-open" type="button">沉浸式阅读</button></footer>
   </main>
 
   <main id="api-settings" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>模型 API 配置</h1><p>模型和服务商配置由项目配置文件管理。</p></div></div><div class="form-grid"><label>服务商<input id="provider" placeholder="openrouter"></label><label>模型<input id="model-name"></label><label class="wide">API 密钥引用<input id="api-key-ref" placeholder="环境变量或配置引用"></label></div><div id="role-models" class="role-grid"></div><div id="models-msg" class="notice"></div></section></main>
@@ -50,6 +102,8 @@
   </section></main>
   <div id="node-modal" class="node-modal" hidden><div class="node-modal-backdrop" data-action="close-node"></div><section class="node-modal-card"><div class="inspector-title"><div><strong id="modal-node-title"></strong><small id="modal-node-subtitle"></small></div><button class="small" data-action="close-node">关闭</button></div><div id="modal-field-editor" class="node-field-editor"></div><div class="modal-actions"><button data-action="save-node-fields">应用字段</button></div></section></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
   <script src="/static/app.js"></script>
+  <script src="/static/reader.js"></script>
 </body>
 </html>

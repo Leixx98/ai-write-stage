@@ -106,6 +106,29 @@ func (s *ComfyUIStore) SaveBridgeConfig(config imagejob.BridgeConfig) error {
 	}
 	return s.io.WriteJSON("meta/comfyui/bridge.json", config)
 }
+
+func (s *ComfyUIStore) LoadPrompterPresets() (imagejob.PrompterPresetDocument, error) {
+	doc := imagejob.PrompterPresetDocument{Version: 1, Presets: map[string]imagejob.PrompterPreset{}}
+	err := s.io.ReadJSON("meta/comfyui/prompter_presets.json", &doc)
+	if os.IsNotExist(err) {
+		return doc, nil
+	}
+	if err != nil {
+		return doc, err
+	}
+	if doc.Presets == nil {
+		doc.Presets = map[string]imagejob.PrompterPreset{}
+	}
+	return doc, nil
+}
+
+func (s *ComfyUIStore) SavePrompterPresets(doc imagejob.PrompterPresetDocument) error {
+	doc.Version = 1
+	if doc.Presets == nil {
+		doc.Presets = map[string]imagejob.PrompterPreset{}
+	}
+	return s.io.WriteJSON("meta/comfyui/prompter_presets.json", doc)
+}
 func (s *ComfyUIStore) instancesPath() string { return "meta/comfyui/instances.json" }
 func (s *ComfyUIStore) LoadInstances() ([]comfyui.Instance, comfyui.InstanceSettings, error) {
 	var doc struct {

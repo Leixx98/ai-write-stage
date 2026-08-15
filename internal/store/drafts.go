@@ -38,6 +38,10 @@ func writingUnitPath(chapter, ordinal int) string {
 	return fmt.Sprintf("drafts/%02d.units/%03d.md", chapter, ordinal)
 }
 
+func writingUnitImagePath(chapter, ordinal int) string {
+	return fmt.Sprintf("drafts/%02d.units/%03d.png", chapter, ordinal)
+}
+
 // LoadWritingUnit returns the persisted source text for one writing unit.
 func (s *DraftStore) LoadWritingUnit(chapter, ordinal int) (string, error) {
 	if chapter <= 0 || ordinal <= 0 {
@@ -51,6 +55,62 @@ func (s *DraftStore) LoadWritingUnit(chapter, ordinal int) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// WritingUnitImageExists reports whether the generated image artifact for one
+// writing unit exists. The image job status is checked separately by the Host.
+func (s *DraftStore) WritingUnitImageExists(chapter, ordinal int) (bool, error) {
+	if chapter <= 0 || ordinal <= 0 {
+		return false, fmt.Errorf("invalid writing unit image chapter=%d ordinal=%d", chapter, ordinal)
+	}
+	info, err := os.Stat(s.io.path(writingUnitImagePath(chapter, ordinal)))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !info.IsDir() && info.Size() > 0, nil
+}
+
+// RebuildWritingUnitDraft rebuilds a chapter in unit order and inserts each
+// available generated image immediately after its source unit. The relative
+// image URL works from both drafts/<chapter>.draft.md and chapters/<chapter>.md.
+func (s *DraftStore) RebuildWritingUnitDraft(chapter, totalUnits int) (string, error) {
+	if chapter <= 0 || totalUnits <= 0 {
+		return "", fmt.Errorf("invalid writing unit draft chapter=%d total=%d", chapter, totalUnits)
+	}
+	var assembled string
+	err := s.io.WithWriteLock(func() error {
+		parts := make([]string, 0, totalUnits*2)
+		for ordinal := 1; ordinal <= totalUnits; ordinal++ {
+			data, err := s.io.ReadFileUnlocked(writingUnitPath(chapter, ordinal))
+			if os.IsNotExist(err) {
+				return fmt.Errorf("writing unit missing at ordinal %d", ordinal)
+			}
+			if err != nil {
+				return err
+			}
+			if text := strings.TrimSpace(string(data)); text != "" {
+				parts = append(parts, text)
+			}
+
+			imagePath := writingUnitImagePath(chapter, ordinal)
+			info, statErr := os.Stat(s.io.path(imagePath))
+			switch {
+			case statErr == nil && !info.IsDir() && info.Size() > 0:
+				parts = append(parts, fmt.Sprintf(
+					"![第 %d 章 Unit %d 插图](../drafts/%02d.units/%03d.png)",
+					chapter, ordinal, chapter, ordinal,
+				))
+			case statErr != nil && !os.IsNotExist(statErr):
+				return statErr
+			}
+		}
+		assembled = strings.Join(parts, "\n\n")
+		return s.io.WriteFileUnlocked(fmt.Sprintf("drafts/%02d.draft.md", chapter), []byte(assembled))
+	})
+	return assembled, err
 }
 
 // LoadWritingProgress 从章节计划和独立 unit 工件推导进度。连续前缀之外的孤立

@@ -25,6 +25,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/arbiter"
 	"github.com/voocel/ainovel-cli/internal/domain"
 	"github.com/voocel/ainovel-cli/internal/flow"
+	"github.com/voocel/ainovel-cli/internal/imagejob"
 	storepkg "github.com/voocel/ainovel-cli/internal/store"
 	"github.com/voocel/ainovel-cli/internal/tools"
 )
@@ -89,6 +90,72 @@ func TestIsNonSemanticWorkerFailure(t *testing.T) {
 				t.Fatalf("isNonSemanticWorkerFailure(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
+	st := storepkg.NewStore(t.TempDir())
+	if err := st.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ComfyUI.SaveBridgeConfig(imagejob.BridgeConfig{
+		Enabled: true, AutoGenerate: true, WorkflowID: "wf", Strict: true,
+		PrompterTimeoutMS: 120000, PreviousTailChars: 1200,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	imageDir := filepath.Join(st.Dir(), "drafts", "01.units")
+	if err := os.MkdirAll(imageDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(imageDir, "001.png"), []byte("image-one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+		JobID: "completed-1", Chapter: 1, Ordinal: 1, Status: "completed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+		JobID: "failed-2", Chapter: 1, Ordinal: 2, Status: "failed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var events []Event
+	e := &engine{store: st, emitEvent: func(event Event) { events = append(events, event) }}
+	progress, err := e.loadChapterImageProgress(1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !progress.required || progress.completed != 1 || progress.failed != 1 || !progress.ready() {
+		t.Fatalf("unexpected image progress: %+v", progress)
+	}
+	stillRunning := chapterImageProgress{required: true, completed: 1, total: 2, running: 1}
+	if stillRunning.ready() {
+		t.Fatalf("running image job must still block chapter merge: %+v", stillRunning)
+	}
+	if err := e.waitForChapterImages(context.Background(), 1, 2); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Level != "warn" || !strings.Contains(events[0].Summary, "跳过失败图片") {
+		t.Fatalf("failed image warning missing: %+v", events)
+	}
+
+	if err := os.WriteFile(filepath.Join(imageDir, "002.png"), []byte("image-two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+		JobID: "completed-2", Chapter: 1, Ordinal: 2, Status: "completed", StartedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	progress, err = e.loadChapterImageProgress(1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if progress.completed != 2 || !progress.ready() {
+		t.Fatalf("completed images must release chapter gate: %+v", progress)
 	}
 }
 
@@ -518,7 +585,7 @@ func TestEngine_WritesBookToCompletion(t *testing.T) {
 		case "TOOL":
 			toolRows++
 		case "SYSTEM":
-			if strings.Contains(ev.Summary, "已直接提交") {
+			if strings.Contains(ev.Summary, "合并并提交完成") {
 				automaticCommits++
 			}
 		}

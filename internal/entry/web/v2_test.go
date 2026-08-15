@@ -1,9 +1,15 @@
 package web
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/voocel/ainovel-cli/internal/comfyui"
+	"github.com/voocel/ainovel-cli/internal/imagejob"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
@@ -57,5 +63,44 @@ func TestClassifyOutputsForcesImageFromMIME(t *testing.T) {
 func TestOutputKindUsesImageExtensionWithoutClassType(t *testing.T) {
 	if got := outputKind("render.webp", "", ""); got != "image" {
 		t.Fatalf("expected image output, got %q", got)
+	}
+}
+
+func TestSavePrompterPresetPersistsPresetAndWorkflowTemplate(t *testing.T) {
+	st := store.NewStore(t.TempDir())
+	wf := comfyui.Workflow{ID: "wf", Name: "test", Workflow: map[string]any{}}
+	if err := st.ComfyUI.SaveWorkflow(wf); err != nil {
+		t.Fatal(err)
+	}
+	controller := &v2Controller{st: st, running: map[string]context.CancelFunc{}}
+	body, _ := json.Marshal(map[string]any{
+		"action": "save_as", "name": "双人构图", "workflow_id": "wf",
+		"template": "return exact json for two characters", "overwrite": false,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/v2/comfyui/prompter-presets", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+	controller.prompterPresets(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("save preset returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	doc, err := st.ComfyUI.LoadPrompterPresets()
+	if err != nil || doc.Presets["双人构图"].Template != "return exact json for two characters" {
+		t.Fatalf("preset was not persisted: %#v, %v", doc, err)
+	}
+	canvas, err := st.ComfyUI.LoadWorkflowCanvas("wf")
+	if err != nil || canvas.PrompterPreset != "双人构图" || canvas.PrompterTemplate != "return exact json for two characters" {
+		t.Fatalf("workflow prompt was not updated: %#v, %v", canvas, err)
+	}
+	var response apiEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(response.Data)
+	var schema imagejob.PromptSchema
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if schema.Preset != "双人构图" || len(schema.Presets) != len(imagejob.PrompterPresets())+1 {
+		t.Fatalf("saved preset was not returned with built-ins: %#v", schema.Presets)
 	}
 }
