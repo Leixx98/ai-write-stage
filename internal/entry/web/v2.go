@@ -154,6 +154,14 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.readerChapter(w, r, strings.TrimPrefix(p, "chapters/"))
 	case p == "comfyui/config":
 		c.config(w, r)
+	case p == "galgame/characters":
+		c.galgameCharacters(w, r)
+	case strings.HasPrefix(p, "galgame/characters/"):
+		c.galgameCharacter(w, r, strings.TrimPrefix(p, "galgame/characters/"))
+	case p == "galgame/sessions":
+		c.galgameSessions(w, r)
+	case strings.HasPrefix(p, "galgame/sessions/"):
+		c.galgameSession(w, r, strings.TrimPrefix(p, "galgame/sessions/"))
 	case p == "comfyui/test-connection":
 		c.testConnection(w, r)
 	case p == "comfyui/bridge":

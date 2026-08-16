@@ -33,6 +33,7 @@ type Store struct {
 	Simulation  *SimulationStore
 	Decisions   *DecisionStore
 	ComfyUI     *ComfyUIStore
+	Galgame     *GalgameStore
 
 	crossMu sync.Mutex // 串行化跨域协调；不代表多个文件具备事务原子性
 }
@@ -75,6 +76,7 @@ func newStore(dir, projectDir string) *Store {
 		Simulation:  NewSimulationStore(newIO(dir)),
 		Decisions:   NewDecisionStore(newIO(dir)),
 		ComfyUI:     NewComfyUIStoreWithProject(io, projectIO),
+		Galgame:     NewGalgameStore(io),
 	}
 }
 

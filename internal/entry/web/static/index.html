@@ -55,10 +55,11 @@
   <header class="topbar">
     <div class="brand"><strong>ainovel</strong><span id="model">模型未配置</span></div>
     <nav class="tabs" aria-label="工作台导航">
-      <button class="tab active" data-view="dashboard">工作台</button>
+      <button class="tab active" data-view="dashboard">小说</button>
+      <button class="tab" data-view="galgame">酒馆</button>
       <button class="tab" data-view="api-settings">API</button>
       <button class="tab" data-view="app-settings">设置</button>
-      <button class="tab" data-view="prompts">写作提示词</button>
+      <button class="tab" data-view="prompts">小说写作提示词</button>
       <button class="tab" data-view="comfyui">ComfyUI</button>
     </nav>
     <div id="status" class="status">就绪</div>
@@ -74,6 +75,16 @@
       <aside class="panel detail"><h2>详情</h2><div id="detail" class="scroll"></div><div class="image-slot"><span id="image-placeholder">单元图片预览</span><img id="unit-image" alt="当前单元图片" decoding="async" fetchpriority="low" hidden></div></aside>
     </div>
     <footer class="controls"><input id="prompt" placeholder="输入请求或调整指令"><button id="send">发送</button><button id="pause">暂停</button><button id="reader-open" type="button">沉浸式阅读</button></footer>
+  </main>
+
+  <main id="galgame" class="view galgame-view">
+    <section class="galgame-stage">
+      <header class="galgame-header"><div><strong id="galgame-character-name">选择角色</strong><small id="galgame-session-name">Galgame 会话</small></div><button id="galgame-settings" class="small" type="button" title="设置">⚙ 设置</button></header>
+      <div class="galgame-image"><img id="galgame-image" alt="当前场景" hidden><span id="galgame-image-placeholder">等待场景图片</span><span id="galgame-image-status" class="galgame-image-status"></span></div>
+      <div id="galgame-dialogue" class="galgame-dialogue"><div class="muted">导入角色卡并开始对话。</div></div>
+      <form id="galgame-input" class="galgame-input"><textarea id="galgame-user-input" rows="2" placeholder="输入你的回复..."></textarea><button type="submit">发送</button></form>
+    </section>
+    <aside id="galgame-drawer" class="galgame-drawer" hidden><div class="section-heading"><div><h2>Galgame 设置</h2><p>第一版仅使用角色 Prompt，其他角色卡字段预留。</p></div><button id="galgame-close-settings" class="small" type="button">关闭</button></div><div class="form-grid"><label>角色<select id="galgame-character-select"></select></label><label>会话<select id="galgame-session-select"></select></label><label class="wide">剧情预设<textarea id="galgame-story" rows="4" placeholder="当前剧情、世界背景或本轮目标"></textarea></label><label class="wide">角色 Prompt<textarea id="galgame-prompt" rows="8" placeholder="角色卡的核心 character prompt"></textarea></label><label class="wide">导入 JSON 角色卡<input id="galgame-card-file" type="file" accept=".json,application/json"><small class="field-help">只读取 JSON；可包含 name、prompt、description、scenario 等预留字段。</small></label></div><div class="button-row"><button id="galgame-save-character" type="button">保存角色卡</button><button id="galgame-new-session" type="button">新建会话</button></div><div id="galgame-settings-msg" class="notice"></div></aside>
   </main>
 
   <main id="api-settings" class="view settings-view"><section class="settings-panel model-settings-panel">
