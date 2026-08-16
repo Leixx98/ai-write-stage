@@ -3,7 +3,10 @@ package exp
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -122,6 +125,65 @@ func TestRenderEPUB_StructuralInvariants(t *testing.T) {
 	}
 	if !strings.Contains(nav, `href="chapter001.xhtml"`) || !strings.Contains(nav, `href="chapter002.xhtml"`) {
 		t.Errorf("nav missing chapter links")
+	}
+}
+
+func TestRunEPUBEmbedsChapterImages(t *testing.T) {
+	s, dir := newTestStore(t, "带图小说", []int{1})
+	if err := s.Drafts.SaveFinalChapter(1, "正文。\n\n![单元插图](../drafts/01.units/001.png)"); err != nil {
+		t.Fatal(err)
+	}
+	imagePath := filepath.Join(dir, "drafts", "01.units", "001.png")
+	if err := os.MkdirAll(filepath.Dir(imagePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	imageData := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	if err := os.WriteFile(imagePath, imageData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Run(context.Background(), Deps{Store: s}, Options{Format: FormatEPUB, Overwrite: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{}
+	for _, file := range zr.File {
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[file.Name] = content
+	}
+	var imageName string
+	for name, content := range files {
+		if strings.HasPrefix(name, "OEBPS/Images/") {
+			imageName = name
+			if !bytes.Equal(content, imageData) {
+				t.Fatalf("embedded image bytes changed: %x", content)
+			}
+		}
+	}
+	if imageName == "" {
+		t.Fatalf("EPUB does not contain embedded image: %v", files)
+	}
+	chapter := string(files["OEBPS/chapter001.xhtml"])
+	if strings.Contains(chapter, "![单元插图]") || !strings.Contains(chapter, "<img src=\"Images/") {
+		t.Fatalf("chapter image was not rendered as XHTML: %s", chapter)
+	}
+	if !strings.Contains(string(files["OEBPS/content.opf"]), filepath.Base(imageName)) {
+		t.Fatalf("OPF does not reference embedded image: %s", files["OEBPS/content.opf"])
 	}
 }
 

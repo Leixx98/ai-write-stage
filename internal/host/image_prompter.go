@@ -25,10 +25,18 @@ func (h *Host) GenerateImagePrompt(ctx context.Context, request imagejob.PromptR
 	if systemPrompt == "" {
 		systemPrompt = imagejob.DefaultPrompterTemplate
 	}
-	response, err := h.models.ForRole("prompter").Generate(ctx, []agentcore.Message{
+	h.mu.Lock()
+	model := h.models.ForRole("prompter")
+	thinking := h.resolveThinkingForRoleLocked("prompter")
+	h.mu.Unlock()
+	response, err := model.Generate(ctx, []agentcore.Message{
 		agentcore.SystemMsg(systemPrompt),
 		agentcore.UserMsg(userPrompt),
-	}, nil, agentcore.WithMaxTokens(2048), agentcore.WithJSONMode())
+	}, nil,
+		agentcore.WithThinking(thinking),
+		agentcore.WithMaxTokens(16384),
+		agentcore.WithJSONMode(),
+	)
 	if err != nil {
 		return "", fmt.Errorf("Prompter generate: %w", err)
 	}

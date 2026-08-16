@@ -21,22 +21,25 @@ const (
 
 // ProviderSnapshot 是供 TUI 使用的脱敏 provider 配置。
 type ProviderSnapshot struct {
-	Name           string
-	Type           string
-	API            string
-	BaseURL        string
-	Models         []bootstrap.ModelConfig
-	HasAPIKey      bool
-	APIKeyHint     string
-	RequiresAPIKey bool
+	Name           string                  `json:"name"`
+	Type           string                  `json:"type"`
+	API            string                  `json:"api"`
+	BaseURL        string                  `json:"base_url"`
+	Models         []bootstrap.ModelConfig `json:"models"`
+	HasAPIKey      bool                    `json:"has_api_key"`
+	APIKeyHint     string                  `json:"api_key_hint,omitempty"`
+	RequiresAPIKey bool                    `json:"requires_api_key"`
 }
 
 type ModelConfigurationSnapshot struct {
-	Providers       []ProviderSnapshot
-	DefaultProvider string
-	DefaultModel    string
-	ConfigPath      string
-	References      map[string][]string
+	Providers        []ProviderSnapshot              `json:"providers"`
+	DefaultProvider  string                          `json:"default_provider"`
+	DefaultModel     string                          `json:"default_model"`
+	ConfigPath       string                          `json:"config_path"`
+	ModelLibraryPath string                          `json:"model_library_path"`
+	References       map[string][]string             `json:"references"`
+	Roles            map[string]bootstrap.RoleConfig `json:"roles"`
+	ReasoningEffort  string                          `json:"reasoning_effort"`
 }
 
 func (s ModelConfigurationSnapshot) ReferencesFor(provider, model string) []string {
@@ -100,7 +103,23 @@ func (h *Host) ModelConfiguration() ModelConfigurationSnapshot {
 			RequiresAPIKey: pc.RequiresAPIKey(name),
 		})
 	}
-	sort.Slice(providers, func(i, j int) bool { return providers[i].Name < providers[j].Name })
+	order := make(map[string]int)
+	if library, err := bootstrap.LoadModelLibrary(); err == nil {
+		for index, name := range library.ProviderOrder {
+			order[name] = index + 1
+		}
+	}
+	sort.Slice(providers, func(i, j int) bool {
+		left, leftOK := order[providers[i].Name]
+		right, rightOK := order[providers[j].Name]
+		if leftOK && rightOK {
+			return left < right
+		}
+		if leftOK != rightOK {
+			return leftOK
+		}
+		return providers[i].Name < providers[j].Name
+	})
 
 	refs := make(map[string][]string)
 	refs[modelReferenceKey(h.cfg.Provider, h.cfg.ModelName)] = append(
@@ -119,7 +138,8 @@ func (h *Host) ModelConfiguration() ModelConfigurationSnapshot {
 
 	return ModelConfigurationSnapshot{
 		Providers: providers, DefaultProvider: h.cfg.Provider, DefaultModel: h.cfg.ModelName,
-		ConfigPath: h.configPath, References: refs,
+		ConfigPath: h.configPath, ModelLibraryPath: bootstrap.DefaultModelLibraryPath(), References: refs,
+		Roles: bootstrap.CloneConfig(h.cfg).Roles, ReasoningEffort: h.cfg.ReasoningEffort,
 	}
 }
 
@@ -353,12 +373,31 @@ func renameModelReferences(cfg *bootstrap.Config, provider string, renames map[s
 }
 
 func (h *Host) saveModelConfigurationLocked(candidate bootstrap.Config, provider string, pc bootstrap.ProviderConfig, renamed bool) error {
-	if renamed {
-		// 引用与 provider 定义必须在同一次文件替换中落盘，否则进程重启可能只看到一半。
-		// /model 也使用 SaveConfig 写回有效配置；重命名沿用同一语义。
-		return bootstrap.SaveConfig(h.configPath, candidate)
+	library, err := bootstrap.LoadModelLibrary()
+	if err != nil {
+		return err
 	}
-	return bootstrap.SaveProviderConfig(h.configPath, provider, pc)
+	if library.Providers == nil {
+		library.Providers = make(map[string]bootstrap.ProviderConfig)
+	}
+	library.Providers[provider] = pc
+	seen := false
+	for _, name := range library.ProviderOrder {
+		if name == provider {
+			seen = true
+			break
+		}
+	}
+	if !seen {
+		library.ProviderOrder = append(library.ProviderOrder, provider)
+	}
+	if err := bootstrap.SaveModelLibrary(library); err != nil {
+		return err
+	}
+	if renamed {
+		return bootstrap.SaveWorkspaceConfig(h.configPath, candidate)
+	}
+	return nil
 }
 
 // TestModelConnection 使用当前草稿构造一个真实模型客户端并发送最小请求。

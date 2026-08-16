@@ -39,7 +39,22 @@ type Store struct {
 
 // NewStore 创建状态管理器，dir 为小说输出根目录。
 func NewStore(dir string) *Store {
+	return newStore(dir, "")
+}
+
+// NewStoreForProject creates a store whose ComfyUI definitions are shared by
+// all workspaces under the same project root. Novel facts and image jobs still
+// remain under dir.
+func NewStoreForProject(dir, projectDir string) *Store {
+	return newStore(dir, projectDir)
+}
+
+func newStore(dir, projectDir string) *Store {
 	io := newIO(dir)
+	projectIO := io
+	if projectDir != "" {
+		projectIO = newIO(filepath.Join(projectDir, ".ainovel"))
+	}
 	outline := NewOutlineStore(io)
 	return &Store{
 		dir:         dir,
@@ -59,7 +74,7 @@ func NewStore(dir string) *Store {
 		Usage:       NewUsageStore(newIO(dir)),
 		Simulation:  NewSimulationStore(newIO(dir)),
 		Decisions:   NewDecisionStore(newIO(dir)),
-		ComfyUI:     NewComfyUIStore(newIO(dir)),
+		ComfyUI:     NewComfyUIStoreWithProject(io, projectIO),
 	}
 }
 

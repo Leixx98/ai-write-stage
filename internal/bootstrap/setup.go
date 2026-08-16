@@ -19,17 +19,14 @@ import (
 //go:embed config.example.jsonc
 var exampleConfig string
 
-// NeedsSetup 检查是否需要首次引导（全局与项目级配置都不存在时触发）。
+// NeedsSetup checks whether the shared model library must be created.
 func NeedsSetup() bool {
-	if p := DefaultConfigPath(); p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return false
-		}
+	path := DefaultModelLibraryPath()
+	if path == "" {
+		return true
 	}
-	if _, err := os.Stat(projectConfigPath()); err == nil {
-		return false
-	}
-	return true
+	_, err := os.Stat(path)
+	return err != nil
 }
 
 type setupProvider struct {
@@ -80,7 +77,7 @@ func RunSetup() (Config, error) {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).
 		Render("未检测到配置文件，开始初始化设置..."))
-	fmt.Fprintf(os.Stderr, "  配置文件路径：%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(DefaultConfigPath()))
+	fmt.Fprintf(os.Stderr, "  模型库路径：%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(DefaultModelLibraryPath()))
 	fmt.Fprintf(os.Stderr, "  完成后可随时编辑该文件调整高级设置。\n")
 	fmt.Fprintln(os.Stderr)
 
@@ -157,10 +154,15 @@ func RunSetup() (Config, error) {
 		Style:     "default",
 	}
 
-	// 保存
-	path := DefaultConfigPath()
-	if err := SaveConfig(path, cfg); err != nil {
-		return cfg, fmt.Errorf("save config: %w", err)
+	// Save the provider once in the shared library and create the current
+	// workspace's effective selection separately.
+	library := ModelLibraryFromConfig(cfg, []string{providerName})
+	if err := SaveModelLibrary(library); err != nil {
+		return cfg, fmt.Errorf("save model library: %w", err)
+	}
+	path := ProjectConfigPath()
+	if err := SaveWorkspaceConfig(path, cfg); err != nil {
+		return cfg, fmt.Errorf("save workspace config: %w", err)
 	}
 
 	// 生成注释模板
@@ -170,7 +172,7 @@ func RunSetup() (Config, error) {
 	rulesDir := rules.DefaultHomeRulesDir()
 
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "%s 配置已保存到 %s\n",
+	fmt.Fprintf(os.Stderr, "%s 当前工作区配置已保存到 %s\n",
 		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("✓"), path)
 	fmt.Fprintf(os.Stderr, "  默认模型：%s\n", modelName)
 	fmt.Fprintln(os.Stderr, "  如需按角色配置不同模型，编辑配置文件即可。")

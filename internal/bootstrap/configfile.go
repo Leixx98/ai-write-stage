@@ -4,22 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 )
 
 const configDirName = ".ainovel"
-
-// DefaultConfigPath 返回全局配置文件路径 ~/.ainovel/config.json。
-func DefaultConfigPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, configDirName, "config.json")
-}
 
 // DefaultConfigDir 返回 ~/.ainovel 目录路径；取不到家目录时返回空字符串。
 // 仅用于读/写不强制存在的文件（如模型缓存），不会自动创建目录。
@@ -44,56 +34,52 @@ func configDir() (string, error) {
 	return dir, nil
 }
 
-// projectConfigPath 返回项目级配置文件的相对路径 ./.ainovel/config.json。
-// 项目级 dotdir 镜像全局 ~/.ainovel/，复用同一个 configDirName；相对 cwd 解析。
-func projectConfigPath() string {
-	return filepath.Join(configDirName, "config.json")
-}
-
-// EffectiveConfigPath 返回 TUI 改动（/config、/model）应写回的配置文件：
-// 项目目录有 ./.ainovel/config.json 就写它——与读取时项目层覆盖全局的方向一致，
-// 保证"改当前生效的那份"、改完立刻生效；否则写全局 ~/.ainovel/config.json。
-// 仅编辑已存在的项目配置，不会凭空创建（创建项目覆盖是用户主动放文件的动作）。
-func EffectiveConfigPath() string {
-	rel := projectConfigPath()
-	if _, err := os.Stat(rel); err == nil {
-		if abs, err := filepath.Abs(rel); err == nil {
-			return abs
-		}
-		return rel
-	}
-	return DefaultConfigPath()
-}
-
-// LoadConfig 按优先级加载并合并配置：
-//  1. ~/.ainovel/config.json（全局）
-//  2. ./.ainovel/config.json（项目级覆盖）
-func LoadConfig() (Config, error) {
-	var cfg Config
-
-	// 1. 全局配置。它是最低优先级基底，坏文件降级为告警而非阻断——可被项目级覆盖；
-	//    硬失败会把"坏全局 + 有效项目配置"的用户挡在门外。
-	if p := DefaultConfigPath(); p != "" {
-		global, found, err := loadOptionalJSON(p)
-		switch {
-		case err != nil:
-			slog.Warn("全局配置解析失败，已忽略（可被项目级覆盖）", "module", "config", "path", p, "err", err)
-		case found:
-			cfg = global
-		}
-	}
-
-	// 2. 项目级覆盖。坏文件 fail loud：用户在当前目录主动放的配置，静默吞掉会让
-	//    "配了不生效"无从排查（issue #37）。
-	project, found, err := loadOptionalJSON(projectConfigPath())
+// ProjectConfigPath returns the only effective workspace config path.
+func ProjectConfigPath() string {
+	path := filepath.Join(configDirName, "config.json")
+	abs, err := filepath.Abs(path)
 	if err != nil {
-		return cfg, fmt.Errorf("项目级配置 ./.ainovel/config.json 解析失败（请检查 JSON 语法）: %w", err)
+		return path
 	}
-	if found {
-		cfg = mergeConfig(cfg, project)
-	}
+	return abs
+}
 
-	return cfg, nil
+// EffectiveConfigPath is kept as the Host-facing name. It always points to
+// the workspace; runtime choices are never written to the shared library.
+func EffectiveConfigPath() string {
+	return ProjectConfigPath()
+}
+
+// LoadConfig loads the shared model library and the workspace's choices. A
+// new workspace gets a minimal config selecting the first library model.
+func LoadConfig() (Config, error) {
+	library, err := LoadModelLibrary()
+	if err != nil {
+		return Config{}, fmt.Errorf("load shared model library: %w", err)
+	}
+	path := ProjectConfigPath()
+	project, found, err := loadOptionalJSON(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("load workspace config %s: %w", path, err)
+	}
+	if !found {
+		provider, model, firstErr := library.FirstModel()
+		if firstErr != nil {
+			return Config{}, firstErr
+		}
+		project = Config{
+			Provider: provider, ModelName: model.Name,
+			Roles: map[string]RoleConfig{}, Style: "default",
+		}
+		if err := SaveWorkspaceConfig(path, project); err != nil {
+			return Config{}, fmt.Errorf("create workspace config: %w", err)
+		}
+	}
+	if len(project.Providers) > 0 {
+		return Config{}, fmt.Errorf("workspace config must not contain providers; manage them in %s", DefaultModelLibraryPath())
+	}
+	project.Providers = cloneProviders(library.Providers)
+	return project, nil
 }
 
 // loadOptionalJSON 读取一个可选的配置文件：
@@ -132,90 +118,6 @@ func loadJSONFile(path string) (Config, error) {
 	return cfg, nil
 }
 
-// mergeConfig 将 overlay 合并到 base 上。非零值字段覆盖，map 按 key 合并。
-func mergeConfig(base, overlay Config) Config {
-	if overlay.Provider != "" {
-		base.Provider = overlay.Provider
-	}
-	if overlay.ModelName != "" {
-		base.ModelName = overlay.ModelName
-	}
-	if overlay.ReasoningEffort != "" {
-		base.ReasoningEffort = overlay.ReasoningEffort
-	}
-	if overlay.Style != "" {
-		base.Style = overlay.Style
-	}
-	if overlay.ContextWindow > 0 {
-		base.ContextWindow = overlay.ContextWindow
-	}
-
-	// Providers: overlay 的 key 覆盖 base 同名 key
-	if len(overlay.Providers) > 0 {
-		if base.Providers == nil {
-			base.Providers = make(map[string]ProviderConfig)
-		}
-		for k, v := range overlay.Providers {
-			existing := base.Providers[k]
-			if v.Type != "" {
-				existing.Type = v.Type
-			}
-			if v.API != "" {
-				existing.API = v.API
-			}
-			if v.APIKey != "" {
-				existing.APIKey = v.APIKey
-			}
-			if v.BaseURL != "" {
-				existing.BaseURL = v.BaseURL
-			}
-			if len(v.Models) > 0 {
-				existing.Models = append([]ModelConfig(nil), v.Models...)
-			}
-			if len(v.ExtraBody) > 0 {
-				existing.ExtraBody = cloneMap(v.ExtraBody)
-			}
-			if len(v.Extra) > 0 {
-				existing.Extra = cloneMap(v.Extra)
-			}
-			base.Providers[k] = existing
-		}
-	}
-
-	// Roles: overlay 的 key 覆盖 base 同名 key
-	if len(overlay.Roles) > 0 {
-		if base.Roles == nil {
-			base.Roles = make(map[string]RoleConfig)
-		}
-		for k, v := range overlay.Roles {
-			existing := base.Roles[k]
-			if v.Provider != "" {
-				existing.Provider = v.Provider
-			}
-			if v.Model != "" {
-				existing.Model = v.Model
-			}
-			if len(v.Fallbacks) > 0 {
-				existing.Fallbacks = append([]ModelRef(nil), v.Fallbacks...)
-			}
-			if v.ReasoningEffort != "" {
-				existing.ReasoningEffort = v.ReasoningEffort
-			}
-			base.Roles[k] = existing
-		}
-	}
-
-	// Budget / Notify：整块覆盖（项目级预算/告警是独立政策声明，不与全局逐字段拼接）
-	if overlay.Budget != (BudgetConfig{}) {
-		base.Budget = overlay.Budget
-	}
-	if overlay.Notify.Enabled != nil || overlay.Notify.Command != "" || len(overlay.Notify.Events) > 0 {
-		base.Notify = overlay.Notify
-	}
-
-	return base
-}
-
 func cloneMap(m map[string]any) map[string]any {
 	if len(m) == 0 {
 		return nil
@@ -225,6 +127,17 @@ func cloneMap(m map[string]any) map[string]any {
 		c[k] = v
 	}
 	return c
+}
+
+func cloneProviders(providers map[string]ProviderConfig) map[string]ProviderConfig {
+	cloned := make(map[string]ProviderConfig, len(providers))
+	for name, provider := range providers {
+		provider.Models = append([]ModelConfig(nil), provider.Models...)
+		provider.Extra = cloneMap(provider.Extra)
+		provider.ExtraBody = cloneMap(provider.ExtraBody)
+		cloned[name] = provider
+	}
+	return cloned
 }
 
 // CloneConfig 深拷贝配置中会在运行时修改的 map/slice，避免候选配置污染当前配置。
@@ -244,24 +157,6 @@ func CloneConfig(cfg Config) Config {
 	}
 	clone.Notify.Events = append([]string(nil), cfg.Notify.Events...)
 	return clone
-}
-
-// SaveProviderConfig 补丁式更新目标配置层里单个 provider 的凭证与模型库。
-// 只动 providers 段，绝不触碰顶层 provider/model 选择——“当前用哪个”归 /model。
-// 目标不存在时创建最小配置；目标损坏时拒绝覆盖。
-func SaveProviderConfig(path string, provider string, pc ProviderConfig) error {
-	target, found, err := loadOptionalJSON(path)
-	if err != nil {
-		return err
-	}
-	if !found {
-		target = Config{}
-	}
-	if target.Providers == nil {
-		target.Providers = make(map[string]ProviderConfig)
-	}
-	target.Providers[provider] = pc
-	return SaveConfig(path, target)
 }
 
 // stripJSONComments 去除 JSON 中的 // 行注释，跟踪引号状态避免误删字符串内容。
@@ -339,40 +234,12 @@ func WriteStartupError(msg string) string {
 
 // SaveConfig 将配置写入指定路径（JSON 格式，缩进美化）。
 func SaveConfig(path string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".config-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	committed := false
-	defer func() {
-		_ = tmp.Close()
-		if !committed {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-	if err := tmp.Chmod(0o600); err != nil {
-		return err
-	}
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return err
-	}
-	committed = true
-	return nil
+	return saveJSON(path, cfg)
+}
+
+// SaveWorkspaceConfig persists only workspace choices. Provider credentials
+// and the model catalog always remain in the shared models.json.
+func SaveWorkspaceConfig(path string, cfg Config) error {
+	cfg.Providers = nil
+	return SaveConfig(path, cfg)
 }

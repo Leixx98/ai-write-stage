@@ -58,11 +58,30 @@ type ImageJob struct {
 }
 
 type ComfyUIStore struct {
-	io *IO
-	mu sync.Mutex
+	io        *IO // workspace data: jobs, media and legacy fallback
+	projectIO *IO // project data: workflow definitions and shared settings
+	mu        sync.Mutex
 }
 
-func NewComfyUIStore(io *IO) *ComfyUIStore { return &ComfyUIStore{io: io} }
+func NewComfyUIStore(io *IO) *ComfyUIStore { return NewComfyUIStoreWithProject(io, io) }
+func NewComfyUIStoreWithProject(io, projectIO *IO) *ComfyUIStore {
+	if projectIO == nil {
+		projectIO = io
+	}
+	return &ComfyUIStore{io: io, projectIO: projectIO}
+}
+
+func (s *ComfyUIStore) readProjectJSON(rel string, value any) error {
+	err := s.projectIO.ReadJSON(rel, value)
+	if os.IsNotExist(err) && s.projectIO != s.io {
+		legacyRel := filepath.ToSlash(filepath.Join("meta/comfyui", strings.TrimPrefix(rel, "comfyui/")))
+		return s.io.ReadJSON(legacyRel, value)
+	}
+	return err
+}
+func (s *ComfyUIStore) writeProjectJSON(rel string, value any) error {
+	return s.projectIO.WriteJSON(rel, value)
+}
 func safeComfyID(id string) bool {
 	return id != "" && filepath.Base(id) == id && !strings.ContainsAny(id, `/\\`) && id != "." && id != ".."
 }
@@ -86,14 +105,11 @@ func (s *ComfyUIStore) SaveConfig(c comfyui.Config) error {
 
 func (s *ComfyUIStore) LoadBridgeConfig() (imagejob.BridgeConfig, error) {
 	config := imagejob.DefaultBridgeConfig()
-	data, err := s.io.ReadFile("meta/comfyui/bridge.json")
+	err := s.readProjectJSON("comfyui/bridge.json", &config)
 	if os.IsNotExist(err) {
 		return config, nil
 	}
 	if err != nil {
-		return config, err
-	}
-	if err := json.Unmarshal(data, &config); err != nil {
 		return config, err
 	}
 	return imagejob.NormalizeBridgeConfig(config), nil
@@ -104,12 +120,12 @@ func (s *ComfyUIStore) SaveBridgeConfig(config imagejob.BridgeConfig) error {
 	if err := imagejob.ValidateBridgeConfig(config); err != nil {
 		return err
 	}
-	return s.io.WriteJSON("meta/comfyui/bridge.json", config)
+	return s.writeProjectJSON("comfyui/bridge.json", config)
 }
 
 func (s *ComfyUIStore) LoadPrompterPresets() (imagejob.PrompterPresetDocument, error) {
 	doc := imagejob.PrompterPresetDocument{Version: 1, Presets: map[string]imagejob.PrompterPreset{}}
-	err := s.io.ReadJSON("meta/comfyui/prompter_presets.json", &doc)
+	err := s.readProjectJSON("comfyui/prompter_presets.json", &doc)
 	if os.IsNotExist(err) {
 		return doc, nil
 	}
@@ -127,7 +143,7 @@ func (s *ComfyUIStore) SavePrompterPresets(doc imagejob.PrompterPresetDocument) 
 	if doc.Presets == nil {
 		doc.Presets = map[string]imagejob.PrompterPreset{}
 	}
-	return s.io.WriteJSON("meta/comfyui/prompter_presets.json", doc)
+	return s.writeProjectJSON("comfyui/prompter_presets.json", doc)
 }
 func (s *ComfyUIStore) instancesPath() string { return "meta/comfyui/instances.json" }
 func (s *ComfyUIStore) LoadInstances() ([]comfyui.Instance, comfyui.InstanceSettings, error) {
@@ -168,16 +184,19 @@ func (s *ComfyUIStore) SaveInstances(instances []comfyui.Instance, settings comf
 	return s.io.WriteJSON(s.instancesPath(), doc)
 }
 func (s *ComfyUIStore) workflowPath(id string) string {
+	return filepath.ToSlash(filepath.Join("comfyui/workflows", id+".json"))
+}
+func (s *ComfyUIStore) legacyWorkflowPath(id string) string {
 	return filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".json"))
 }
 func (s *ComfyUIStore) SaveWorkflow(w comfyui.Workflow) error {
 	if !safeComfyID(w.ID) {
 		return errors.New("workflow id is required")
 	}
-	if err := s.io.WriteJSON(s.workflowPath(w.ID), w); err != nil {
+	if err := s.projectIO.WriteJSON(s.workflowPath(w.ID), w); err != nil {
 		return err
 	}
-	if err := s.io.WriteJSON(filepath.ToSlash(filepath.Join("meta/comfyui/workflows", w.ID+".api.json")), w.Workflow); err != nil {
+	if err := s.projectIO.WriteJSON(filepath.ToSlash(filepath.Join("comfyui/workflows", w.ID+".api.json")), w.Workflow); err != nil {
 		return err
 	}
 	if w.Config != nil {
@@ -190,10 +209,21 @@ func (s *ComfyUIStore) LoadWorkflow(id string) (comfyui.Workflow, error) {
 		return comfyui.Workflow{}, fmt.Errorf("invalid workflow id")
 	}
 	var w comfyui.Workflow
-	err := s.io.ReadJSON(s.workflowPath(id), &w)
+	err := s.projectIO.ReadJSON(s.workflowPath(id), &w)
+	if os.IsNotExist(err) && s.projectIO != s.io {
+		err = s.io.ReadJSON(s.legacyWorkflowPath(id), &w)
+	}
 	if os.IsNotExist(err) {
 		var api map[string]any
-		if e := s.io.ReadJSON(filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".api.json")), &api); e != nil {
+		apiPath := filepath.ToSlash(filepath.Join("comfyui/workflows", id+".api.json"))
+		if s.projectIO != s.io {
+			if e := s.projectIO.ReadJSON(apiPath, &api); e != nil {
+				apiPath = filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".api.json"))
+				if e = s.io.ReadJSON(apiPath, &api); e != nil {
+					return w, err
+				}
+			}
+		} else if e := s.io.ReadJSON(apiPath, &api); e != nil {
 			return w, err
 		}
 		w.ID = id
@@ -205,10 +235,16 @@ func (s *ComfyUIStore) LoadWorkflow(id string) (comfyui.Workflow, error) {
 	return w, err
 }
 func (s *ComfyUIStore) workflowConfigPath(id string) string {
+	return filepath.ToSlash(filepath.Join("comfyui/workflows", id+".config.json"))
+}
+func (s *ComfyUIStore) legacyWorkflowConfigPath(id string) string {
 	return filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".config.json"))
 }
 
 func (s *ComfyUIStore) workflowCanvasPath(id string) string {
+	return filepath.ToSlash(filepath.Join("comfyui/workflows", id+".canvas.json"))
+}
+func (s *ComfyUIStore) legacyWorkflowCanvasPath(id string) string {
 	return filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".canvas.json"))
 }
 
@@ -222,7 +258,7 @@ func (s *ComfyUIStore) SaveWorkflowCanvas(id string, canvas comfyui.CanvasDocume
 	canvas.WorkflowID = id
 	canvas.ID = id
 	canvas.UpdatedAt = time.Now().UTC()
-	return s.io.WriteJSON(s.workflowCanvasPath(id), canvas)
+	return s.projectIO.WriteJSON(s.workflowCanvasPath(id), canvas)
 }
 
 func (s *ComfyUIStore) LoadWorkflowCanvas(id string) (comfyui.CanvasDocument, error) {
@@ -230,7 +266,11 @@ func (s *ComfyUIStore) LoadWorkflowCanvas(id string) (comfyui.CanvasDocument, er
 		return comfyui.CanvasDocument{}, fmt.Errorf("invalid workflow id")
 	}
 	var canvas comfyui.CanvasDocument
-	if err := s.io.ReadJSON(s.workflowCanvasPath(id), &canvas); err != nil {
+	err := s.projectIO.ReadJSON(s.workflowCanvasPath(id), &canvas)
+	if os.IsNotExist(err) && s.projectIO != s.io {
+		err = s.io.ReadJSON(s.legacyWorkflowCanvasPath(id), &canvas)
+	}
+	if err != nil {
 		return canvas, err
 	}
 	return canvas.Normalize(), nil
@@ -257,17 +297,28 @@ func (s *ComfyUIStore) SaveWorkflowConfig(id string, c comfyui.WorkflowConfig) e
 	if !safeComfyID(id) {
 		return fmt.Errorf("invalid workflow id")
 	}
-	return s.io.WriteJSON(s.workflowConfigPath(id), c)
+	return s.projectIO.WriteJSON(s.workflowConfigPath(id), c)
 }
 func (s *ComfyUIStore) LoadWorkflowConfig(id string) (comfyui.WorkflowConfig, error) {
 	if !safeComfyID(id) {
 		return comfyui.WorkflowConfig{}, fmt.Errorf("invalid workflow id")
 	}
 	var c comfyui.WorkflowConfig
-	err := s.io.ReadJSON(s.workflowConfigPath(id), &c)
+	err := s.projectIO.ReadJSON(s.workflowConfigPath(id), &c)
+	if os.IsNotExist(err) && s.projectIO != s.io {
+		err = s.io.ReadJSON(s.legacyWorkflowConfigPath(id), &c)
+	}
 	if os.IsNotExist(err) {
 		var api map[string]any
-		if e := s.io.ReadJSON(filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".api.json")), &api); e != nil {
+		apiPath := filepath.ToSlash(filepath.Join("comfyui/workflows", id+".api.json"))
+		reader := s.projectIO
+		if s.projectIO != s.io {
+			if e := reader.ReadJSON(apiPath, &api); e != nil {
+				reader = s.io
+				apiPath = filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".api.json"))
+			}
+		}
+		if e := reader.ReadJSON(apiPath, &api); e != nil {
 			return c, err
 		}
 		c, _ = comfyui.InferBindings(api)
@@ -279,28 +330,46 @@ func (s *ComfyUIStore) DeleteWorkflow(id string) error {
 	if !safeComfyID(id) {
 		return fmt.Errorf("invalid workflow id")
 	}
-	for _, path := range []string{s.workflowPath(id), filepath.ToSlash(filepath.Join("meta/comfyui/workflows", id+".api.json")), s.workflowConfigPath(id), s.workflowCanvasPath(id)} {
-		if err := s.io.RemoveFile(path); err != nil {
+	for _, path := range []string{s.workflowPath(id), filepath.ToSlash(filepath.Join("comfyui/workflows", id+".api.json")), s.workflowConfigPath(id), s.workflowCanvasPath(id)} {
+		if err := s.projectIO.RemoveFile(path); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 func (s *ComfyUIStore) ListWorkflows() ([]comfyui.Workflow, error) {
-	entries, err := os.ReadDir(filepath.Join(s.io.dir, "meta/comfyui/workflows"))
-	if os.IsNotExist(err) {
-		return []comfyui.Workflow{}, nil
+	type workflowSource struct{ root, rel string }
+	sources := []workflowSource{{s.projectIO.dir, "comfyui/workflows"}}
+	if s.projectIO != s.io {
+		sources = append(sources, workflowSource{s.io.dir, "meta/comfyui/workflows"})
 	}
-	if err != nil {
-		return nil, err
-	}
-	var out []comfyui.Workflow
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" || strings.HasSuffix(e.Name(), ".api.json") || strings.HasSuffix(e.Name(), ".config.json") || strings.HasSuffix(e.Name(), ".canvas.json") {
+	paths := map[string]workflowSource{}
+	for _, source := range sources {
+		entries, err := os.ReadDir(filepath.Join(source.root, source.rel))
+		if os.IsNotExist(err) {
 			continue
 		}
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".json" || strings.HasSuffix(e.Name(), ".api.json") || strings.HasSuffix(e.Name(), ".config.json") || strings.HasSuffix(e.Name(), ".canvas.json") {
+				continue
+			}
+			if _, exists := paths[e.Name()]; !exists {
+				paths[e.Name()] = source
+			}
+		}
+	}
+	var out []comfyui.Workflow
+	for name, source := range paths {
 		var w comfyui.Workflow
-		if err := s.io.ReadJSON(filepath.ToSlash(filepath.Join("meta/comfyui/workflows", e.Name())), &w); err != nil {
+		path := filepath.ToSlash(filepath.Join(source.rel, name))
+		data, err := os.ReadFile(filepath.Join(source.root, path))
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(data, &w); err != nil {
 			return nil, err
 		}
 		out = append(out, w)

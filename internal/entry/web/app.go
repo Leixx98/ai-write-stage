@@ -43,10 +43,8 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, build buildversion.Info, op
 	}
 	defer rt.Close()
 
-	// Match the TUI bootstrap behavior: an existing unfinished book resumes on startup.
-	if _, err := rt.Resume(); err != nil {
-		return fmt.Errorf("resume: %w", err)
-	}
+	// Web startup only restores the host and exposes the saved progress. Keep
+	// the engine paused until the user explicitly clicks Continue in the UI.
 
 	server := &http.Server{
 		Addr:              listen,
@@ -91,9 +89,10 @@ func newHandler(rt *host.Host, version string) http.Handler {
 	})
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"version":  version,
-			"snapshot": rt.Snapshot(),
-			"dir":      rt.Dir(),
+			"version":      version,
+			"snapshot":     rt.Snapshot(),
+			"dir":          rt.Dir(),
+			"workspace_id": webWorkspaceID(rt.Dir()),
 		})
 	})
 	mux.HandleFunc("/api/replay", func(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/voocel/ainovel-cli/internal/comfyui"
+	"github.com/voocel/ainovel-cli/internal/imagejob"
 )
 
 func TestFoundationMissingReturnsReadError(t *testing.T) {
@@ -17,6 +20,38 @@ func TestFoundationMissingReturnsReadError(t *testing.T) {
 	}
 	if _, err := st.FoundationMissing(); err == nil {
 		t.Fatal("损坏的大纲必须返回读取错误，不能降级成缺失项")
+	}
+}
+
+func TestProjectComfyUIDefinitionsAreSharedAcrossWorkspaces(t *testing.T) {
+	project := t.TempDir()
+	workspaceA := filepath.Join(t.TempDir(), "novel-a")
+	workspaceB := filepath.Join(t.TempDir(), "novel-b")
+	a := NewStoreForProject(workspaceA, project)
+	b := NewStoreForProject(workspaceB, project)
+	wf := comfyui.Workflow{ID: "shared", Name: "共享工作流", Workflow: map[string]any{"1": map[string]any{"class_type": "SaveImage"}}}
+	if err := a.ComfyUI.SaveWorkflow(wf); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ComfyUI.SaveBridgeConfig(imagejob.BridgeConfig{WorkflowID: "shared"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ComfyUI.SavePrompterPresets(imagejob.PrompterPresetDocument{Version: 1, Presets: map[string]imagejob.PrompterPreset{
+		"shared": {ID: "shared", Label: "共享", Template: "custom template"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := b.ComfyUI.LoadWorkflow("shared"); err != nil || got.Name != wf.Name {
+		t.Fatalf("workflow was not shared: %#v, %v", got, err)
+	}
+	if got, err := b.ComfyUI.LoadBridgeConfig(); err != nil || got.WorkflowID != "shared" {
+		t.Fatalf("bridge config was not shared: %#v, %v", got, err)
+	}
+	if got, err := b.ComfyUI.LoadPrompterPresets(); err != nil || got.Presets["shared"].Template != "custom template" {
+		t.Fatalf("prompter presets were not shared: %#v, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(project, ".ainovel", "comfyui", "workflows", "shared.json")); err != nil {
+		t.Fatalf("shared workflow was not written to project directory: %v", err)
 	}
 }
 

@@ -4,11 +4,139 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
 )
+
+type epubAsset struct {
+	Name      string
+	MediaType string
+	Data      []byte
+}
+
+type epubImageRef struct {
+	Marker string
+	Asset  string
+	Alt    string
+}
+
+type epubAssets struct {
+	ByChapter map[int][]epubImageRef
+	Files     []epubAsset
+}
+
+func collectEPUBAssets(root string, chapters []int, bodies map[int]string) (epubAssets, error) {
+	assets := epubAssets{ByChapter: map[int][]epubImageRef{}}
+	byHash := map[string]string{}
+	markdown := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	for _, chapter := range chapters {
+		source := []byte(bodies[chapter])
+		doc := markdown.Parser().Parse(text.NewReader(source))
+		ordinal := 0
+		err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+			if !entering {
+				return ast.WalkContinue, nil
+			}
+			image, ok := node.(*ast.Image)
+			if !ok {
+				return ast.WalkContinue, nil
+			}
+			destination := string(image.Destination)
+			if strings.Contains(destination, "://") || strings.HasPrefix(destination, "data:") {
+				return ast.WalkStop, fmt.Errorf("第 %d 章图片必须是本地路径：%s", chapter, destination)
+			}
+			resolved, err := resolveEPUBImagePath(root, chapter, destination)
+			if err != nil {
+				return ast.WalkStop, fmt.Errorf("第 %d 章图片 %q：%w", chapter, destination, err)
+			}
+			data, err := os.ReadFile(resolved)
+			if err != nil {
+				return ast.WalkStop, fmt.Errorf("第 %d 章图片 %q：%w", chapter, destination, err)
+			}
+			mediaType := http.DetectContentType(data)
+			ext := imageExtension(mediaType)
+			if ext == "" {
+				return ast.WalkStop, fmt.Errorf("第 %d 章图片 %q 的格式不受 EPUB 支持", chapter, destination)
+			}
+			sum := sha256.Sum256(data)
+			hash := hex.EncodeToString(sum[:])
+			assetName, exists := byHash[hash]
+			if !exists {
+				assetName = "Images/" + hash[:16] + ext
+				byHash[hash] = assetName
+				assets.Files = append(assets.Files, epubAsset{Name: assetName, MediaType: mediaType, Data: data})
+			}
+			alt := epubImageAlt(image, source)
+			ordinal++
+			marker := fmt.Sprintf("\x00EPUBIMG%d_%d\x00", chapter, ordinal)
+			token := fmt.Sprintf("![%s](%s)", alt, destination)
+			bodies[chapter] = strings.Replace(bodies[chapter], token, marker, 1)
+			assets.ByChapter[chapter] = append(assets.ByChapter[chapter], epubImageRef{Marker: marker, Asset: assetName, Alt: alt})
+			return ast.WalkContinue, nil
+		})
+		if err != nil {
+			return epubAssets{}, err
+		}
+	}
+	return assets, nil
+}
+
+func resolveEPUBImagePath(root string, chapter int, destination string) (string, error) {
+	if filepath.IsAbs(destination) {
+		return "", fmt.Errorf("图片路径不能是绝对路径")
+	}
+	chapterFile := filepath.Join(root, "chapters", fmt.Sprintf("%02d.md", chapter))
+	resolved, err := filepath.Abs(filepath.Join(filepath.Dir(chapterFile), filepath.FromSlash(destination)))
+	if err != nil {
+		return "", err
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(rootAbs, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("图片路径越出小说目录")
+	}
+	return resolved, nil
+}
+
+func imageExtension(mediaType string) string {
+	switch mediaType {
+	case "image/png":
+		return ".png"
+	case "image/jpeg":
+		return ".jpg"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
+}
+
+func epubImageAlt(image *ast.Image, source []byte) string {
+	var b strings.Builder
+	for child := image.FirstChild(); child != nil; child = child.NextSibling() {
+		if textNode, ok := child.(*ast.Text); ok {
+			b.Write(textNode.Segment.Value(source))
+		}
+	}
+	return b.String()
+}
 
 // renderEPUB 把章节集合打包成 EPUB 3 字节流。
 //
@@ -27,6 +155,17 @@ func renderEPUB(
 	titleIdx chapterTitleIndex,
 	locations map[int]chapterLocation,
 	bodies map[int]string,
+) ([]byte, error) {
+	return renderEPUBWithAssets(novelName, chapters, titleIdx, locations, bodies, epubAssets{})
+}
+
+func renderEPUBWithAssets(
+	novelName string,
+	chapters []int,
+	titleIdx chapterTitleIndex,
+	locations map[int]chapterLocation,
+	bodies map[int]string,
+	assets epubAssets,
 ) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -49,6 +188,15 @@ func renderEPUB(
 	if err := zipDeflate(zw, "OEBPS/style.css", styleCSS); err != nil {
 		return nil, err
 	}
+	for _, asset := range assets.Files {
+		w, err := zw.Create("OEBPS/" + asset.Name)
+		if err != nil {
+			return nil, fmt.Errorf("create image %s: %w", asset.Name, err)
+		}
+		if _, err := w.Write(asset.Data); err != nil {
+			return nil, fmt.Errorf("write image %s: %w", asset.Name, err)
+		}
+	}
 
 	hasCover := strings.TrimSpace(novelName) != ""
 	if hasCover {
@@ -61,7 +209,7 @@ func renderEPUB(
 		loc, hasLoc := locations[ch]
 		title := strings.TrimSpace(titleIdx[ch])
 		body := stripChapterTitleHeader(strings.TrimSpace(bodies[ch]), title)
-		xhtml := renderChapterXHTML(ch, title, loc, hasLoc, body)
+		xhtml := renderChapterXHTMLWithAssets(ch, title, loc, hasLoc, body, assets.ByChapter[ch])
 		if err := zipDeflate(zw, "OEBPS/"+chapterFileName(ch), xhtml); err != nil {
 			return nil, err
 		}
@@ -71,7 +219,7 @@ func renderEPUB(
 		return nil, err
 	}
 
-	if err := zipDeflate(zw, "OEBPS/content.opf", renderOPF(novelName, hasCover, chapters)); err != nil {
+	if err := zipDeflate(zw, "OEBPS/content.opf", renderOPFWithAssets(novelName, hasCover, chapters, assets.Files)); err != nil {
 		return nil, err
 	}
 
@@ -115,11 +263,17 @@ h1.book-title { font-size: 2em; text-align: center; margin: 4em 0 1em; }
 .volume-divider { font-size: 1.6em; text-align: center; margin: 4em 0 1em; font-weight: bold; }
 h1.chapter-title { font-size: 1.4em; text-align: center; margin: 2em 0 1.5em; }
 p { text-indent: 2em; margin: 0.5em 0; }
+figure { margin: 1.5em 0; text-align: center; }
+figure img { display: block; width: auto; max-width: 100%; height: auto; margin: 0 auto; }
 `
 
 // 章节 XHTML ────────────────────────────────────────────────
 
 func renderChapterXHTML(ch int, title string, loc chapterLocation, hasLoc bool, body string) string {
+	return renderChapterXHTMLWithAssets(ch, title, loc, hasLoc, body, nil)
+}
+
+func renderChapterXHTMLWithAssets(ch int, title string, loc chapterLocation, hasLoc bool, body string, refs []epubImageRef) string {
 	var b strings.Builder
 	displayTitle := fmt.Sprintf("第 %d 章", ch)
 	if title != "" {
@@ -142,10 +296,54 @@ func renderChapterXHTML(ch int, title string, loc chapterLocation, hasLoc bool, 
 	}
 
 	fmt.Fprintf(&b, "  <h1 class=\"chapter-title\">%s</h1>\n", html.EscapeString(displayTitle))
+	inline := make(map[string]string, len(refs))
+	for _, ref := range refs {
+		inline[ref.Marker] = fmt.Sprintf(`<figure><img src="%s" alt="%s"/></figure>`, html.EscapeString(ref.Asset), html.EscapeString(ref.Alt))
+	}
 	for _, para := range splitParagraphs(body) {
-		fmt.Fprintf(&b, "  <p>%s</p>\n", html.EscapeString(para))
+		rendered := renderInlineEPUB(para, inline)
+		if imageHTML, ok := imageOnlyHTML(para, inline); ok {
+			fmt.Fprintf(&b, "  %s\n", imageHTML)
+			continue
+		}
+		fmt.Fprintf(&b, "  <p>%s</p>\n", rendered)
 	}
 	b.WriteString("</body>\n</html>\n")
+	return b.String()
+}
+
+func imageOnlyHTML(value string, inline map[string]string) (string, bool) {
+	if len(inline) == 0 {
+		return "", false
+	}
+	trimmed := strings.TrimSpace(value)
+	if image, ok := inline[trimmed]; ok {
+		return image, true
+	}
+	return "", false
+}
+
+func renderInlineEPUB(value string, inline map[string]string) string {
+	if len(inline) == 0 {
+		return html.EscapeString(value)
+	}
+	var b strings.Builder
+	for len(value) > 0 {
+		best := -1
+		marker := ""
+		for candidate := range inline {
+			if pos := strings.Index(value, candidate); pos >= 0 && (best < 0 || pos < best) {
+				best, marker = pos, candidate
+			}
+		}
+		if best < 0 {
+			b.WriteString(html.EscapeString(value))
+			break
+		}
+		b.WriteString(html.EscapeString(value[:best]))
+		b.WriteString(inline[marker])
+		value = value[best+len(marker):]
+	}
 	return b.String()
 }
 
@@ -230,6 +428,10 @@ func renderNavXHTML(hasCover bool, chapters []int, titleIdx chapterTitleIndex) s
 // content.opf ────────────────────────────────────────────────
 
 func renderOPF(novelName string, hasCover bool, chapters []int) string {
+	return renderOPFWithAssets(novelName, hasCover, chapters, nil)
+}
+
+func renderOPFWithAssets(novelName string, hasCover bool, chapters []int, assets []epubAsset) string {
 	bookID := bookIdentifier(novelName)
 	modified := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 
@@ -259,6 +461,9 @@ func renderOPF(novelName string, hasCover bool, chapters []int) string {
 	for _, ch := range chapters {
 		fmt.Fprintf(&b, `    <item id="%s" href="%s" media-type="application/xhtml+xml"/>`+"\n",
 			chapterID(ch), chapterFileName(ch))
+	}
+	for i, asset := range assets {
+		fmt.Fprintf(&b, `    <item id="img%d" href="%s" media-type="%s"/>`+"\n", i, html.EscapeString(asset.Name), html.EscapeString(asset.MediaType))
 	}
 
 	b.WriteString("  </manifest>\n  <spine>\n")

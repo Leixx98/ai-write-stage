@@ -13,6 +13,9 @@ import (
 
 func newModelConfigTestHost(t *testing.T) (*Host, string) {
 	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	pc := bootstrap.ProviderConfig{
 		Type: "openai", APIKey: "old-secret", BaseURL: "https://example.com/v1",
 		Models: []bootstrap.ModelConfig{{Name: "old", ContextWindow: 128000}, {Name: "writer-model"}},
@@ -28,10 +31,14 @@ func newModelConfigTestHost(t *testing.T) (*Host, string) {
 	if err != nil {
 		t.Fatalf("new model set: %v", err)
 	}
-	// 落一份初始配置：生产中 configPath 必指向已存在的配置层，SaveProviderConfig
-	// 只补 providers 段、保留其余，seed 后才能真实检验“顶层选择不被改动”。
+	if err := bootstrap.SaveModelLibrary(bootstrap.ModelLibrary{
+		Version: 1, ProviderOrder: []string{"proxy"},
+		Providers: map[string]bootstrap.ProviderConfig{"proxy": pc},
+	}); err != nil {
+		t.Fatalf("seed model library: %v", err)
+	}
 	path := filepath.Join(t.TempDir(), "config.json")
-	if err := bootstrap.SaveConfig(path, cfg); err != nil {
+	if err := bootstrap.SaveWorkspaceConfig(path, cfg); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
 	return &Host{
@@ -55,6 +62,24 @@ func TestSetRoleThinkingPreservesIntentAcrossModelSwitch(t *testing.T) {
 	}
 	if got := h.cfg.Roles["writer"].ReasoningEffort; got != "high" {
 		t.Fatalf("切模型后 writer thinking 被改写为 %q，应仍是 high", got)
+	}
+}
+
+func TestInheritDefaultModelRemovesWorkspaceRoleOverride(t *testing.T) {
+	h, path := newModelConfigTestHost(t)
+	if err := h.InheritDefaultModel("writer"); err != nil {
+		t.Fatalf("inherit default: %v", err)
+	}
+	provider, model, explicit := h.CurrentModelSelection("writer")
+	if explicit || provider != "proxy" || model != "old" {
+		t.Fatalf("writer selection = %s/%s explicit=%v", provider, model, explicit)
+	}
+	stored, err := bootstrap.LoadConfigFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := stored.Roles["writer"]; exists {
+		t.Fatalf("writer override still persisted: %#v", stored.Roles["writer"])
 	}
 }
 
@@ -89,7 +114,7 @@ func TestConfigureModelsRejectsDeletingCurrentModel(t *testing.T) {
 }
 
 func TestConfigureModelsPersistsAndHotApplies(t *testing.T) {
-	h, path := newModelConfigTestHost(t)
+	h, _ := newModelConfigTestHost(t)
 	err := h.ConfigureModels(ModelConfigurationDraft{
 		Provider: "proxy", Type: "openai", API: "responses", BaseURL: "https://new.example/v1",
 		Models:       []bootstrap.ModelConfig{{Name: "old", ContextWindow: 640000}, {Name: "writer-model"}},
@@ -107,11 +132,11 @@ func TestConfigureModelsPersistsAndHotApplies(t *testing.T) {
 	if window, source := h.models.ResolveContextWindow("proxy", "old"); window != 640000 || source != bootstrap.CtxWindowModelConfig {
 		t.Fatalf("runtime window = %d %s", window, source)
 	}
-	saved, err := bootstrap.LoadConfigFile(path)
+	saved, err := bootstrap.LoadModelLibrary()
 	if err != nil {
 		t.Fatalf("load saved: %v", err)
 	}
-	if saved.Provider != "proxy" || saved.ModelName != "old" || saved.Providers["proxy"].APIKey != "old-secret" {
+	if saved.Providers["proxy"].APIKey != "old-secret" {
 		t.Fatalf("saved config = %#v", saved)
 	}
 	if saved.Providers["proxy"].API != "responses" || saved.Providers["proxy"].BaseURL != "https://new.example/v1" {
@@ -125,7 +150,7 @@ func TestConfigureModelsPersistsAndHotApplies(t *testing.T) {
 // TUI 草稿保存不得丢失 json_schema 三态（prepareProviderDraftLocked 整结构体
 // 往返的回归锁）。
 func TestConfigureModelsPreservesJSONSchemaTriState(t *testing.T) {
-	h, path := newModelConfigTestHost(t)
+	h, _ := newModelConfigTestHost(t)
 	tr := true
 	err := h.ConfigureModels(ModelConfigurationDraft{
 		Provider: "proxy", Type: "openai", BaseURL: "https://example.com/v1",
@@ -138,7 +163,7 @@ func TestConfigureModelsPreservesJSONSchemaTriState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("configure: %v", err)
 	}
-	saved, err := bootstrap.LoadConfigFile(path)
+	saved, err := bootstrap.LoadModelLibrary()
 	if err != nil {
 		t.Fatalf("load saved: %v", err)
 	}
@@ -180,8 +205,12 @@ func TestConfigureModelsRenamesModelAndReferencesAtomically(t *testing.T) {
 		saved.Roles["writer"].Fallbacks[0].Model != "renamed" {
 		t.Fatalf("saved references not migrated: default=%q writer=%#v", saved.ModelName, saved.Roles["writer"])
 	}
-	if _, ok := saved.Providers["proxy"].ModelConfig("renamed"); !ok {
-		t.Fatalf("saved provider missing renamed model: %#v", saved.Providers["proxy"].Models)
+	library, err := bootstrap.LoadModelLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := library.Providers["proxy"].ModelConfig("renamed"); !ok {
+		t.Fatalf("saved provider missing renamed model: %#v", library.Providers["proxy"].Models)
 	}
 }
 
@@ -274,8 +303,8 @@ func TestModelConnectionUsesDraftWithoutSaving(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if got := saved.Providers["proxy"].BaseURL; got != originalURL {
-		t.Fatalf("连接测试写入了配置文件: %q", got)
+	if len(saved.Providers) != 0 {
+		t.Fatalf("连接测试写入了 workspace provider 配置: %#v", saved.Providers)
 	}
 }
 

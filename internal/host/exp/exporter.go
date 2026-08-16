@@ -134,7 +134,11 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 	case FormatTXT:
 		data = []byte(renderTXT(progress.NovelName, chapters, titleIdx, locations, bodies))
 	case FormatEPUB:
-		buf, err := renderEPUB(progress.NovelName, chapters, titleIdx, locations, bodies)
+		assets, err := collectEPUBAssets(deps.Store.Dir(), chapters, bodies)
+		if err != nil {
+			return nil, fmt.Errorf("读取 EPUB 图片失败：%w", err)
+		}
+		buf, err := renderEPUBWithAssets(progress.NovelName, chapters, titleIdx, locations, bodies, assets)
 		if err != nil {
 			return nil, fmt.Errorf("渲染 EPUB 失败：%w", err)
 		}

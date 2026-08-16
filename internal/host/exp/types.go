@@ -3,7 +3,7 @@
 // 与 imp/ 对称：纯本地 IO，不依赖 LLM，不改 store 状态。导出可以与
 // Engine 并发运行（只读 Progress + 章节终稿），属于横向能力。
 //
-// 第一版只支持 TXT；EPUB 留待下一轮。
+// EPUB 适合手机阅读器，TXT 继续保留给脚本和纯文本场景。
 package exp
 
 import "github.com/voocel/ainovel-cli/internal/store"

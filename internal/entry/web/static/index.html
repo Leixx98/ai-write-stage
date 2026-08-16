@@ -4,13 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ainovel Web Workbench</title>
-  <script>
-    try {
-      if (localStorage.getItem('ainovel.web.welcome.v1') === 'seen') {
-        document.documentElement.className = 'welcome-seen';
-      }
-    } catch (_) { /* Keep the welcome screen when browser storage is unavailable. */ }
-  </script>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/reader.css">
 </head>
@@ -51,7 +44,7 @@
       <div id="welcome-existing" class="welcome-existing" hidden>
         <span>检测到已有创作项目</span>
         <h2 id="welcome-novel-name">未命名作品</h2>
-        <p>工作台已恢复上次进度，可以直接继续创作。</p>
+        <p>已加载上次进度，点击工作台中的“继续”后才会恢复创作。</p>
         <button id="welcome-enter" type="button">进入工作台</button>
       </div>
       <p class="welcome-import">已有小说存稿想接着写？进入工作台后可在“设置”中导入。</p>
@@ -83,7 +76,26 @@
     <footer class="controls"><input id="prompt" placeholder="输入请求或调整指令"><button id="send">发送</button><button id="pause">暂停</button><button id="reader-open" type="button">沉浸式阅读</button></footer>
   </main>
 
-  <main id="api-settings" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>模型 API 配置</h1><p>模型和服务商配置由项目配置文件管理。</p></div></div><div class="form-grid"><label>服务商<input id="provider" placeholder="openrouter"></label><label>模型<input id="model-name"></label><label class="wide">API 密钥引用<input id="api-key-ref" placeholder="环境变量或配置引用"></label></div><div id="role-models" class="role-grid"></div><div id="models-msg" class="notice"></div></section></main>
+  <main id="api-settings" class="view settings-view"><section class="settings-panel model-settings-panel">
+    <div class="section-heading"><div><h1>模型 API 配置</h1><p>模型库由所有工作区共享，默认模型和角色分配仅对当前工作区生效。</p></div><button id="model-add-provider" type="button">新增服务商</button></div>
+    <div class="model-settings-layout">
+      <aside class="model-provider-sidebar"><div id="model-provider-list" class="model-provider-list"></div></aside>
+      <section class="model-provider-editor">
+        <div class="model-editor-head"><div><h2 id="model-editor-title">服务商</h2><small id="model-key-state" class="field-help"></small></div><div class="heading-actions"><button id="model-test-provider" class="small" type="button">测试连接</button><button id="model-save-provider" type="button">保存模型库</button></div></div>
+        <div class="form-grid model-provider-fields">
+          <label>服务商标识<input id="model-provider-name" placeholder="openrouter"></label>
+          <label>API 协议<select id="model-provider-type"><option value="">按服务商识别</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label>
+          <label>API 端点<select id="model-provider-api"><option value="">默认</option><option value="chat">Chat Completions</option><option value="responses">Responses</option></select></label>
+          <label class="wide">Base URL<input id="model-provider-url" placeholder="https://example.com/v1"></label>
+          <label class="wide">API Key<input id="model-provider-key" type="password" autocomplete="new-password" placeholder="留空则保留现有密钥"></label>
+        </div>
+        <div class="model-list-heading"><h3>模型</h3><button id="model-add-model" class="small" type="button">新增模型</button></div>
+        <div id="model-config-list" class="model-config-list"></div>
+      </section>
+    </div>
+    <section class="model-routing-section"><div class="model-list-heading"><div><h2>当前工作区</h2><small class="field-help">选择后立即保存并热更新。</small></div></div><div id="model-role-grid" class="model-role-grid"></div></section>
+    <div id="models-msg" class="notice"></div>
+  </section></main>
 
   <main id="app-settings" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>设置</h1><p>导入书籍、仿写和写作要求。</p></div><button data-action="save-workflow">保存设置</button></div><div class="form-grid"><label class="wide">导入书籍<input id="import-source"><small class="field-help">支持 .txt、.md 或项目导出的 JSON；保存后会立即进入导入流程。</small></label><label>仿写参考<input id="imitate-reference"><small class="field-help">填写参考文件或目录路径；保存后会立即生成仿写画像。</small></label><label class="wide"><span class="field-title">写作要求</span><div class="preset-toolbar"><select id="writing-rules-preset" aria-label="写作要求预设"><option>默认要求</option></select><button type="button" class="small" data-action="save-writing-rules">覆盖保存</button><button type="button" class="small" data-action="save-writing-rules-as">另存为</button><button type="button" class="small" data-action="default-writing-rules">恢复默认</button></div><textarea id="writing-rules" rows="9"></textarea><small class="field-help">保存后会立即更新 Host 的用户规则，并参与后续规划和写作。</small></label></div><div id="settings-msg" class="notice"></div></section></main>
 
@@ -104,6 +116,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
   <script src="/static/app.js"></script>
+  <script src="/static/model-settings.js"></script>
   <script src="/static/reader.js"></script>
 </body>
 </html>

@@ -51,13 +51,14 @@ type Host struct {
 	budget          *BudgetSentinel     // 预算政策；未启用为 nil（方法 nil 安全）
 	gate            *ChapterAdvanceGate // 章节许可与一次性暂停的统一政策组件
 	notifier        *notify.Notifier    // 无人值守告警；未启用为 nil（Send nil 安全）
-	configPath      string              // 配置写盘目标：/config、/model 就近写当前生效的那份（项目级存在则写它，否则全局）
+	configPath      string              // 当前工作区 .ainovel/config.json；公共模型库单独写入 ~/.ainovel/models.json
 	logCleanup      func()
 	fileLogErr      error
 
 	events   chan Event
 	streamCh chan string
 	done     chan struct{}
+	closed   chan struct{}
 
 	mu         sync.Mutex
 	lifecycle  lifecycle
@@ -136,7 +137,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 	// 起后台 goroutine 从 OpenRouter 刷新模型元数据（窗口/价格），磁盘缓存 24h。
 	modelreg.StartPricingRefresh(modelreg.DefaultRegistry(), bootstrap.DefaultConfigDir())
 
-	store := storepkg.NewStore(cfg.OutputDir)
+	store := storepkg.NewStoreForProject(cfg.OutputDir, cfg.ProjectDir)
 	if err := store.Init(); err != nil {
 		return nil, fmt.Errorf("init store: %w", err)
 	}
@@ -204,6 +205,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 		events:          make(chan Event, 100),
 		streamCh:        make(chan string, 256),
 		done:            make(chan struct{}, 4),
+		closed:          make(chan struct{}),
 		lifecycle:       lifecycleIdle,
 	}
 	h.runCtx, h.runCancel = context.WithCancel(context.Background())
@@ -1017,7 +1019,12 @@ const StreamClearSentinel = "\x00\x00CLEAR\x00\x00"
 func (h *Host) Events() <-chan Event  { return h.events }
 func (h *Host) Stream() <-chan string { return h.streamCh }
 func (h *Host) Done() <-chan struct{} { return h.done }
-func (h *Host) Dir() string           { return h.store.Dir() }
+
+// Closed is closed exactly once when the Host is shutting down. Unlike Done,
+// it is not signaled when an Engine run pauses or ends.
+func (h *Host) Closed() <-chan struct{} { return h.closed }
+func (h *Host) Dir() string             { return h.store.Dir() }
+func (h *Host) ProjectDir() string      { return h.cfg.ProjectDir }
 
 // ── 事件发射 ──
 
@@ -1070,6 +1077,9 @@ func (h *Host) closeOutputChannels() {
 		return
 	}
 	h.outputClosed = true
+	if h.closed != nil {
+		close(h.closed)
+	}
 	close(h.done)
 	close(h.events)
 	close(h.streamCh)
@@ -1353,27 +1363,33 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 	if provider == "" || model == "" {
 		return fmt.Errorf("provider and model are required")
 	}
-	if err := h.models.Swap(role, provider, model); err != nil {
-		return err
-	}
+	role = strings.ToLower(strings.TrimSpace(role))
+	candidate := bootstrap.CloneConfig(h.cfg)
 	if role == "" || role == "default" {
-		h.cfg.Provider = provider
-		h.cfg.ModelName = model
+		candidate.Provider = provider
+		candidate.ModelName = model
 	} else {
-		if h.cfg.Roles == nil {
-			h.cfg.Roles = make(map[string]bootstrap.RoleConfig)
+		if candidate.Roles == nil {
+			candidate.Roles = make(map[string]bootstrap.RoleConfig)
 		}
-		rc := h.cfg.Roles[role]
+		rc := candidate.Roles[role]
 		rc.Provider = provider
 		rc.Model = model
-		h.cfg.Roles[role] = rc
+		candidate.Roles[role] = rc
 	}
+	if err := candidate.ValidateBase(); err != nil {
+		return err
+	}
+	prepared, err := bootstrap.NewModelSet(candidate)
+	if err != nil {
+		return err
+	}
+	if err := bootstrap.SaveWorkspaceConfig(h.configPath, candidate); err != nil {
+		return fmt.Errorf("save workspace config: %w", err)
+	}
+	h.models.ApplyPrepared(prepared)
+	h.cfg = candidate
 	// 换模型不改动已存的推理强度意图：只在下发时按新模型能力钳制。
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn("保存配置失败", "module", "host", "err", err)
-		}
-	}
 	h.applyThinkingLocked(role)
 	// 切到未登记模型时打一行 warn，提示用户走了 128k 兜底——长篇容易被提前压缩。
 	logRole := role
@@ -1392,6 +1408,42 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 		Summary:  fmt.Sprintf("模型已切换：%s → %s/%s", role, provider, model),
 		Level:    "info",
 	})
+	return nil
+}
+
+// InheritDefaultModel removes a role override and immediately routes the role
+// back through the default model. The workspace config is updated atomically
+// before the prepared runtime model set is applied.
+func (h *Host) InheritDefaultModel(role string) error {
+	role = strings.ToLower(strings.TrimSpace(role))
+	if role == "" || role == "default" {
+		return fmt.Errorf("role is required")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	candidate := bootstrap.CloneConfig(h.cfg)
+	if candidate.Roles == nil {
+		return nil
+	}
+	if _, ok := candidate.Roles[role]; !ok {
+		return nil
+	}
+	delete(candidate.Roles, role)
+	if err := candidate.ValidateBase(); err != nil {
+		return err
+	}
+	prepared, err := bootstrap.NewModelSet(candidate)
+	if err != nil {
+		return fmt.Errorf("restore role inheritance: %w", err)
+	}
+	if err := bootstrap.SaveWorkspaceConfig(h.configPath, candidate); err != nil {
+		return fmt.Errorf("save workspace config: %w", err)
+	}
+	h.models.ApplyPrepared(prepared)
+	h.cfg = candidate
+	h.applyThinkingLocked(role)
+	h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
+		Summary: fmt.Sprintf("角色已恢复默认模型：%s", role)})
 	return nil
 }
 
@@ -1448,22 +1500,25 @@ func (h *Host) SetRoleThinking(role, level string) error {
 		return err
 	}
 	role = strings.ToLower(strings.TrimSpace(role))
+	candidate := bootstrap.CloneConfig(h.cfg)
 	// 存储保留原始意图：直接持久化用户选定的强度，钳制只在下发(applyThinkingLocked)时按模型能力发生。
 	if role == "" || role == "default" {
-		h.cfg.ReasoningEffort = string(parsed)
+		candidate.ReasoningEffort = string(parsed)
 	} else {
-		if h.cfg.Roles == nil {
-			h.cfg.Roles = make(map[string]bootstrap.RoleConfig)
+		rc, ok := candidate.Roles[role]
+		if !ok || rc.Provider == "" || rc.Model == "" {
+			return fmt.Errorf("请先为角色 %s 选择独立模型", role)
 		}
-		rc := h.cfg.Roles[role]
 		rc.ReasoningEffort = string(parsed)
-		h.cfg.Roles[role] = rc
+		candidate.Roles[role] = rc
 	}
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn("保存配置失败", "module", "host", "err", err)
-		}
+	if err := candidate.ValidateBase(); err != nil {
+		return err
 	}
+	if err := bootstrap.SaveWorkspaceConfig(h.configPath, candidate); err != nil {
+		return fmt.Errorf("save workspace config: %w", err)
+	}
+	h.cfg = candidate
 
 	// 联动 live：具体角色直接应用；default 则遍历各具体角色按 ResolveReasoningEffort 重新应用
 	// （已被角色级覆盖的保留自身，未覆盖的吃上新默认）。
@@ -1962,7 +2017,7 @@ func (h *Host) continueAfterImport(opts imp.Options) bool {
 	return true
 }
 
-// Export 导出已完成章节为外部文件（当前仅支持 TXT）。
+// Export 导出已完成章节为外部文件（支持 TXT / EPUB）。
 //
 // 与 ImportFrom 不同：导出是只读操作（不动 Progress / Checkpoint），
 // 因此**不要求 Engine 停机**——写作中途也可以随时导出"现阶段成品"。

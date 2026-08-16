@@ -409,6 +409,9 @@ func createModelFromConfig(providerKey, model string, pc ProviderConfig, cache m
 	if err != nil {
 		return nil, fmt.Errorf("provider %s (%s): %w: %w", providerKey, providerType, errs.ErrProvider, err)
 	}
+	if modelConfig, ok := pc.ModelConfig(model); ok && modelConfig.Temperature != nil {
+		m.GetConfig().Temperature = *modelConfig.Temperature
+	}
 	cache[cacheKey] = m
 	return m, nil
 }

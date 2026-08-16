@@ -43,3 +43,26 @@ func TestConcurrentEmitAndCloseDoesNotRaceChannelLifecycle(t *testing.T) {
 		t.Fatal("closeOutputChannels 应原子标记输出已关闭")
 	}
 }
+
+func TestClosedIsIndependentFromEngineDone(t *testing.T) {
+	h := &Host{
+		events:   make(chan Event, 1),
+		streamCh: make(chan string, 1),
+		done:     make(chan struct{}, 1),
+		closed:   make(chan struct{}),
+	}
+
+	h.done <- struct{}{}
+	select {
+	case <-h.Closed():
+		t.Fatal("Engine Done signal must not close the Host lifecycle channel")
+	default:
+	}
+
+	h.closeOutputChannels()
+	select {
+	case <-h.Closed():
+	default:
+		t.Fatal("Host lifecycle channel was not closed during shutdown")
+	}
+}

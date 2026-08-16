@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -79,6 +80,12 @@ type ProviderConfig struct {
 type ModelConfig struct {
 	Name          string `json:"name"`
 	ContextWindow int    `json:"context_window,omitempty"`
+	// Temperature is the model's shared default sampling temperature. Nil lets
+	// the provider choose its default.
+	Temperature *float64 `json:"temperature,omitempty"`
+	// ReasoningEffort is the model default used when the workspace and role do
+	// not specify an override.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	// JSONSchema 是原生结构化输出（response_format json_schema）的三态声明：
 	// 未配置=按 provider adapter 的模型级能力判断；true=用户声明该 endpoint/模型
 	// 支持（请求被拒绝时原样暴露，不静默降级）；false=强制走 prompt contract。
@@ -206,7 +213,8 @@ var knownRoles = map[string]bool{
 // Config 小说应用配置。
 type Config struct {
 	// 运行时字段（不序列化到 JSON）
-	OutputDir string `json:"-"` // 输出根目录
+	OutputDir  string `json:"-"` // 输出根目录
+	ProjectDir string `json:"-"` // 项目根目录，公共项目级配置存放位置
 
 	// 默认 LLM 配置
 	Provider  string `json:"provider"` // 默认 provider（Providers map 中的 key）
@@ -418,6 +426,9 @@ func (c *Config) DefaultProviderConfig() ProviderConfig {
 
 // FillDefaults 填充默认值。
 func (c *Config) FillDefaults() {
+	if c.ProjectDir == "" {
+		c.ProjectDir, _ = os.Getwd()
+	}
 	if c.OutputDir == "" {
 		c.OutputDir = filepath.Join("output", "novel")
 	}
@@ -482,7 +493,23 @@ func (c Config) ResolveReasoningEffort(role string) string {
 			}
 		}
 	}
-	return c.ReasoningEffort
+	if c.ReasoningEffort != "" {
+		return c.ReasoningEffort
+	}
+	provider, model := c.Provider, c.ModelName
+	if rc, ok := c.Roles[role]; ok && rc.Provider != "" && rc.Model != "" {
+		provider, model = rc.Provider, rc.Model
+	} else if role == "chapter_planner" {
+		if rc, ok := c.Roles["architect"]; ok && rc.Provider != "" && rc.Model != "" {
+			provider, model = rc.Provider, rc.Model
+		}
+	}
+	if pc, ok := c.Providers[provider]; ok {
+		if mc, ok := pc.ModelConfig(model); ok {
+			return mc.ReasoningEffort
+		}
+	}
+	return ""
 }
 
 // LogContextWindowChoice 打印某个角色的窗口决策。source=default 时发 Warn 提示

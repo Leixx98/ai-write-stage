@@ -35,3 +35,5 @@ require (
 	golang.org/x/image v0.44.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 )
+
+replace github.com/voocel/litellm => ./third-party/litellm

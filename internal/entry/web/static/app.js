@@ -18,7 +18,9 @@ let bridgeConfig = null;
 let bridgeSchema = null;
 let bridgeJob = null;
 let bridgePrompterPresets = [];
-const WELCOME_KEY = 'ainovel.web.welcome.v1';
+const WELCOME_KEY_PREFIX = 'ainovel.web.welcome.v2.';
+let welcomeWorkspaceID = '';
+let welcomeStateSynced = false;
 const MAX_EVENT_ITEMS = 500;
 const MAX_STREAM_ROUNDS = 32;
 const MAX_STREAM_CHARS = 256 * 1024;
@@ -102,6 +104,7 @@ function renderState(state = {}) {
 async function refresh() {
   try {
     const data = await api('/api/v2/state').catch(() => api('/api/state'));
+    welcomeWorkspaceID = String(data.workspace_id || data.dir || '').trim();
     renderState(data.snapshot || data);
   } catch (error) { notify(`状态刷新失败：${error.message}`, 'toast', 'error'); }
 }
@@ -249,13 +252,24 @@ async function command(name, body = {}) {
   catch (error) { appendEvent({ Time: Date.now(), Category: 'ERROR', Level: 'error', Summary: error.message }); return false; }
 }
 function welcomeIsOpen() { return document.documentElement.classList.contains('welcome-pending'); }
+function welcomeStorageKey() { return welcomeWorkspaceID ? `${WELCOME_KEY_PREFIX}${welcomeWorkspaceID}` : ''; }
 function closeWelcome() {
-  try { localStorage.setItem(WELCOME_KEY, 'seen'); } catch (_) { /* The session can still continue without storage. */ }
+  const key = welcomeStorageKey();
+  try { if (key) localStorage.setItem(key, 'seen'); } catch (_) { /* The session can still continue without storage. */ }
   document.documentElement.classList.remove('welcome-pending');
   document.documentElement.classList.add('welcome-seen');
   window.requestAnimationFrame(() => $('prompt')?.focus());
 }
 function syncWelcomeState(state = {}) {
+  if (!welcomeStateSynced && welcomeStorageKey()) {
+    welcomeStateSynced = true;
+    try {
+      if (localStorage.getItem(welcomeStorageKey()) === 'seen') {
+        closeWelcome();
+        return;
+      }
+    } catch (_) { /* Keep the welcome screen when browser storage is unavailable. */ }
+  }
   if (!welcomeIsOpen()) return;
   const hasNovel = Boolean(state.NovelName || state.Phase);
   $('welcome-new').hidden = hasNovel;
@@ -306,20 +320,12 @@ function showView(name) {
   document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active-view', view.id === name));
   document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.view === name));
   if (name === 'comfyui') loadComfyUI();
-  if (name === 'api-settings') loadModels();
+  if (name === 'api-settings') window.ModelSettings?.load();
   if (name === 'prompts') loadPrompts();
   if (name === 'app-settings') loadWorkflowSettingsUI();
 }
 document.querySelectorAll('.tab').forEach((tab) => { tab.onclick = () => showView(tab.dataset.view); });
 
-async function loadModels() {
-  try {
-    const data = await api('/api/v2/settings/models');
-    $('provider').value = data.DefaultProvider || data.default_provider || '';
-    $('model-name').value = data.DefaultModel || data.default_model || '';
-    $('role-models').innerHTML = '<p>角色模型覆盖配置读取自项目配置文件。</p>';
-  } catch (error) { notify(`模型配置加载失败：${error.message}`, 'models-msg', 'error'); }
-}
 async function saveWorkflowSettings() {
   const previous = workflowSettingsDoc || {};
   const source = $('import-source').value.trim();
@@ -562,6 +568,42 @@ if ($('bindings-body')) $('bindings-body').addEventListener('click', (event) => 
 $('dynamic-fields').oninput = (event) => { if (event.target.dataset.fieldKey) fieldValues[event.target.dataset.fieldKey] = event.target.type === 'checkbox' ? event.target.checked : event.target.value; };
 $('send').onclick = () => { const text = $('prompt').value.trim(); if (!text) return; const fresh = !currentState || (!currentState.NovelName && !currentState.Phase); const name = fresh ? 'start' : currentState.IsRunning ? 'steer' : 'continue'; command(name, fresh ? { prompt: text } : { text }); $('prompt').value = ''; };
 $('pause').onclick = () => command(currentState?.IsRunning ? 'pause' : 'continue');
+async function exportBookEPUB() {
+  const button = qs('[data-action="export-book"]');
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch('/api/v2/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.msg || response.statusText || `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const encodedName = response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    link.download = encodedName ? decodeURIComponent(encodedName.replace(/\+/g, ' ')) : 'novel.epub';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify('EPUB 已导出，可在手机阅读器中打开。', 'toast', 'success');
+  } catch (error) {
+    notify(`导出失败：${error.message}`, 'toast', 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+const controls = qs('.controls');
+if (controls && !qs('[data-action="export-book"]')) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'secondary';
+  button.dataset.action = 'export-book';
+  button.textContent = '导出 EPUB';
+  controls.insertBefore(button, qs('#reader-open') || null);
+  button.addEventListener('click', exportBookEPUB);
+}
 $('prompt').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('send').click(); } });
 streamView.addEventListener('scroll', () => { streamAutoFollow = isNearBottom(streamView); }, { passive: true });
 window.addEventListener('beforeunload', () => {

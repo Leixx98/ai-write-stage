@@ -191,3 +191,36 @@ input, textarea, select { width:100%; color:var(--text); background:#101214; bor
 .preset-toolbar select { min-width: 150px; flex: 1; }
 .preset-toolbar .small { flex: 0 0 auto; }
 @media (max-width:800px) { .preset-toolbar { align-items: stretch; } }
+
+/* Model settings */
+.model-settings-panel { max-width: 1180px; }
+.model-settings-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 420px; border: 1px solid var(--line); background: #121519; }
+.model-provider-sidebar { padding: 8px; border-right: 1px solid var(--line); }
+.model-provider-list { display: grid; gap: 4px; }
+.model-provider-item { display: grid; gap: 3px; width: 100%; padding: 10px; border: 1px solid transparent; background: transparent; color: var(--text); text-align: left; }
+.model-provider-item:hover { background: #1a1f24; border-color: var(--line); }
+.model-provider-item.active { background: #29251e; border-color: var(--accent); }
+.model-provider-item small { color: var(--muted); }
+.model-provider-editor { min-width: 0; padding: 16px; }
+.model-editor-head, .model-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.model-editor-head h2, .model-list-heading h2, .model-list-heading h3 { margin: 0; font-size: 15px; }
+.model-provider-fields { margin-top: 14px; }
+.model-list-heading { margin: 18px 0 8px; }
+.model-config-list { display: grid; gap: 7px; }
+.model-config-row { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(110px, 1fr) minmax(90px, .7fr) minmax(110px, 1fr) minmax(110px, 1fr) 34px; gap: 7px; align-items: end; padding: 9px; border: 1px solid #30363c; background: #161a1e; }
+.model-config-row label { min-width: 0; font-size: 11px; color: var(--muted); }
+.model-config-row input, .model-config-row select { padding: 7px; font-size: 12px; }
+.model-config-row .model-remove { width: 34px; height: 34px; padding: 0; font-size: 18px; }
+.model-routing-section { margin-top: 18px; }
+.model-role-grid { display: grid; gap: 6px; }
+.model-role-row { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(240px, 1.5fr) minmax(130px, .7fr); gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.model-role-row strong, .model-role-row small { display: block; }
+.model-role-row small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+@media (max-width: 900px) {
+  .model-settings-layout { grid-template-columns: 1fr; }
+  .model-provider-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  .model-provider-list { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .model-config-row { grid-template-columns: 1fr 1fr; }
+  .model-config-row .model-remove { justify-self: end; }
+  .model-role-row { grid-template-columns: 1fr; }
+}

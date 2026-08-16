@@ -6,12 +6,62 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
+	"github.com/voocel/ainovel-cli/assets"
+	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/comfyui"
+	"github.com/voocel/ainovel-cli/internal/host"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
+
+func TestModelSettingsSelectRolePersistsWorkspaceWithoutSecrets(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	workspace := t.TempDir()
+	t.Chdir(workspace)
+	provider := bootstrap.ProviderConfig{
+		Type: "openai", APIKey: "super-secret", BaseURL: "https://example.com/v1",
+		Models: []bootstrap.ModelConfig{{Name: "default-model"}, {Name: "writer-model"}},
+	}
+	if err := bootstrap.SaveModelLibrary(bootstrap.ModelLibrary{
+		Version: 1, ProviderOrder: []string{"proxy"},
+		Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := bootstrap.Config{
+		Provider: "proxy", ModelName: "default-model", Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
+		OutputDir: filepath.Join(workspace, "output", "novel"), ProjectDir: workspace, Style: "default",
+	}
+	rt, err := host.New(cfg, assets.Load("default", assets.DefaultLoadOptions(cfg.OutputDir)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	controller := newV2Controller(rt)
+
+	body := bytes.NewBufferString(`{"action":"select_model","role":"writer","provider":"proxy","model":"writer-model"}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/v2/settings/models", body)
+	recorder := httptest.NewRecorder()
+	controller.settingsModels(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("select role returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if bytes.Contains(recorder.Body.Bytes(), []byte("super-secret")) {
+		t.Fatal("API response exposed API key")
+	}
+	stored, err := bootstrap.LoadConfigFile(bootstrap.ProjectConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Providers) != 0 || stored.Roles["writer"].Model != "writer-model" {
+		t.Fatalf("workspace config = %#v", stored)
+	}
+}
 
 func TestMergeCanvasRuntimeBindsPromptAlias(t *testing.T) {
 	wf := comfyui.Workflow{
@@ -63,6 +113,20 @@ func TestClassifyOutputsForcesImageFromMIME(t *testing.T) {
 func TestOutputKindUsesImageExtensionWithoutClassType(t *testing.T) {
 	if got := outputKind("render.webp", "", ""); got != "image" {
 		t.Fatalf("expected image output, got %q", got)
+	}
+}
+
+func TestWebWorkspaceIDIsStableAndScopedToOutputDirectory(t *testing.T) {
+	first := webWorkspaceID(t.TempDir())
+	if first == "" {
+		t.Fatal("workspace ID is empty")
+	}
+	dir := t.TempDir()
+	if webWorkspaceID(dir) != webWorkspaceID(dir) {
+		t.Fatal("workspace ID changed for the same output directory")
+	}
+	if first == webWorkspaceID(dir) {
+		t.Fatal("different output directories shared a workspace ID")
 	}
 }
 

@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"github.com/voocel/ainovel-cli/assets"
+	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/comfyui"
 	"github.com/voocel/ainovel-cli/internal/entry/startup"
 	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/voocel/ainovel-cli/internal/host/exp"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
 	"github.com/voocel/ainovel-cli/internal/store"
@@ -84,7 +86,7 @@ type v2Controller struct {
 }
 
 func newV2Controller(rt *host.Host) *v2Controller {
-	c := &v2Controller{rt: rt, st: store.NewStore(rt.Dir()), running: map[string]context.CancelFunc{}}
+	c := &v2Controller{rt: rt, st: store.NewStoreForProject(rt.Dir(), rt.ProjectDir()), running: map[string]context.CancelFunc{}}
 	go c.watchCompletedUnits()
 	return c
 }
@@ -98,7 +100,7 @@ func (c *v2Controller) watchCompletedUnits() {
 	defer ticker.Stop()
 	for {
 		select {
-		case <-c.rt.Done():
+		case <-c.rt.Closed():
 			return
 		case <-ticker.C:
 			bridge, err := c.st.ComfyUI.LoadBridgeConfig()
@@ -185,7 +187,7 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(p, "units/"):
 		c.unit(w, r, strings.TrimPrefix(p, "units/"))
 	case p == "state" && r.Method == http.MethodGet:
-		envelope(w, http.StatusOK, 0, map[string]any{"snapshot": c.rt.Snapshot()}, "")
+		envelope(w, http.StatusOK, 0, map[string]any{"snapshot": c.rt.Snapshot(), "workspace_id": webWorkspaceID(c.rt.Dir())}, "")
 	case p == "replay" && r.Method == http.MethodGet:
 		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
 		items, err := c.rt.ReplayQueue(after)
@@ -194,6 +196,8 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		envelope(w, http.StatusOK, 0, items, "")
+	case p == "export" && r.Method == http.MethodPost:
+		c.exportBook(w, r)
 	case p == "settings/models":
 		c.settingsModels(w, r)
 	case p == "settings/workflow":
@@ -207,6 +211,38 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func webWorkspaceID(dir string) string {
+	canonical, err := filepath.Abs(dir)
+	if err != nil {
+		canonical = filepath.Clean(dir)
+	}
+	canonical = filepath.ToSlash(filepath.Clean(canonical))
+	if filepath.Separator == '\\' {
+		canonical = strings.ToLower(canonical)
+	}
+	sum := sha256.Sum256([]byte(canonical))
+	return hex.EncodeToString(sum[:16])
+}
+
+func (c *v2Controller) exportBook(w http.ResponseWriter, r *http.Request) {
+	result, err := c.rt.Export(r.Context(), exp.Options{Format: exp.FormatEPUB, Overwrite: true})
+	if err != nil {
+		envelopeErr(w, http.StatusUnprocessableEntity, codeInvalidRequest, err)
+		return
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		envelopeErr(w, http.StatusInternalServerError, codeConfigInvalid, fmt.Errorf("读取导出文件失败: %w", err))
+		return
+	}
+	filename := filepath.Base(result.Path)
+	w.Header().Set("Content-Type", "application/epub+zip")
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (c *v2Controller) settingsModels(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		envelope(w, 200, 0, c.rt.ModelConfiguration(), "")
@@ -216,16 +252,50 @@ func (c *v2Controller) settingsModels(w http.ResponseWriter, r *http.Request) {
 		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
 		return
 	}
-	var value map[string]any
-	if err := decodeBody(r, &value); err != nil {
+	var req struct {
+		Action          string                  `json:"action"`
+		Provider        string                  `json:"provider"`
+		Type            string                  `json:"type"`
+		API             string                  `json:"api"`
+		BaseURL         string                  `json:"base_url"`
+		Models          []bootstrap.ModelConfig `json:"models"`
+		APIKeyAction    host.APIKeyAction       `json:"api_key_action"`
+		APIKey          string                  `json:"api_key"`
+		Model           string                  `json:"model"`
+		Role            string                  `json:"role"`
+		InheritDefault  bool                    `json:"inherit_default"`
+		ReasoningEffort string                  `json:"reasoning_effort"`
+	}
+	if err := decodeBody(r, &req); err != nil {
 		envelopeErr(w, 400, codeInvalidRequest, err)
 		return
 	}
-	if err := c.saveSettings("models", value); err != nil {
-		envelopeErr(w, 500, codeConfigInvalid, err)
+	draft := host.ModelConfigurationDraft{
+		Provider: req.Provider, Type: req.Type, API: req.API, BaseURL: req.BaseURL,
+		Models: req.Models, APIKeyAction: req.APIKeyAction, APIKey: req.APIKey,
+	}
+	var err error
+	switch req.Action {
+	case "save_provider":
+		err = c.rt.ConfigureModels(draft)
+	case "test_provider":
+		err = c.rt.TestModelConnection(r.Context(), draft, req.Model)
+	case "select_model":
+		if req.InheritDefault {
+			err = c.rt.InheritDefaultModel(req.Role)
+		} else {
+			err = c.rt.SwitchModel(req.Role, req.Provider, req.Model)
+		}
+	case "set_reasoning":
+		err = c.rt.SetRoleThinking(req.Role, req.ReasoningEffort)
+	default:
+		err = fmt.Errorf("unknown model settings action %q", req.Action)
+	}
+	if err != nil {
+		envelopeErr(w, http.StatusUnprocessableEntity, codeConfigInvalid, err)
 		return
 	}
-	envelope(w, 200, 0, map[string]any{"saved": true}, "")
+	envelope(w, 200, 0, c.rt.ModelConfiguration(), "")
 }
 
 func (c *v2Controller) settingsDocument(w http.ResponseWriter, r *http.Request, name string) {
