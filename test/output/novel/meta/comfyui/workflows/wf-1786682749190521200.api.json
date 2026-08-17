@@ -1,0 +1,107 @@
+{
+  "1": {
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    }
+  },
+  "2": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "text": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality"
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "Negative Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "text": "low quality, worst quality, blurry, distorted, bad anatomy, bad hands, text, watermark, signature"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "空Latent图像"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 768,
+      "width": 768
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "K采样器"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 6,
+      "denoise": 1,
+      "latent_image": [
+        "4",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "seed": 323016970519057,
+      "steps": 25
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "VAE解码"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "保存图像"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sdxl_basic",
+      "images": [
+        "6",
+        0
+      ]
+    }
+  }
+}

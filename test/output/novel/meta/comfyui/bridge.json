@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "auto_generate": true,
+  "workflow_id": "wf-1786682749190521200",
+  "strict": true,
+  "prompter_timeout_ms": 120000,
+  "previous_tail_chars": 1200
+}

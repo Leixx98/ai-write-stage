@@ -1,0 +1,28 @@
+{
+  "job_id": "img_1786682969000399100",
+  "unit_id": "",
+  "chapter": 0,
+  "ordinal": 0,
+  "workflow_id": "wf-1786682749190521200",
+  "instance_id": "local-8188",
+  "status": "completed",
+  "attempt": 1,
+  "prompt_id": "1bbc5c4a-8e4a-476d-953b-646692d5f319",
+  "output": {
+    "filename": "img_1786682969000399100.png",
+    "mime": "image/png"
+  },
+  "outputs": [
+    {
+      "kind": "file",
+      "node_id": "7",
+      "output_key": "images",
+      "class_type": "\u003cnil\u003e",
+      "mime": "image/png",
+      "previewable": false,
+      "url": "/api/v2/comfyui/jobs/img_1786682969000399100/outputs/0"
+    }
+  ],
+  "started_at": "2026-08-14T04:49:29.0003991Z",
+  "finished_at": "2026-08-14T04:49:29.2821441Z"
+}

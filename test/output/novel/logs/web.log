@@ -1,0 +1,440 @@
+time=2026-08-14T10:35:27.514+08:00 level=INFO msg=日志会话开始 session=20260814T103527.510+0800-p26848 module=logger session_id=20260814T103527.510+0800-p26848
+time=2026-08-14T10:35:27.514+08:00 level=INFO msg=启动 session=20260814T103527.510+0800-p26848 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T10:35:27.515+08:00 level=INFO msg=模型元数据已就绪 session=20260814T103527.510+0800-p26848 module=models count=207
+time=2026-08-14T10:35:27.516+08:00 level=INFO msg=模型就绪 session=20260814T103527.510+0800-p26848 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T10:35:27.516+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T103527.510+0800-p26848 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T10:35:27.519+08:00 level=INFO msg="恢复创作: 恢复：第 3 章进行中" session=20260814T103527.510+0800-p26848 module=event category=SYSTEM
+time=2026-08-14T10:35:27.519+08:00 level=INFO msg=用户规则快照 session=20260814T103527.510+0800-p26848 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T10:35:27.524+08:00 level=INFO msg="派发原因: 续写当前 writing unit 3-1-2\n完整任务:\n写第 3 章 unit 3-1-2（2/5）" session=20260814T103527.510+0800-p26848 module=event category=DISPATCH agent=writer event_id=e1 state=running summary="writer（写第 3 章 unit 3-1-2（2/5））"
+time=2026-08-14T10:35:28.218+08:00 level=INFO msg=novel_context session=20260814T103527.510+0800-p26848 module=event category=TOOL agent=writer event_id=e2 state=running depth=1
+time=2026-08-14T10:35:28.230+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T103527.510+0800-p26848 module=context agent=writer
+time=2026-08-14T10:35:28.241+08:00 level=INFO msg=novel_context session=20260814T103527.510+0800-p26848 module=event category=TOOL agent=writer event_id=e2 state=completed depth=1 duration=22.9817ms
+time=2026-08-14T10:35:28.244+08:00 level=INFO msg="writer 上下文 4% (8657/200000) 策略: " session=20260814T103527.510+0800-p26848 module=context agent=writer
+time=2026-08-14T10:35:37.969+08:00 level=INFO msg=日志会话开始 session=20260814T103537.965+0800-p17128 module=logger session_id=20260814T103537.965+0800-p17128
+time=2026-08-14T10:35:37.970+08:00 level=INFO msg=启动 session=20260814T103537.965+0800-p17128 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T10:35:37.970+08:00 level=INFO msg=模型元数据已就绪 session=20260814T103537.965+0800-p17128 module=models count=207
+time=2026-08-14T10:35:37.972+08:00 level=INFO msg=模型就绪 session=20260814T103537.965+0800-p17128 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T10:35:37.972+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T103537.965+0800-p17128 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T10:35:37.975+08:00 level=INFO msg="恢复创作: 恢复：第 3 章进行中" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM
+time=2026-08-14T10:35:37.975+08:00 level=INFO msg=用户规则快照 session=20260814T103537.965+0800-p17128 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T10:35:37.980+08:00 level=INFO msg="派发原因: 续写当前 writing unit 3-1-2\n完整任务:\n写第 3 章 unit 3-1-2（2/5）" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e1 state=running summary="writer（写第 3 章 unit 3-1-2（2/5））"
+time=2026-08-14T10:35:38.957+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e2 state=running depth=1
+time=2026-08-14T10:35:38.969+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:38.977+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e2 state=completed depth=1 duration=19.7737ms
+time=2026-08-14T10:35:38.978+08:00 level=INFO msg="writer 上下文 4% (8657/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:42.793+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T103537.965+0800-p17128 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T10:35:42.793+08:00 level=INFO msg="writer 上下文 4% (8657/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:42.793+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM agent=writer
+time=2026-08-14T10:35:45.676+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e3 state=running depth=1
+time=2026-08-14T10:35:46.611+08:00 level=INFO msg="writer 上下文 2% (4126/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:46.618+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e3 state=completed depth=1 duration=941.6823ms
+time=2026-08-14T10:35:46.619+08:00 level=INFO msg="writer 上下文 2% (4126/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:46.619+08:00 level=INFO msg="writer（写第 3 章 unit 3-1-2（2/5））" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e1 state=completed duration=8.638894s
+time=2026-08-14T10:35:46.623+08:00 level=INFO msg="派发原因: 续写当前 writing unit 3-2-1\n完整任务:\n写第 3 章 unit 3-2-1（3/5）" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e4 state=running summary="writer（写第 3 章 unit 3-2-1（3/5））"
+time=2026-08-14T10:35:47.644+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e5 state=running depth=1
+time=2026-08-14T10:35:47.694+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:47.699+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e5 state=completed depth=1 duration=54.2052ms
+time=2026-08-14T10:35:47.700+08:00 level=INFO msg="writer 上下文 4% (8207/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:56.314+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T103537.965+0800-p17128 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T10:35:56.314+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM agent=writer
+time=2026-08-14T10:35:56.314+08:00 level=INFO msg="writer 上下文 4% (8207/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:57.462+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e6 state=running depth=1
+time=2026-08-14T10:35:58.554+08:00 level=INFO msg="writer 上下文 2% (3924/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:58.561+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e6 state=completed depth=1 duration=1.099063s
+time=2026-08-14T10:35:58.562+08:00 level=INFO msg="writer 上下文 2% (3924/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:58.562+08:00 level=INFO msg="writer（写第 3 章 unit 3-2-1（3/5））" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e4 state=completed duration=11.9389871s
+time=2026-08-14T10:35:58.569+08:00 level=INFO msg="派发原因: 续写当前 writing unit 3-3-1\n完整任务:\n写第 3 章 unit 3-3-1（4/5）" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e7 state=running summary="writer（写第 3 章 unit 3-3-1（4/5））"
+time=2026-08-14T10:35:59.433+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e8 state=running depth=1
+time=2026-08-14T10:35:59.480+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:35:59.484+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e8 state=completed depth=1 duration=51.5264ms
+time=2026-08-14T10:35:59.485+08:00 level=INFO msg="writer 上下文 4% (8636/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:06.792+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T103537.965+0800-p17128 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T10:36:06.792+08:00 level=INFO msg="writer 上下文 4% (8636/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:06.793+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM agent=writer
+time=2026-08-14T10:36:26.958+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T103537.965+0800-p17128 module=agent.guard agent=writer turn=3 consecutive=2
+time=2026-08-14T10:36:26.958+08:00 level=INFO msg="writer 上下文 2% (4089/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:26.958+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 2 次）" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM agent=writer
+time=2026-08-14T10:36:28.615+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e9 state=running depth=1
+time=2026-08-14T10:36:30.166+08:00 level=INFO msg="writer 上下文 3% (5427/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:30.174+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e9 state=completed depth=1 duration=1.5591208s
+time=2026-08-14T10:36:30.175+08:00 level=INFO msg="writer 上下文 3% (5427/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:30.175+08:00 level=INFO msg="writer（写第 3 章 unit 3-3-1（4/5））" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e7 state=completed duration=31.6062458s
+time=2026-08-14T10:36:30.180+08:00 level=INFO msg="派发原因: 续写当前 writing unit 3-4-1\n完整任务:\n写第 3 章 unit 3-4-1（5/5）" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e10 state=running summary="writer（写第 3 章 unit 3-4-1（5/5））"
+time=2026-08-14T10:36:31.312+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e11 state=running depth=1
+time=2026-08-14T10:36:31.350+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:31.357+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e11 state=completed depth=1 duration=44.3269ms
+time=2026-08-14T10:36:31.358+08:00 level=INFO msg="writer 上下文 4% (8276/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:51.772+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T103537.965+0800-p17128 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T10:36:51.772+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM agent=writer
+time=2026-08-14T10:36:51.772+08:00 level=INFO msg="writer 上下文 4% (8276/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:53.099+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e12 state=running depth=1
+time=2026-08-14T10:36:54.834+08:00 level=INFO msg="writer 上下文 2% (3948/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:54.846+08:00 level=INFO msg=write_chapter_unit session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=writer event_id=e12 state=completed depth=1 duration=1.7464787s
+time=2026-08-14T10:36:54.847+08:00 level=INFO msg="writer 上下文 2% (3948/200000) 策略: " session=20260814T103537.965+0800-p17128 module=context agent=writer
+time=2026-08-14T10:36:54.847+08:00 level=INFO msg="writer（写第 3 章 unit 3-4-1（5/5））" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=writer event_id=e10 state=completed duration=24.6664644s
+time=2026-08-14T10:36:54.851+08:00 level=INFO msg="第 3 章 writing units 已完成，程序正在直接合并提交" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM
+time=2026-08-14T10:36:54.878+08:00 level=INFO msg="第 3 章已直接提交，继续下一章" session=20260814T103537.965+0800-p17128 module=event category=SYSTEM
+time=2026-08-14T10:36:54.880+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=chapter_planner event_id=e13 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T10:36:57.620+08:00 level=INFO msg=novel_context session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=chapter_planner event_id=e14 state=running depth=1
+time=2026-08-14T10:36:57.674+08:00 level=INFO msg=novel_context(第4章) session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=chapter_planner event_id=e14 state=running depth=1
+time=2026-08-14T10:36:57.678+08:00 level=INFO msg=novel_context(第4章) session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=chapter_planner event_id=e14 state=completed depth=1 duration=58.1777ms
+time=2026-08-14T10:36:57.680+08:00 level=INFO msg=read_chapter(第3章) session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=chapter_planner event_id=e15 state=running depth=1
+time=2026-08-14T10:36:57.680+08:00 level=INFO msg=read_chapter(第3章) session=20260814T103537.965+0800-p17128 module=event category=TOOL agent=chapter_planner event_id=e15 state=completed depth=1
+time=2026-08-14T10:37:02.208+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T103537.965+0800-p17128 module=event category=SYSTEM
+time=2026-08-14T10:37:02.209+08:00 level=ERROR msg="context canceled" session=20260814T103537.965+0800-p17128 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e13 state=completed failed=true duration=7.3286595s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T10:50:02.708+08:00 level=INFO msg=日志会话开始 session=20260814T105002.703+0800-p536 module=logger session_id=20260814T105002.703+0800-p536
+time=2026-08-14T10:50:02.708+08:00 level=INFO msg=启动 session=20260814T105002.703+0800-p536 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T10:50:02.709+08:00 level=INFO msg=模型元数据已就绪 session=20260814T105002.703+0800-p536 module=models count=207
+time=2026-08-14T10:50:02.710+08:00 level=INFO msg=模型就绪 session=20260814T105002.703+0800-p536 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T10:50:02.710+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T105002.703+0800-p536 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T10:50:02.712+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T105002.703+0800-p536 module=event category=SYSTEM
+time=2026-08-14T10:50:02.713+08:00 level=INFO msg=用户规则快照 session=20260814T105002.703+0800-p536 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T10:50:02.715+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T105002.703+0800-p536 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T10:50:03.734+08:00 level=INFO msg=novel_context session=20260814T105002.703+0800-p536 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T10:50:03.819+08:00 level=INFO msg=novel_context(第4章) session=20260814T105002.703+0800-p536 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T10:50:03.827+08:00 level=INFO msg=novel_context(第4章) session=20260814T105002.703+0800-p536 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=93.1383ms
+time=2026-08-14T10:50:06.775+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T105002.703+0800-p536 module=event category=SYSTEM
+time=2026-08-14T10:50:06.776+08:00 level=ERROR msg="context canceled" session=20260814T105002.703+0800-p536 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=4.0610199s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T10:50:09.539+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T105002.703+0800-p536 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T10:50:25.945+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T105002.703+0800-p536 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T10:51:35.498+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T105002.703+0800-p536 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T11:41:27.965+08:00 level=INFO msg=日志会话开始 session=20260814T114127.961+0800-p51800 module=logger session_id=20260814T114127.961+0800-p51800
+time=2026-08-14T11:41:27.966+08:00 level=INFO msg=启动 session=20260814T114127.961+0800-p51800 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T11:41:27.967+08:00 level=INFO msg=模型元数据已就绪 session=20260814T114127.961+0800-p51800 module=models count=207
+time=2026-08-14T11:41:27.968+08:00 level=INFO msg=模型就绪 session=20260814T114127.961+0800-p51800 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T11:41:27.969+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T114127.961+0800-p51800 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T11:41:27.971+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T114127.961+0800-p51800 module=event category=SYSTEM
+time=2026-08-14T11:41:27.971+08:00 level=INFO msg=用户规则快照 session=20260814T114127.961+0800-p51800 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T11:41:27.974+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T114127.961+0800-p51800 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T11:41:30.722+08:00 level=INFO msg=novel_context session=20260814T114127.961+0800-p51800 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T11:41:30.769+08:00 level=INFO msg=novel_context(第4章) session=20260814T114127.961+0800-p51800 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T11:41:30.782+08:00 level=INFO msg=novel_context(第4章) session=20260814T114127.961+0800-p51800 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=59.5247ms
+time=2026-08-14T11:41:31.050+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T114127.961+0800-p51800 module=event category=SYSTEM
+time=2026-08-14T11:41:31.050+08:00 level=ERROR msg="context canceled" session=20260814T114127.961+0800-p51800 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.0766417s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T11:41:39.409+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T114127.961+0800-p51800 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T11:41:46.915+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T114127.961+0800-p51800 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T12:45:13.444+08:00 level=INFO msg=日志会话开始 session=20260814T124513.440+0800-p38400 module=logger session_id=20260814T124513.440+0800-p38400
+time=2026-08-14T12:45:13.444+08:00 level=INFO msg=启动 session=20260814T124513.440+0800-p38400 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T12:45:13.445+08:00 level=INFO msg=模型元数据已就绪 session=20260814T124513.440+0800-p38400 module=models count=207
+time=2026-08-14T12:45:13.447+08:00 level=INFO msg=模型就绪 session=20260814T124513.440+0800-p38400 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T12:45:13.447+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T124513.440+0800-p38400 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T12:45:13.449+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T124513.440+0800-p38400 module=event category=SYSTEM
+time=2026-08-14T12:45:13.450+08:00 level=INFO msg=用户规则快照 session=20260814T124513.440+0800-p38400 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T12:45:13.453+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T124513.440+0800-p38400 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T12:45:15.063+08:00 level=INFO msg=novel_context session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T12:45:15.127+08:00 level=INFO msg=novel_context(第4章) session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T12:45:15.140+08:00 level=INFO msg=novel_context(第4章) session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=76.4371ms
+time=2026-08-14T12:45:17.189+08:00 level=INFO msg=read_chapter session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e3 state=running depth=1
+time=2026-08-14T12:45:17.262+08:00 level=INFO msg=read_chapter(第3章) session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e3 state=running depth=1
+time=2026-08-14T12:45:17.263+08:00 level=INFO msg=read_chapter(第3章) session=20260814T124513.440+0800-p38400 module=event category=TOOL agent=chapter_planner event_id=e3 state=completed depth=1 duration=73.4839ms
+time=2026-08-14T12:45:17.271+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T124513.440+0800-p38400 module=event category=SYSTEM
+time=2026-08-14T12:45:17.271+08:00 level=ERROR msg="context canceled" session=20260814T124513.440+0800-p38400 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.8185747s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T12:47:05.915+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T124513.440+0800-p38400 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T13:11:16.964+08:00 level=INFO msg=日志会话开始 session=20260814T131116.960+0800-p53640 module=logger session_id=20260814T131116.960+0800-p53640
+time=2026-08-14T13:11:16.964+08:00 level=INFO msg=启动 session=20260814T131116.960+0800-p53640 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T13:11:16.965+08:00 level=INFO msg=模型元数据已就绪 session=20260814T131116.960+0800-p53640 module=models count=207
+time=2026-08-14T13:11:16.966+08:00 level=INFO msg=模型就绪 session=20260814T131116.960+0800-p53640 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T13:11:16.966+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T131116.960+0800-p53640 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T13:11:16.969+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T131116.960+0800-p53640 module=event category=SYSTEM
+time=2026-08-14T13:11:16.969+08:00 level=INFO msg=用户规则快照 session=20260814T131116.960+0800-p53640 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T13:11:16.971+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T131116.960+0800-p53640 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T13:11:18.263+08:00 level=INFO msg=novel_context session=20260814T131116.960+0800-p53640 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T13:11:18.359+08:00 level=INFO msg=novel_context(第4章) session=20260814T131116.960+0800-p53640 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T13:11:18.366+08:00 level=INFO msg=novel_context(第4章) session=20260814T131116.960+0800-p53640 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=103.285ms
+time=2026-08-14T13:11:20.570+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T131116.960+0800-p53640 module=event category=SYSTEM
+time=2026-08-14T13:11:20.570+08:00 level=ERROR msg="context canceled" session=20260814T131116.960+0800-p53640 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.5987791s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T13:12:14.948+08:00 level=INFO msg="comfyui connection test succeeded" session=20260814T131116.960+0800-p53640 phase=connect base_url=http://127.0.0.1:8188 draft=true
+time=2026-08-14T14:05:21.133+08:00 level=INFO msg=日志会话开始 session=20260814T140521.128+0800-p54288 module=logger session_id=20260814T140521.128+0800-p54288
+time=2026-08-14T14:05:21.133+08:00 level=INFO msg=启动 session=20260814T140521.128+0800-p54288 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T14:05:21.135+08:00 level=INFO msg=模型元数据已就绪 session=20260814T140521.128+0800-p54288 module=models count=207
+time=2026-08-14T14:05:21.136+08:00 level=INFO msg=模型就绪 session=20260814T140521.128+0800-p54288 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T14:05:21.137+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T140521.128+0800-p54288 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T14:05:21.138+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T140521.128+0800-p54288 module=event category=SYSTEM
+time=2026-08-14T14:05:21.139+08:00 level=INFO msg=用户规则快照 session=20260814T140521.128+0800-p54288 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T14:05:21.141+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T140521.128+0800-p54288 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T14:05:22.747+08:00 level=INFO msg=novel_context session=20260814T140521.128+0800-p54288 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:05:22.856+08:00 level=INFO msg=novel_context(第4章) session=20260814T140521.128+0800-p54288 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:05:22.867+08:00 level=INFO msg=novel_context(第4章) session=20260814T140521.128+0800-p54288 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=118.6247ms
+time=2026-08-14T14:05:25.295+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T140521.128+0800-p54288 module=event category=SYSTEM
+time=2026-08-14T14:05:25.296+08:00 level=ERROR msg="context canceled" session=20260814T140521.128+0800-p54288 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=4.154758s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T14:06:24.453+08:00 level=INFO msg=日志会话开始 session=20260814T140624.449+0800-p63152 module=logger session_id=20260814T140624.449+0800-p63152
+time=2026-08-14T14:06:24.453+08:00 level=INFO msg=启动 session=20260814T140624.449+0800-p63152 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T14:06:24.454+08:00 level=INFO msg=模型元数据已就绪 session=20260814T140624.449+0800-p63152 module=models count=207
+time=2026-08-14T14:06:24.455+08:00 level=INFO msg=模型就绪 session=20260814T140624.449+0800-p63152 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T14:06:24.456+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T140624.449+0800-p63152 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T14:06:24.458+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T140624.449+0800-p63152 module=event category=SYSTEM
+time=2026-08-14T14:06:24.458+08:00 level=INFO msg=用户规则快照 session=20260814T140624.449+0800-p63152 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T14:06:24.461+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T140624.449+0800-p63152 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T14:06:26.214+08:00 level=INFO msg=novel_context session=20260814T140624.449+0800-p63152 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:06:26.215+08:00 level=INFO msg=novel_context(第4章) session=20260814T140624.449+0800-p63152 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:06:26.226+08:00 level=INFO msg=novel_context(第4章) session=20260814T140624.449+0800-p63152 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=12.375ms
+time=2026-08-14T14:06:28.127+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T140624.449+0800-p63152 module=event category=SYSTEM
+time=2026-08-14T14:06:28.128+08:00 level=ERROR msg="context canceled" session=20260814T140624.449+0800-p63152 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.6663584s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T14:32:09.866+08:00 level=INFO msg=日志会话开始 session=20260814T143209.861+0800-p63224 module=logger session_id=20260814T143209.861+0800-p63224
+time=2026-08-14T14:32:09.866+08:00 level=INFO msg=启动 session=20260814T143209.861+0800-p63224 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T14:32:09.867+08:00 level=INFO msg=模型元数据已就绪 session=20260814T143209.861+0800-p63224 module=models count=207
+time=2026-08-14T14:32:09.868+08:00 level=INFO msg=模型就绪 session=20260814T143209.861+0800-p63224 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T14:32:09.869+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T143209.861+0800-p63224 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T14:32:09.871+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T143209.861+0800-p63224 module=event category=SYSTEM
+time=2026-08-14T14:32:09.871+08:00 level=INFO msg=用户规则快照 session=20260814T143209.861+0800-p63224 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T14:32:09.874+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T143209.861+0800-p63224 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T14:32:11.211+08:00 level=INFO msg=novel_context session=20260814T143209.861+0800-p63224 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:32:11.318+08:00 level=INFO msg=novel_context(第4章) session=20260814T143209.861+0800-p63224 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:32:11.330+08:00 level=INFO msg=novel_context(第4章) session=20260814T143209.861+0800-p63224 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=118.4123ms
+time=2026-08-14T14:32:14.016+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T143209.861+0800-p63224 module=event category=SYSTEM
+time=2026-08-14T14:32:14.016+08:00 level=ERROR msg="context canceled" session=20260814T143209.861+0800-p63224 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=4.1420809s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T14:59:55.749+08:00 level=INFO msg=日志会话开始 session=20260814T145955.745+0800-p50624 module=logger session_id=20260814T145955.745+0800-p50624
+time=2026-08-14T14:59:55.749+08:00 level=INFO msg=启动 session=20260814T145955.745+0800-p50624 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T14:59:55.750+08:00 level=INFO msg=模型元数据已就绪 session=20260814T145955.745+0800-p50624 module=models count=207
+time=2026-08-14T14:59:55.751+08:00 level=INFO msg=模型就绪 session=20260814T145955.745+0800-p50624 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T14:59:55.751+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T145955.745+0800-p50624 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T14:59:55.754+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T145955.745+0800-p50624 module=event category=SYSTEM
+time=2026-08-14T14:59:55.754+08:00 level=INFO msg=用户规则快照 session=20260814T145955.745+0800-p50624 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T14:59:55.756+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T145955.745+0800-p50624 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T14:59:57.268+08:00 level=INFO msg=novel_context session=20260814T145955.745+0800-p50624 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:59:57.318+08:00 level=INFO msg=novel_context(第4章) session=20260814T145955.745+0800-p50624 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T14:59:57.329+08:00 level=INFO msg=novel_context(第4章) session=20260814T145955.745+0800-p50624 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=61.1069ms
+time=2026-08-14T14:59:59.539+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T145955.745+0800-p50624 module=event category=SYSTEM
+time=2026-08-14T14:59:59.540+08:00 level=ERROR msg="context canceled" session=20260814T145955.745+0800-p50624 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.7835567s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T15:04:44.533+08:00 level=INFO msg=日志会话开始 session=20260814T150444.529+0800-p57452 module=logger session_id=20260814T150444.529+0800-p57452
+time=2026-08-14T15:04:44.533+08:00 level=INFO msg=启动 session=20260814T150444.529+0800-p57452 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T15:04:44.535+08:00 level=INFO msg=模型元数据已就绪 session=20260814T150444.529+0800-p57452 module=models count=207
+time=2026-08-14T15:04:44.536+08:00 level=INFO msg=模型就绪 session=20260814T150444.529+0800-p57452 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T15:04:44.536+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T150444.529+0800-p57452 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T15:04:44.538+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T150444.529+0800-p57452 module=event category=SYSTEM
+time=2026-08-14T15:04:44.539+08:00 level=INFO msg=用户规则快照 session=20260814T150444.529+0800-p57452 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T15:04:44.541+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T150444.529+0800-p57452 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T15:04:47.503+08:00 level=INFO msg=novel_context session=20260814T150444.529+0800-p57452 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T15:04:47.550+08:00 level=INFO msg=novel_context(第4章) session=20260814T150444.529+0800-p57452 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T15:04:47.560+08:00 level=INFO msg=novel_context(第4章) session=20260814T150444.529+0800-p57452 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=57.0818ms
+time=2026-08-14T15:04:47.792+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T150444.529+0800-p57452 module=event category=SYSTEM
+time=2026-08-14T15:04:47.792+08:00 level=ERROR msg="context canceled" session=20260814T150444.529+0800-p57452 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=3.2514563s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T16:38:53.201+08:00 level=INFO msg=日志会话开始 session=20260814T163853.196+0800-p34300 module=logger session_id=20260814T163853.196+0800-p34300
+time=2026-08-14T16:38:53.201+08:00 level=INFO msg=启动 session=20260814T163853.196+0800-p34300 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T16:38:53.202+08:00 level=INFO msg=模型元数据已就绪 session=20260814T163853.196+0800-p34300 module=models count=207
+time=2026-08-14T16:38:53.205+08:00 level=INFO msg=模型就绪 session=20260814T163853.196+0800-p34300 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T16:38:53.205+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T163853.196+0800-p34300 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T16:38:53.209+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T163853.196+0800-p34300 module=event category=SYSTEM
+time=2026-08-14T16:38:53.210+08:00 level=INFO msg=用户规则快照 session=20260814T163853.196+0800-p34300 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T16:38:53.214+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T163853.196+0800-p34300 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T16:38:56.428+08:00 level=INFO msg=novel_context session=20260814T163853.196+0800-p34300 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T16:38:56.443+08:00 level=INFO msg=novel_context(第4章) session=20260814T163853.196+0800-p34300 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T16:38:56.462+08:00 level=INFO msg=novel_context(第4章) session=20260814T163853.196+0800-p34300 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=34.3551ms
+time=2026-08-14T16:38:58.425+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T163853.196+0800-p34300 module=event category=SYSTEM
+time=2026-08-14T16:38:58.425+08:00 level=ERROR msg="context canceled" session=20260814T163853.196+0800-p34300 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=5.210861s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T16:57:31.502+08:00 level=INFO msg=日志会话开始 session=20260814T165731.498+0800-p51208 module=logger session_id=20260814T165731.498+0800-p51208
+time=2026-08-14T16:57:31.502+08:00 level=INFO msg=启动 session=20260814T165731.498+0800-p51208 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T16:57:31.503+08:00 level=INFO msg=模型元数据已就绪 session=20260814T165731.498+0800-p51208 module=models count=207
+time=2026-08-14T16:57:31.505+08:00 level=INFO msg=模型就绪 session=20260814T165731.498+0800-p51208 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T16:57:31.506+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T165731.498+0800-p51208 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T16:57:31.508+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T165731.498+0800-p51208 module=event category=SYSTEM
+time=2026-08-14T16:57:31.508+08:00 level=INFO msg=用户规则快照 session=20260814T165731.498+0800-p51208 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T16:57:31.510+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T165731.498+0800-p51208 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T16:57:32.782+08:00 level=INFO msg=novel_context session=20260814T165731.498+0800-p51208 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T16:57:32.794+08:00 level=INFO msg=novel_context(第4章) session=20260814T165731.498+0800-p51208 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T16:57:32.803+08:00 level=INFO msg=novel_context(第4章) session=20260814T165731.498+0800-p51208 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=20.0963ms
+time=2026-08-14T16:57:36.925+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T165731.498+0800-p51208 module=event category=SYSTEM
+time=2026-08-14T16:57:36.926+08:00 level=ERROR msg="context canceled" session=20260814T165731.498+0800-p51208 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=5.4152176s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T17:35:46.111+08:00 level=INFO msg=日志会话开始 session=20260814T173546.105+0800-p64356 module=logger session_id=20260814T173546.105+0800-p64356
+time=2026-08-14T17:35:46.111+08:00 level=INFO msg=启动 session=20260814T173546.105+0800-p64356 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T17:35:46.112+08:00 level=INFO msg=模型元数据已就绪 session=20260814T173546.105+0800-p64356 module=models count=207
+time=2026-08-14T17:35:46.114+08:00 level=INFO msg=模型就绪 session=20260814T173546.105+0800-p64356 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T17:35:46.114+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T173546.105+0800-p64356 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T17:35:46.116+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T173546.105+0800-p64356 module=event category=SYSTEM
+time=2026-08-14T17:35:46.116+08:00 level=INFO msg=用户规则快照 session=20260814T173546.105+0800-p64356 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T17:35:46.119+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T173546.105+0800-p64356 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T17:35:47.480+08:00 level=INFO msg=novel_context session=20260814T173546.105+0800-p64356 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T17:35:47.485+08:00 level=INFO msg=novel_context(第4章) session=20260814T173546.105+0800-p64356 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T17:35:47.495+08:00 level=INFO msg=novel_context(第4章) session=20260814T173546.105+0800-p64356 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=14.8816ms
+time=2026-08-14T17:35:51.057+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T173546.105+0800-p64356 module=event category=SYSTEM
+time=2026-08-14T17:35:51.058+08:00 level=ERROR msg="context canceled" session=20260814T173546.105+0800-p64356 module=event category=DISPATCH agent=chapter_planner kind=canceled event_id=e1 state=completed failed=true duration=4.938783s summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...） 错误: context canceled"
+time=2026-08-14T18:15:57.003+08:00 level=INFO msg=日志会话开始 session=20260814T181556.998+0800-p58820 module=logger session_id=20260814T181556.998+0800-p58820
+time=2026-08-14T18:15:57.003+08:00 level=INFO msg=启动 session=20260814T181556.998+0800-p58820 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T18:15:57.005+08:00 level=INFO msg=模型就绪 session=20260814T181556.998+0800-p58820 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T18:15:57.005+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T181556.998+0800-p58820 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T18:15:57.007+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T181556.998+0800-p58820 module=event category=SYSTEM
+time=2026-08-14T18:15:57.008+08:00 level=INFO msg=用户规则快照 session=20260814T181556.998+0800-p58820 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T18:15:57.011+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T181556.998+0800-p58820 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T18:15:57.841+08:00 level=INFO msg=模型元数据已就绪 session=20260814T181556.998+0800-p58820 module=models count=208
+time=2026-08-14T18:15:58.285+08:00 level=INFO msg=novel_context session=20260814T181556.998+0800-p58820 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T18:15:58.331+08:00 level=INFO msg=novel_context(第4章) session=20260814T181556.998+0800-p58820 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T18:15:58.352+08:00 level=INFO msg=novel_context(第4章) session=20260814T181556.998+0800-p58820 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=67.1235ms
+time=2026-08-14T18:16:23.039+08:00 level=INFO msg=日志会话开始 session=20260814T181623.034+0800-p57600 module=logger session_id=20260814T181623.034+0800-p57600
+time=2026-08-14T18:16:23.039+08:00 level=INFO msg=启动 session=20260814T181623.034+0800-p57600 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T18:16:23.039+08:00 level=INFO msg=模型元数据已就绪 session=20260814T181623.034+0800-p57600 module=models count=208
+time=2026-08-14T18:16:23.041+08:00 level=INFO msg=模型就绪 session=20260814T181623.034+0800-p57600 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T18:16:23.041+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T181623.034+0800-p57600 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T18:16:23.043+08:00 level=INFO msg="恢复创作: 恢复：从第 4 章继续" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM
+time=2026-08-14T18:16:23.043+08:00 level=INFO msg=用户规则快照 session=20260814T181623.034+0800-p57600 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T18:16:23.046+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 4 章生成可执行章节计划：读取 novel_context(chapter=4)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=running summary="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T18:16:23.995+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T18:16:24.078+08:00 level=INFO msg=novel_context(第4章) session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e2 state=running depth=1
+time=2026-08-14T18:16:24.086+08:00 level=INFO msg=novel_context(第4章) session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e2 state=completed depth=1 duration=91.6071ms
+time=2026-08-14T18:16:36.266+08:00 level=INFO msg=plan_chapter session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e3 state=running depth=1
+time=2026-08-14T18:16:41.218+08:00 level=INFO msg=plan_chapter(第4章) session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e3 state=running depth=1
+time=2026-08-14T18:16:41.225+08:00 level=INFO msg=plan_chapter(第4章) session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=chapter_planner event_id=e3 state=completed depth=1 duration=4.9592773s
+time=2026-08-14T18:16:41.226+08:00 level=INFO msg="chapter_planner（为第 4 章生成可执行章节计划：读取 novel_conte...）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=chapter_planner event_id=e1 state=completed duration=18.1797278s
+time=2026-08-14T18:16:41.230+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-1-1\n完整任务:\n写第 4 章 unit 4-1-1（1/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e4 state=running summary="writer（写第 4 章 unit 4-1-1（1/7））"
+time=2026-08-14T18:16:42.350+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e5 state=running depth=1
+time=2026-08-14T18:16:42.395+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:42.400+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e5 state=completed depth=1 duration=51.0969ms
+time=2026-08-14T18:16:42.401+08:00 level=INFO msg="writer 上下文 3% (6698/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:45.998+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:16:45.998+08:00 level=INFO msg="writer 上下文 3% (6698/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:45.998+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:16:48.236+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e6 state=running depth=1
+time=2026-08-14T18:16:48.576+08:00 level=INFO msg="writer 上下文 2% (3254/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:48.583+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e6 state=completed depth=1 duration=346.7423ms
+time=2026-08-14T18:16:48.584+08:00 level=INFO msg="writer 上下文 2% (3254/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:48.584+08:00 level=INFO msg="writer（写第 4 章 unit 4-1-1（1/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e4 state=completed duration=7.3535727s
+time=2026-08-14T18:16:48.588+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-1-2\n完整任务:\n写第 4 章 unit 4-1-2（2/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e7 state=running summary="writer（写第 4 章 unit 4-1-2（2/7））"
+time=2026-08-14T18:16:49.600+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e8 state=running depth=1
+time=2026-08-14T18:16:49.659+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:49.663+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e8 state=completed depth=1 duration=63.0612ms
+time=2026-08-14T18:16:49.664+08:00 level=INFO msg="writer 上下文 4% (7393/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:59.710+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:16:59.710+08:00 level=INFO msg="writer 上下文 4% (7393/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:16:59.710+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:00.896+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e9 state=running depth=1
+time=2026-08-14T18:17:01.701+08:00 level=INFO msg="writer 上下文 2% (3506/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:01.709+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e9 state=completed depth=1 duration=812.1894ms
+time=2026-08-14T18:17:01.709+08:00 level=INFO msg="writer 上下文 2% (3506/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:01.709+08:00 level=INFO msg="writer（写第 4 章 unit 4-1-2（2/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e7 state=completed duration=13.1212007s
+time=2026-08-14T18:17:01.714+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-2-1\n完整任务:\n写第 4 章 unit 4-2-1（3/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e10 state=running summary="writer（写第 4 章 unit 4-2-1（3/7））"
+time=2026-08-14T18:17:02.753+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e11 state=running depth=1
+time=2026-08-14T18:17:02.800+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:02.807+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e11 state=completed depth=1 duration=54.7163ms
+time=2026-08-14T18:17:02.808+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:20.476+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:17:20.476+08:00 level=INFO msg="writer 上下文 4% (7525/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:20.476+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:22.046+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e12 state=running depth=1
+time=2026-08-14T18:17:22.511+08:00 level=INFO msg="writer 上下文 2% (3566/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:22.520+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e12 state=completed depth=1 duration=474.3463ms
+time=2026-08-14T18:17:22.521+08:00 level=INFO msg="writer 上下文 2% (3566/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:22.521+08:00 level=INFO msg="writer（写第 4 章 unit 4-2-1（3/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e10 state=completed duration=20.8072281s
+time=2026-08-14T18:17:22.525+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-2-2\n完整任务:\n写第 4 章 unit 4-2-2（4/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e13 state=running summary="writer（写第 4 章 unit 4-2-2（4/7））"
+time=2026-08-14T18:17:23.581+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e14 state=running depth=1
+time=2026-08-14T18:17:23.649+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:23.661+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e14 state=completed depth=1 duration=80.617ms
+time=2026-08-14T18:17:23.662+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:30.236+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:17:30.236+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:30.236+08:00 level=INFO msg="writer 上下文 4% (7520/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:31.342+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e15 state=running depth=1
+time=2026-08-14T18:17:32.010+08:00 level=INFO msg="writer 上下文 2% (3560/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:32.021+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e15 state=completed depth=1 duration=678.9187ms
+time=2026-08-14T18:17:32.022+08:00 level=INFO msg="writer 上下文 2% (3560/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:32.022+08:00 level=INFO msg="writer（写第 4 章 unit 4-2-2（4/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e13 state=completed duration=9.4969661s
+time=2026-08-14T18:17:32.043+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-3-1\n完整任务:\n写第 4 章 unit 4-3-1（5/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e16 state=running summary="writer（写第 4 章 unit 4-3-1（5/7））"
+time=2026-08-14T18:17:33.202+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e17 state=running depth=1
+time=2026-08-14T18:17:33.257+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:33.262+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e17 state=completed depth=1 duration=60.7551ms
+time=2026-08-14T18:17:33.263+08:00 level=INFO msg="writer 上下文 4% (7526/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:40.405+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:17:40.405+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:40.405+08:00 level=INFO msg="writer 上下文 4% (7526/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:42.032+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e18 state=running depth=1
+time=2026-08-14T18:17:42.238+08:00 level=INFO msg="writer 上下文 2% (3561/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:42.248+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e18 state=completed depth=1 duration=215.6508ms
+time=2026-08-14T18:17:42.248+08:00 level=INFO msg="writer 上下文 2% (3561/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:42.249+08:00 level=INFO msg="writer（写第 4 章 unit 4-3-1（5/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e16 state=completed duration=10.2051567s
+time=2026-08-14T18:17:42.254+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-3-2\n完整任务:\n写第 4 章 unit 4-3-2（6/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e19 state=running summary="writer（写第 4 章 unit 4-3-2（6/7））"
+time=2026-08-14T18:17:43.246+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e20 state=running depth=1
+time=2026-08-14T18:17:43.288+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:43.293+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e20 state=completed depth=1 duration=46.9405ms
+time=2026-08-14T18:17:43.294+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:46.170+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:17:46.170+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:46.170+08:00 level=INFO msg="writer 上下文 4% (7514/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:50.286+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T181623.034+0800-p57600 module=agent.guard agent=writer turn=3 consecutive=2
+time=2026-08-14T18:17:50.286+08:00 level=INFO msg="writer 上下文 2% (3531/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:50.286+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 2 次）" session=20260814T181623.034+0800-p57600 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:17:51.944+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e21 state=running depth=1
+time=2026-08-14T18:17:52.517+08:00 level=INFO msg="writer 上下文 2% (4239/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:52.524+08:00 level=INFO msg=write_chapter_unit session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e21 state=completed depth=1 duration=580.2523ms
+time=2026-08-14T18:17:52.525+08:00 level=INFO msg="writer 上下文 2% (4239/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:52.525+08:00 level=INFO msg="writer（写第 4 章 unit 4-3-2（6/7））" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e19 state=completed duration=10.2707062s
+time=2026-08-14T18:17:52.530+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-4-1\n完整任务:\n写第 4 章 unit 4-4-1（7/7）" session=20260814T181623.034+0800-p57600 module=event category=DISPATCH agent=writer event_id=e22 state=running summary="writer（写第 4 章 unit 4-4-1（7/7））"
+time=2026-08-14T18:17:53.269+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e23 state=running depth=1
+time=2026-08-14T18:17:53.321+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:17:53.327+08:00 level=INFO msg=novel_context session=20260814T181623.034+0800-p57600 module=event category=TOOL agent=writer event_id=e23 state=completed depth=1 duration=58.3518ms
+time=2026-08-14T18:17:53.328+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181623.034+0800-p57600 module=context agent=writer
+time=2026-08-14T18:19:40.833+08:00 level=INFO msg=日志会话开始 session=20260814T181940.828+0800-p63844 module=logger session_id=20260814T181940.828+0800-p63844
+time=2026-08-14T18:19:40.833+08:00 level=INFO msg=启动 session=20260814T181940.828+0800-p63844 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T18:19:40.834+08:00 level=INFO msg=模型元数据已就绪 session=20260814T181940.828+0800-p63844 module=models count=208
+time=2026-08-14T18:19:40.836+08:00 level=INFO msg=模型就绪 session=20260814T181940.828+0800-p63844 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T18:19:40.836+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T181940.828+0800-p63844 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T18:19:40.838+08:00 level=INFO msg="恢复创作: 恢复：第 4 章进行中" session=20260814T181940.828+0800-p63844 module=event category=SYSTEM
+time=2026-08-14T18:19:40.839+08:00 level=INFO msg=用户规则快照 session=20260814T181940.828+0800-p63844 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T18:19:40.846+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-4-1\n完整任务:\n写第 4 章 unit 4-4-1（7/7）" session=20260814T181940.828+0800-p63844 module=event category=DISPATCH agent=writer event_id=e1 state=running summary="writer（写第 4 章 unit 4-4-1（7/7））"
+time=2026-08-14T18:19:41.722+08:00 level=INFO msg=novel_context session=20260814T181940.828+0800-p63844 module=event category=TOOL agent=writer event_id=e2 state=running depth=1
+time=2026-08-14T18:19:41.732+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T181940.828+0800-p63844 module=context agent=writer
+time=2026-08-14T18:19:41.742+08:00 level=INFO msg=novel_context session=20260814T181940.828+0800-p63844 module=event category=TOOL agent=writer event_id=e2 state=completed depth=1 duration=19.6758ms
+time=2026-08-14T18:19:41.744+08:00 level=INFO msg="writer 上下文 4% (7211/200000) 策略: " session=20260814T181940.828+0800-p63844 module=context agent=writer
+time=2026-08-14T18:19:44.290+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T181940.828+0800-p63844 module=event category=SYSTEM
+time=2026-08-14T18:19:44.292+08:00 level=ERROR msg="context canceled" session=20260814T181940.828+0800-p63844 module=event category=DISPATCH agent=writer kind=canceled event_id=e1 state=completed failed=true duration=3.4463077s summary="writer（写第 4 章 unit 4-4-1（7/7）） 错误: context canceled"
+time=2026-08-14T18:33:46.502+08:00 level=INFO msg=日志会话开始 session=20260814T183346.496+0800-p30580 module=logger session_id=20260814T183346.496+0800-p30580
+time=2026-08-14T18:33:46.502+08:00 level=INFO msg=启动 session=20260814T183346.496+0800-p30580 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-14T18:33:46.503+08:00 level=INFO msg=模型元数据已就绪 session=20260814T183346.496+0800-p30580 module=models count=208
+time=2026-08-14T18:33:46.505+08:00 level=INFO msg=模型就绪 session=20260814T183346.496+0800-p30580 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-14T18:33:46.506+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260814T183346.496+0800-p30580 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-14T18:33:46.509+08:00 level=INFO msg="恢复创作: 恢复：第 4 章进行中" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:33:46.509+08:00 level=INFO msg=用户规则快照 session=20260814T183346.496+0800-p30580 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T18:33:46.516+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-4-1\n完整任务:\n写第 4 章 unit 4-4-1（7/7）" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e1 state=running summary="writer（写第 4 章 unit 4-4-1（7/7））"
+time=2026-08-14T18:33:47.780+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e2 state=running depth=1
+time=2026-08-14T18:33:47.826+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:33:47.836+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e2 state=completed depth=1 duration=56.258ms
+time=2026-08-14T18:33:47.838+08:00 level=INFO msg="writer 上下文 4% (7211/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:33:49.629+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:33:49.629+08:00 level=ERROR msg="context canceled" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer kind=canceled event_id=e1 state=completed failed=true duration=3.11364s summary="writer（写第 4 章 unit 4-4-1（7/7）） 错误: context canceled"
+time=2026-08-14T18:34:16.062+08:00 level=INFO msg="恢复创作: 恢复：第 4 章进行中" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:34:16.062+08:00 level=INFO msg=用户规则快照 session=20260814T183346.496+0800-p30580 module=rules status=ready 来源="[system_defaults startup_prompt]" 禁用短语=4 疲劳词=16
+time=2026-08-14T18:34:16.071+08:00 level=INFO msg="派发原因: 续写当前 writing unit 4-4-1\n完整任务:\n写第 4 章 unit 4-4-1（7/7）" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e3 state=running summary="writer（写第 4 章 unit 4-4-1（7/7））"
+time=2026-08-14T18:34:16.776+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e4 state=running depth=1
+time=2026-08-14T18:34:16.827+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:16.835+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e4 state=completed depth=1 duration=58.9471ms
+time=2026-08-14T18:34:16.836+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:24.603+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T183346.496+0800-p30580 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:34:24.603+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:34:24.603+08:00 level=INFO msg="writer 上下文 4% (7211/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:25.962+08:00 level=INFO msg=write_chapter_unit session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e5 state=running depth=1
+time=2026-08-14T18:34:26.680+08:00 level=INFO msg="writer 上下文 2% (3435/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:26.692+08:00 level=INFO msg=write_chapter_unit session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e5 state=completed depth=1 duration=729.3633ms
+time=2026-08-14T18:34:26.693+08:00 level=INFO msg="writer 上下文 2% (3435/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:26.693+08:00 level=INFO msg="writer（写第 4 章 unit 4-4-1（7/7））" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e3 state=completed duration=10.6215835s
+time=2026-08-14T18:34:26.697+08:00 level=INFO msg="第 4 章 writing units 已完成，程序正在直接合并提交" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:34:26.725+08:00 level=INFO msg="第 4 章已直接提交，继续下一章" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:34:26.727+08:00 level=INFO msg="派发原因: 下一章尚无场景与写作片段计划\n完整任务:\n为第 5 章生成可执行章节计划：读取 novel_context(chapter=5)，用 plan_chapter 保存 scenes 和符合当前 Writer 动态预算的 units；严格遵守工具 schema，不要写正文" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=chapter_planner event_id=e6 state=running summary="chapter_planner（为第 5 章生成可执行章节计划：读取 novel_conte...）"
+time=2026-08-14T18:34:28.029+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e7 state=running depth=1
+time=2026-08-14T18:34:28.079+08:00 level=INFO msg=novel_context(第5章) session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e7 state=running depth=1
+time=2026-08-14T18:34:28.085+08:00 level=INFO msg=novel_context(第5章) session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e7 state=completed depth=1 duration=56.7151ms
+time=2026-08-14T18:34:35.149+08:00 level=INFO msg=plan_chapter session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e8 state=running depth=1
+time=2026-08-14T18:34:43.130+08:00 level=ERROR msg="plan_chapter 错误: \"tool argument validation failed: plan_chapter received malformed JSON arguments: invalid character 'é' after array element\\nraw args: {\\\"chapter\\\": 5, \\\"title\\\": \\\"青梅竹马\\\", \\\"goal\\\": \\\"完成" session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner kind=tool_validation event_id=e8 state=completed depth=1 failed=true duration=7.9809573s summary="plan_chapter 错误: \"tool argument validation failed: plan_chapter received malformed JSON arguments: invalid character ..."
+time=2026-08-14T18:34:47.465+08:00 level=INFO msg=plan_chapter session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e9 state=running depth=1
+time=2026-08-14T18:34:53.301+08:00 level=INFO msg=plan_chapter(第5章) session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e9 state=running depth=1
+time=2026-08-14T18:34:53.306+08:00 level=INFO msg=plan_chapter(第5章) session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=chapter_planner event_id=e9 state=completed depth=1 duration=5.8409203s
+time=2026-08-14T18:34:53.307+08:00 level=INFO msg="chapter_planner（为第 5 章生成可执行章节计划：读取 novel_conte...）" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=chapter_planner event_id=e6 state=completed duration=26.5794772s
+time=2026-08-14T18:34:53.311+08:00 level=INFO msg="派发原因: 续写当前 writing unit 5-1-1\n完整任务:\n写第 5 章 unit 5-1-1（1/6）" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e10 state=running summary="writer（写第 5 章 unit 5-1-1（1/6））"
+time=2026-08-14T18:34:54.397+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e11 state=running depth=1
+time=2026-08-14T18:34:54.413+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:54.418+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e11 state=completed depth=1 duration=21.727ms
+time=2026-08-14T18:34:54.419+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:58.252+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T183346.496+0800-p30580 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:34:58.252+08:00 level=INFO msg="writer 上下文 4% (7057/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:34:58.252+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:35:00.849+08:00 level=INFO msg=write_chapter_unit session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e12 state=running depth=1
+time=2026-08-14T18:35:01.833+08:00 level=INFO msg="writer 上下文 2% (3444/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:35:01.842+08:00 level=INFO msg=write_chapter_unit session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e12 state=completed depth=1 duration=992.9588ms
+time=2026-08-14T18:35:01.843+08:00 level=INFO msg="writer 上下文 2% (3444/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:35:01.844+08:00 level=INFO msg="writer（写第 5 章 unit 5-1-1（1/6））" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e10 state=completed duration=8.5330922s
+time=2026-08-14T18:35:01.850+08:00 level=INFO msg="派发原因: 续写当前 writing unit 5-2-1\n完整任务:\n写第 5 章 unit 5-2-1（2/6）" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer event_id=e13 state=running summary="writer（写第 5 章 unit 5-2-1（2/6））"
+time=2026-08-14T18:35:02.738+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e14 state=running depth=1
+time=2026-08-14T18:35:02.797+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:35:02.803+08:00 level=INFO msg=novel_context session=20260814T183346.496+0800-p30580 module=event category=TOOL agent=writer event_id=e14 state=completed depth=1 duration=65.1764ms
+time=2026-08-14T18:35:02.804+08:00 level=INFO msg="writer 上下文 0% (8/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:35:11.179+08:00 level=WARN msg="subagent stop_guard 拦截 end_turn" session=20260814T183346.496+0800-p30580 module=agent.guard agent=writer turn=2 consecutive=1
+time=2026-08-14T18:35:11.179+08:00 level=INFO msg="StopGuard: writer 未完成必要产物就试图结束，已拦截催促（连续第 1 次）" session=20260814T183346.496+0800-p30580 module=event category=SYSTEM agent=writer
+time=2026-08-14T18:35:11.179+08:00 level=INFO msg="writer 上下文 4% (7796/200000) 策略: " session=20260814T183346.496+0800-p30580 module=context agent=writer
+time=2026-08-14T18:35:12.005+08:00 level=WARN msg=用户手动暂停当前创作 session=20260814T183346.496+0800-p30580 module=event category=SYSTEM
+time=2026-08-14T18:35:12.006+08:00 level=ERROR msg="context canceled" session=20260814T183346.496+0800-p30580 module=event category=DISPATCH agent=writer kind=canceled event_id=e13 state=completed failed=true duration=10.1552361s summary="writer（写第 5 章 unit 5-2-1（2/6）） 错误: context canceled"

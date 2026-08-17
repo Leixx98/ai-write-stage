@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "base_url": "http://127.0.0.1:8188",
+  "client_id": "ainovel-web",
+  "timeout_ms": 600000,
+  "poll_interval_ms": 1000,
+  "strict": true,
+  "max_response_bytes": 52428800,
+  "workflow_id": ""
+}

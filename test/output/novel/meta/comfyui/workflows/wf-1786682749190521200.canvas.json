@@ -1,0 +1,198 @@
+{
+  "format": "ainovel_comfy_canvas_v1",
+  "version": 1,
+  "id": "wf-1786682749190521200",
+  "workflow_id": "wf-1786682749190521200",
+  "title": "sdxl_basic_text_to_image",
+  "nodes": [
+    {
+      "id": "node-1",
+      "kind": "workflow",
+      "source_node_id": "1",
+      "class_type": "CheckpointLoaderSimple",
+      "label": "CheckpointLoaderSimple",
+      "x": 40,
+      "y": 40,
+      "width": 176,
+      "height": 70
+    },
+    {
+      "id": "node-2",
+      "kind": "workflow",
+      "source_node_id": "2",
+      "class_type": "CLIPTextEncode",
+      "label": "CLIPTextEncode",
+      "x": 290,
+      "y": 40,
+      "width": 176,
+      "height": 70,
+      "exposed_field_ids": [
+        "text_2"
+      ]
+    },
+    {
+      "id": "node-3",
+      "kind": "workflow",
+      "source_node_id": "3",
+      "class_type": "CLIPTextEncode",
+      "label": "CLIPTextEncode",
+      "x": 540,
+      "y": 38.84602493217471,
+      "width": 176,
+      "height": 70
+    },
+    {
+      "id": "node-4",
+      "kind": "workflow",
+      "source_node_id": "4",
+      "class_type": "EmptyLatentImage",
+      "label": "EmptyLatentImage",
+      "x": 790,
+      "y": 40,
+      "width": 176,
+      "height": 70
+    },
+    {
+      "id": "node-5",
+      "kind": "workflow",
+      "source_node_id": "5",
+      "class_type": "KSampler",
+      "label": "KSampler",
+      "x": 40,
+      "y": 190,
+      "width": 176,
+      "height": 70
+    },
+    {
+      "id": "node-6",
+      "kind": "workflow",
+      "source_node_id": "6",
+      "class_type": "VAEDecode",
+      "label": "VAEDecode",
+      "x": 290,
+      "y": 190,
+      "width": 176,
+      "height": 70
+    },
+    {
+      "id": "node-7",
+      "kind": "workflow",
+      "source_node_id": "7",
+      "class_type": "SaveImage",
+      "label": "SaveImage",
+      "x": 540,
+      "y": 190,
+      "width": 176,
+      "height": 70
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1-2-clip",
+      "source": "node-1",
+      "source_handle": "output-1",
+      "target": "node-2",
+      "target_handle": "clip",
+      "kind": "workflow",
+      "label": "clip"
+    },
+    {
+      "id": "edge-1-3-clip",
+      "source": "node-1",
+      "source_handle": "output-1",
+      "target": "node-3",
+      "target_handle": "clip",
+      "kind": "workflow",
+      "label": "clip"
+    },
+    {
+      "id": "edge-4-5-latent_image",
+      "source": "node-4",
+      "source_handle": "output-0",
+      "target": "node-5",
+      "target_handle": "latent_image",
+      "kind": "workflow",
+      "label": "latent_image"
+    },
+    {
+      "id": "edge-1-5-model",
+      "source": "node-1",
+      "source_handle": "output-0",
+      "target": "node-5",
+      "target_handle": "model",
+      "kind": "workflow",
+      "label": "model"
+    },
+    {
+      "id": "edge-3-5-negative",
+      "source": "node-3",
+      "source_handle": "output-0",
+      "target": "node-5",
+      "target_handle": "negative",
+      "kind": "workflow",
+      "label": "negative"
+    },
+    {
+      "id": "edge-2-5-positive",
+      "source": "node-2",
+      "source_handle": "output-0",
+      "target": "node-5",
+      "target_handle": "positive",
+      "kind": "workflow",
+      "label": "positive"
+    },
+    {
+      "id": "edge-5-6-samples",
+      "source": "node-5",
+      "source_handle": "output-0",
+      "target": "node-6",
+      "target_handle": "samples",
+      "kind": "workflow",
+      "label": "samples"
+    },
+    {
+      "id": "edge-1-6-vae",
+      "source": "node-1",
+      "source_handle": "output-2",
+      "target": "node-6",
+      "target_handle": "vae",
+      "kind": "workflow",
+      "label": "vae"
+    },
+    {
+      "id": "edge-6-7-images",
+      "source": "node-6",
+      "source_handle": "output-0",
+      "target": "node-7",
+      "target_handle": "images",
+      "kind": "workflow",
+      "label": "images"
+    }
+  ],
+  "viewport": {
+    "x": 59.20001220703125,
+    "y": 29.60009765625,
+    "scale": 0.6932717463771005,
+    "min_scale": 0.2,
+    "max_scale": 3
+  },
+  "fields": [
+    {
+      "id": "text_2",
+      "node_id": "2",
+      "input": "text",
+      "name": "text",
+      "control": "textarea",
+      "value_type": "string",
+      "default": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality",
+      "required": false,
+      "random_enabled": false,
+      "exposed": true,
+      "source": "prompter",
+      "note": "这是生图的positive_promt"
+    }
+  ],
+  "prompter_template": "你是小说插图提示词生成器。根据当前 writing unit 的计划与正文，为 ComfyUI 工作流填写图片参数。\n\n保持人物外观、服饰、时代背景、地点和世界观连续。正向字段应包含主体、场景、动作、构图、镜头、光线、色彩和画面风格；负向字段应排除低质量、模糊、错误肢体、文字和水印等问题。\n\n只输出一个 JSON object，字段名必须与下面的 JSON 完全一致。不要输出 Markdown、解释或 JSON 之外的任何文本。",
+  "mini_test_cards": [],
+  "updated_at": "2026-08-14T10:21:42.7688343Z"
+}

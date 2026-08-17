@@ -1,0 +1,32 @@
+{
+  "job_id": "img_1786682942831898300",
+  "unit_id": "",
+  "chapter": 0,
+  "ordinal": 0,
+  "workflow_id": "wf-1786682749190521200",
+  "instance_id": "local-8188",
+  "status": "completed",
+  "attempt": 1,
+  "prompt_id": "6564d533-fba8-41a3-8ad9-63addb690dab",
+  "prompt": "1girl, standing,",
+  "parameters": {
+    "positive_prompt": "1girl, standing,"
+  },
+  "output": {
+    "filename": "img_1786682942831898300.png",
+    "mime": "image/png"
+  },
+  "outputs": [
+    {
+      "kind": "file",
+      "node_id": "7",
+      "output_key": "images",
+      "class_type": "\u003cnil\u003e",
+      "mime": "image/png",
+      "previewable": false,
+      "url": "/api/v2/comfyui/jobs/img_1786682942831898300/outputs/0"
+    }
+  ],
+  "started_at": "2026-08-14T04:49:02.8318983Z",
+  "finished_at": "2026-08-14T04:49:03.0825399Z"
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "character_a": "苏念",
+    "character_b": "林昭",
+    "relation": "初次相识的邻家孩子——林昭帮她取下风筝，完成第一次说话，尚未熟络",
+    "chapter": 1
+  },
+  {
+    "character_a": "叶兰",
+    "character_b": "苏母",
+    "relation": "一见如故，热络如老姐妹",
+    "chapter": 1
+  },
+  {
+    "character_a": "苏家",
+    "character_b": "林家",
+    "relation": "成为同巷相邻、合桌吃饭的邻居",
+    "chapter": 1
+  }
+]

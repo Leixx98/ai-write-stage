@@ -1,0 +1,18 @@
+{
+  "job_id": "img_1786703628554607500",
+  "unit_id": "2-1-1",
+  "chapter": 2,
+  "ordinal": 1,
+  "workflow_id": "wf-1786682749190521200",
+  "status": "failed",
+  "stage": "prompting",
+  "attempt": 1,
+  "idempotency_key": "sha256:350dd19194a72a1254c998b279806c3db08a9de54a9ef604f76a9faf8c1e8afe",
+  "trigger": "unit",
+  "schema_hash": "sha256:f7f6c1f4212bab75ab8664bd5ab1d0c3bd55c78b14d47d8ce4d49fae3a43b377",
+  "workflow_hash": "sha256:a4dd3870561a43c8618d1af08e35aa1f82c942d63112c25add1ef8121edb9c88",
+  "recoverable": true,
+  "error": "Prompter generate: We have to rate limit you for model inclusionAI/Ling-3.0-flash. If you need higher limits, please consider other (commercial) API providers. [rate_limit, HTTP 429, openai]",
+  "started_at": "2026-08-14T10:33:48.5546075Z",
+  "finished_at": "2026-08-14T10:33:48.7340167Z"
+}

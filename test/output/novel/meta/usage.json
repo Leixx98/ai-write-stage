@@ -1,0 +1,90 @@
+{
+  "schema": 2,
+  "updated_at": "2026-08-14T18:35:11.680248+08:00",
+  "overall": {
+    "input": 874487,
+    "output": 218916,
+    "cache_read": 346680,
+    "cache_write": 0,
+    "cost_usd": 0.0761047,
+    "saved_usd": 0.027453440000000006,
+    "cache_capable": true
+  },
+  "per_agent": {
+    "arbiter": {
+      "input": 4540,
+      "output": 1775,
+      "cache_read": 640,
+      "cache_write": 0,
+      "cost_usd": 0.00106092,
+      "saved_usd": 0.00007168,
+      "cache_capable": true
+    },
+    "architect": {
+      "input": 128806,
+      "output": 22648,
+      "cache_read": 90624,
+      "cache_write": 0,
+      "cost_usd": 0.014224392,
+      "saved_usd": 0.010149888000000001,
+      "cache_capable": true
+    },
+    "chapter_finalizer": {
+      "input": 234340,
+      "output": 63584,
+      "cache_read": 133376,
+      "cache_write": 0,
+      "cost_usd": 0.035673008,
+      "saved_usd": 0.014938112000000002,
+      "cache_capable": true
+    },
+    "chapter_planner": {
+      "input": 208787,
+      "output": 68846,
+      "cache_read": 20480,
+      "cache_write": 0,
+      "cost_usd": 0.02514638,
+      "saved_usd": 0.0022937600000000006,
+      "cache_capable": true
+    },
+    "writer": {
+      "input": 298014,
+      "output": 62063,
+      "cache_read": 101560,
+      "cache_write": 0,
+      "cost_usd": 0,
+      "saved_usd": 0,
+      "cache_capable": true
+    }
+  },
+  "per_model": {
+    "deepseek/deepseek-v4-flash": {
+      "input": 463345,
+      "output": 138178,
+      "cache_read": 245120,
+      "cache_write": 0,
+      "cost_usd": 0.0761047,
+      "saved_usd": 0.027453440000000006,
+      "cache_capable": true
+    },
+    "openai/inclusionAI/Ling-3.0-flash": {
+      "input": 277770,
+      "output": 69965,
+      "cache_read": 0,
+      "cache_write": 0,
+      "cost_usd": 0,
+      "saved_usd": 0,
+      "cache_capable": false
+    },
+    "openai/ourbox-35b-jgos": {
+      "input": 133372,
+      "output": 10773,
+      "cache_read": 101560,
+      "cache_write": 0,
+      "cost_usd": 0,
+      "saved_usd": 0,
+      "cache_capable": true
+    }
+  },
+  "missing_assistant_usage": 0
+}

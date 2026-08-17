@@ -1,0 +1,107 @@
+{
+  "1": {
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    }
+  },
+  "2": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "text": "A young Chinese girl around seven years old, short black hair, wearing a simple cotton dress in faded blue, standing at the base of a massive old camphor tree in a narrow old alley in a riverside Chinese neighborhood, summer morning, she is looking upward with wide eyes, redrimmed and teary, one hand gripping a plastic blue kite spool with white nylon line, the other hand holding a bamboo pole, a torn brown paper kite tangled in the high forked branches above her, sunlight filtering through dense green camphor leaves casting dappled golden light on her face, sweat on her forehead, she is mid-jump trying to reach the kite, sneakers on cracked stone ground with weeds growing between the cracks, peeling red brick walls on both sides of the alley, a rusted green bronze door ring on a closed door to the left, an open window on the right with a woman hanging laundry inside, the atmosphere is humid and still, cinematic composition from a child's low eye level, shallow depth of field with the kite branches in soft focus above, warm golden-green color palette, realistic Chinese literary illustration style, detailed textures of bark and fabric, soft natural lighting, nostalgic summer mood"
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "Negative Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "text": "low quality, worst quality, blurry, distorted, bad anatomy, bad hands, text, watermark, signature"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "空Latent图像"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 768,
+      "width": 768
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "K采样器"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 6,
+      "denoise": 1,
+      "latent_image": [
+        "4",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "seed": 323016970519057,
+      "steps": 25
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "VAE解码"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "保存图像"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sdxl_basic",
+      "images": [
+        "6",
+        0
+      ]
+    }
+  }
+}

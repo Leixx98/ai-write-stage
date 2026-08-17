@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-08-14T18:33:46+08:00",
+  "provider": "modelscope",
+  "style": "default",
+  "model": "inclusionAI/Ling-3.0-flash",
+  "planning_tier": "short",
+  "start_prompt": "我计划写一本短篇小说，5w字，22章左右，讲述青梅竹马从小长大最后结婚的故事",
+  "plan_start": {
+    "raw_prompt": "我计划写一本短篇小说，5w字，22章左右，讲述青梅竹马从小长大最后结婚的故事",
+    "planner": "architect_short",
+    "planner_task": "创作一部短篇小说，字数约5万字，章节数约22章。核心情节为青梅竹马的男女主角从小一起长大，经历成长中的各种事件与情感变迁，最终走向婚姻的温馨故事。请完整规划这部小说的前提、大纲、角色和世界规则，确保剧情自然流畅、情感真挚，并突出青梅竹马的独特羁绊与成长历程。用 save_foundation 逐项落盘前提/大纲/角色/世界规则，全部齐全后重新调用 novel_context 并用 audit_foundation 审查跨文件语义一致性；仅 audit_foundation 返回 foundation_ready=true 后结束（不要调用 complete_book——那是全书章节写完后的完结宣告）。",
+    "decision_id": "dec-196c2101a0ff"
+  },
+  "advance_mode": "auto"
+}

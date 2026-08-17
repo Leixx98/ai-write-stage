@@ -1,0 +1,33 @@
+{
+  "format": "ainovel_workflow_config_v1",
+  "version": 1,
+  "fields": [
+    {
+      "id": "text_2",
+      "node_id": "2",
+      "input": "text",
+      "label": "text",
+      "control": "textarea",
+      "value_type": "string",
+      "default": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality",
+      "required": false,
+      "randomizable": false,
+      "source": "prompter",
+      "editable": false,
+      "note": "这是生图的positive_promt"
+    }
+  ],
+  "bindings": [
+    {
+      "key": "text_2",
+      "node_id": "2",
+      "path": "inputs.text",
+      "type": "string",
+      "required": false
+    }
+  ],
+  "defaults": {
+    "text_2": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality"
+  },
+  "outputs": []
+}

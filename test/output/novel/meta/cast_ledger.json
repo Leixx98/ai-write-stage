@@ -1,0 +1,61 @@
+[
+  {
+    "name": "苏母",
+    "brief_role": "苏念母亲，话多热心，与叶兰热络如老姐妹",
+    "first_seen_chapter": 1,
+    "last_seen_chapter": 3,
+    "appearance_count": 2,
+    "appearance_chapters": [
+      1,
+      3
+    ]
+  },
+  {
+    "name": "林父",
+    "brief_role": "林昭父亲，寡言温和的邻居长辈，轻量陪衬",
+    "first_seen_chapter": 1,
+    "last_seen_chapter": 3,
+    "appearance_count": 2,
+    "appearance_chapters": [
+      1,
+      3
+    ]
+  },
+  {
+    "name": "班主任（新配角）",
+    "first_seen_chapter": 2,
+    "last_seen_chapter": 2,
+    "appearance_count": 1,
+    "appearance_chapters": [
+      2
+    ]
+  },
+  {
+    "name": "班主任",
+    "first_seen_chapter": 2,
+    "last_seen_chapter": 4,
+    "appearance_count": 2,
+    "appearance_chapters": [
+      2,
+      4
+    ]
+  },
+  {
+    "name": "巷口孩子（群像）",
+    "first_seen_chapter": 3,
+    "last_seen_chapter": 3,
+    "appearance_count": 1,
+    "appearance_chapters": [
+      3
+    ]
+  },
+  {
+    "name": "同学群像",
+    "first_seen_chapter": 4,
+    "last_seen_chapter": 4,
+    "appearance_count": 1,
+    "appearance_chapters": [
+      4
+    ]
+  }
+]

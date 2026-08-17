@@ -1,0 +1,42 @@
+{
+  "job_id": "img_1786703628526326300",
+  "unit_id": "1-2-1",
+  "chapter": 1,
+  "ordinal": 2,
+  "workflow_id": "wf-1786682749190521200",
+  "instance_id": "local-8188",
+  "status": "completed",
+  "stage": "completed",
+  "attempt": 1,
+  "idempotency_key": "sha256:1132f6cd9c83c985eab323b62c34249fefc2fe0556c950b3b96f5c4f4022cf2a",
+  "trigger": "unit",
+  "schema_hash": "sha256:f7f6c1f4212bab75ab8664bd5ab1d0c3bd55c78b14d47d8ce4d49fae3a43b377",
+  "workflow_hash": "sha256:a4dd3870561a43c8618d1af08e35aa1f82c942d63112c25add1ef8121edb9c88",
+  "prompt_raw": "{\n  \"text_2\": \"A young Chinese girl around seven years old, short black hair, wearing a simple cotton dress in faded blue, standing at the base of a massive old camphor tree in a narrow old alley in a riverside Chinese neighborhood, summer morning, she is looking upward with wide eyes, redrimmed and teary, one hand gripping a plastic blue kite spool with white nylon line, the other hand holding a bamboo pole, a torn brown paper kite tangled in the high forked branches above her, sunlight filtering through dense green camphor leaves casting dappled golden light on her face, sweat on her forehead, she is mid-jump trying to reach the kite, sneakers on cracked stone ground with weeds growing between the cracks, peeling red brick walls on both sides of the alley, a rusted green bronze door ring on a closed door to the left, an open window on the right with a woman hanging laundry inside, the atmosphere is humid and still, cinematic composition from a child's low eye level, shallow depth of field with the kite branches in soft focus above, warm golden-green color palette, realistic Chinese literary illustration style, detailed textures of bark and fabric, soft natural lighting, nostalgic summer mood\"\n}",
+  "prompt_values": {
+    "text_2": "A young Chinese girl around seven years old, short black hair, wearing a simple cotton dress in faded blue, standing at the base of a massive old camphor tree in a narrow old alley in a riverside Chinese neighborhood, summer morning, she is looking upward with wide eyes, redrimmed and teary, one hand gripping a plastic blue kite spool with white nylon line, the other hand holding a bamboo pole, a torn brown paper kite tangled in the high forked branches above her, sunlight filtering through dense green camphor leaves casting dappled golden light on her face, sweat on her forehead, she is mid-jump trying to reach the kite, sneakers on cracked stone ground with weeds growing between the cracks, peeling red brick walls on both sides of the alley, a rusted green bronze door ring on a closed door to the left, an open window on the right with a woman hanging laundry inside, the atmosphere is humid and still, cinematic composition from a child's low eye level, shallow depth of field with the kite branches in soft focus above, warm golden-green color palette, realistic Chinese literary illustration style, detailed textures of bark and fabric, soft natural lighting, nostalgic summer mood"
+  },
+  "snapshot_key": "meta/images/jobs/img_1786703628526326300.workflow.json",
+  "recoverable": true,
+  "prompt_id": "fc40da70-6352-40ee-8623-f62b17cb4d01",
+  "output": {
+    "filename": "002.png",
+    "kind": "image",
+    "mime": "image/png",
+    "preview_url": "/api/v2/comfyui/jobs/img_1786703628526326300/image",
+    "url": "/api/v2/comfyui/jobs/img_1786703628526326300/image"
+  },
+  "outputs": [
+    {
+      "kind": "image",
+      "node_id": "7",
+      "output_key": "images",
+      "class_type": "",
+      "mime": "image/png",
+      "previewable": true,
+      "url": "/api/v2/comfyui/jobs/img_1786703628526326300/outputs/0"
+    }
+  ],
+  "started_at": "2026-08-14T10:33:48.5263263Z",
+  "finished_at": "2026-08-14T10:34:20.5971391Z"
+}

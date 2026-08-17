@@ -1,0 +1,166 @@
+{
+  "format": "comfyui_api_v1",
+  "id": "wf-1786682749190521200",
+  "name": "sdxl_basic_text_to_image",
+  "version": 0,
+  "enabled": true,
+  "workflow": {
+    "1": {
+      "_meta": {
+        "title": "Checkpoint加载器（简易）"
+      },
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": "sd_xl_base_1.0.safetensors"
+      }
+    },
+    "2": {
+      "_meta": {
+        "title": "Positive Prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "1",
+          1
+        ],
+        "text": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality"
+      }
+    },
+    "3": {
+      "_meta": {
+        "title": "Negative Prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "1",
+          1
+        ],
+        "text": "low quality, worst quality, blurry, distorted, bad anatomy, bad hands, text, watermark, signature"
+      }
+    },
+    "4": {
+      "_meta": {
+        "title": "空Latent图像"
+      },
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 768,
+        "width": 768
+      }
+    },
+    "5": {
+      "_meta": {
+        "title": "K采样器"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 6,
+        "denoise": 1,
+        "latent_image": [
+          "4",
+          0
+        ],
+        "model": [
+          "1",
+          0
+        ],
+        "negative": [
+          "3",
+          0
+        ],
+        "positive": [
+          "2",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 323016970519057,
+        "steps": 25
+      }
+    },
+    "6": {
+      "_meta": {
+        "title": "VAE解码"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "5",
+          0
+        ],
+        "vae": [
+          "1",
+          2
+        ]
+      }
+    },
+    "7": {
+      "_meta": {
+        "title": "保存图像"
+      },
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "sdxl_basic",
+        "images": [
+          "6",
+          0
+        ]
+      }
+    }
+  },
+  "bindings": [
+    {
+      "key": "text_2",
+      "node_id": "2",
+      "path": "inputs.text",
+      "type": "string",
+      "required": false
+    }
+  ],
+  "defaults": {
+    "text_2": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality"
+  },
+  "output": {
+    "node_id": "",
+    "index": 0
+  },
+  "instance_id": "local-8188",
+  "config": {
+    "format": "ainovel_workflow_config_v1",
+    "version": 1,
+    "fields": [
+      {
+        "id": "text_2",
+        "node_id": "2",
+        "input": "text",
+        "label": "text",
+        "control": "textarea",
+        "value_type": "string",
+        "default": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality",
+        "required": false,
+        "randomizable": false,
+        "source": "prompter",
+        "editable": false,
+        "note": "这是生图的positive_promt"
+      }
+    ],
+    "bindings": [
+      {
+        "key": "text_2",
+        "node_id": "2",
+        "path": "inputs.text",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "defaults": {
+      "text_2": "a cozy manga style scene, a young traveler standing beside a quiet lakeside cabin, clean line art, soft colors, detailed background, best quality"
+    },
+    "outputs": []
+  },
+  "created_at": "2026-08-14T04:45:49.1905212Z",
+  "updated_at": "2026-08-14T10:21:42.7414001Z"
+}

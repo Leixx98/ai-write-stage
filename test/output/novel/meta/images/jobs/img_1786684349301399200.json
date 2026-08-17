@@ -1,0 +1,35 @@
+{
+  "job_id": "img_1786684349301399200",
+  "unit_id": "",
+  "chapter": 0,
+  "ordinal": 0,
+  "workflow_id": "wf-1786682749190521200",
+  "instance_id": "local-8188",
+  "status": "cancelled",
+  "attempt": 3,
+  "prompt_id": "41a0d06a-1149-464d-896a-0a89b35919af",
+  "parameters": {
+    "2::text": "1girl,standing"
+  },
+  "output": {
+    "filename": "img_1786684349301399200.png",
+    "kind": "image",
+    "mime": "image/png",
+    "preview_url": "/api/v2/comfyui/jobs/img_1786684349301399200/image",
+    "url": "/api/v2/comfyui/jobs/img_1786684349301399200/image"
+  },
+  "outputs": [
+    {
+      "kind": "file",
+      "node_id": "7",
+      "output_key": "images",
+      "class_type": "\u003cnil\u003e",
+      "mime": "image/png",
+      "previewable": false,
+      "url": "/api/v2/comfyui/jobs/img_1786684349301399200/outputs/0"
+    }
+  ],
+  "error": "cancelled by user",
+  "started_at": "2026-08-14T05:12:29.3013992Z",
+  "finished_at": "2026-08-14T05:12:40.5462469Z"
+}

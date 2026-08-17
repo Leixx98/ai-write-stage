@@ -1,0 +1,24 @@
+{
+  "novel_name": "同一条路",
+  "phase": "writing",
+  "current_chapter": 5,
+  "total_chapters": 22,
+  "completed_chapters": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "total_word_count": 13377,
+  "chapter_word_counts": {
+    "1": 3867,
+    "2": 2316,
+    "3": 3962,
+    "4": 3232
+  },
+  "in_progress_chapter": 5,
+  "flow": "writing",
+  "hook_history": [
+    "desire"
+  ]
+}
