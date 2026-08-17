@@ -1,14 +1,15 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/voocel/ainovel-cli/internal/galgame"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
+	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
@@ -17,7 +18,7 @@ func galgameID(prefix string) string { return fmt.Sprintf("%s_%d", prefix, time.
 func (c *v2Controller) galgameCharacters(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		items, err := c.st.Galgame.ListCharacters()
+		items, err := c.tavern.ListCharacters()
 		if err != nil {
 			envelopeErr(w, 500, codeConflict, err)
 			return
@@ -29,10 +30,13 @@ func (c *v2Controller) galgameCharacters(w http.ResponseWriter, r *http.Request)
 			envelopeErr(w, 400, codeInvalidRequest, err)
 			return
 		}
-		if item.ID == "" {
-			item.ID = galgameID("char")
+		if item.CreatedAt.IsZero() {
+			item.CreatedAt = time.Now().UTC()
 		}
-		if err := c.st.Galgame.SaveCharacter(item); err != nil {
+		if item.ID == "" {
+			item.ID = c.tavern.NewCharacterID(item.Name, item.CreatedAt)
+		}
+		if err := c.tavern.SaveCharacter(item); err != nil {
 			envelopeErr(w, 422, codeInvalidRequest, err)
 			return
 		}
@@ -44,7 +48,7 @@ func (c *v2Controller) galgameCharacters(w http.ResponseWriter, r *http.Request)
 
 func (c *v2Controller) galgameCharacter(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method == http.MethodDelete {
-		if err := c.st.Galgame.DeleteCharacter(id); err != nil {
+		if err := c.tavern.DeleteCharacter(id); err != nil {
 			envelopeErr(w, 404, codeNotFound, err)
 			return
 		}
@@ -52,7 +56,7 @@ func (c *v2Controller) galgameCharacter(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if r.Method == http.MethodGet {
-		item, err := c.st.Galgame.LoadCharacter(id)
+		item, err := c.tavern.LoadCharacter(id)
 		if err != nil {
 			envelopeErr(w, 404, codeNotFound, err)
 			return
@@ -67,7 +71,7 @@ func (c *v2Controller) galgameCharacter(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		item.ID = id
-		if err := c.st.Galgame.SaveCharacter(item); err != nil {
+		if err := c.tavern.SaveCharacter(item); err != nil {
 			envelopeErr(w, 422, codeInvalidRequest, err)
 			return
 		}
@@ -79,7 +83,7 @@ func (c *v2Controller) galgameCharacter(w http.ResponseWriter, r *http.Request, 
 
 func (c *v2Controller) galgameSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		items, err := c.st.Galgame.ListSessions()
+		items, err := c.tavern.ListSessions()
 		if err != nil {
 			envelopeErr(w, 500, codeConflict, err)
 			return
@@ -96,18 +100,22 @@ func (c *v2Controller) galgameSessions(w http.ResponseWriter, r *http.Request) {
 		envelopeErr(w, 400, codeInvalidRequest, err)
 		return
 	}
-	if item.ID == "" {
-		item.ID = galgameID("session")
-	}
 	if strings.TrimSpace(item.CharacterID) == "" {
 		envelopeErr(w, 422, codeInvalidRequest, fmt.Errorf("character_id is required"))
 		return
 	}
-	if _, err := c.st.Galgame.LoadCharacter(item.CharacterID); err != nil {
+	character, err := c.tavern.LoadCharacter(item.CharacterID)
+	if err != nil {
 		envelopeErr(w, 422, codeInvalidRequest, err)
 		return
 	}
-	if err := c.st.Galgame.SaveSession(item); err != nil {
+	if item.CreatedAt.IsZero() {
+		item.CreatedAt = time.Now().UTC()
+	}
+	if item.ID == "" {
+		item.ID = c.tavern.NewSessionID(character.Name, item.Name, item.CreatedAt)
+	}
+	if err := c.tavern.SaveSession(item); err != nil {
 		envelopeErr(w, 422, codeInvalidRequest, err)
 		return
 	}
@@ -124,14 +132,14 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			item, err := c.st.Galgame.LoadSession(id)
+			item, err := c.tavern.LoadSession(id)
 			if err != nil {
 				envelopeErr(w, 404, codeNotFound, err)
 				return
 			}
 			envelope(w, 200, 0, item, "")
 		case http.MethodDelete:
-			if err := c.st.Galgame.DeleteSession(id); err != nil {
+			if err := c.tavern.DeleteSession(id); err != nil {
 				envelopeErr(w, 404, codeNotFound, err)
 				return
 			}
@@ -152,12 +160,12 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		envelopeErr(w, 400, codeInvalidRequest, err)
 		return
 	}
-	session, err := c.st.Galgame.LoadSession(id)
+	session, err := c.tavern.LoadSession(id)
 	if err != nil {
 		envelopeErr(w, 404, codeNotFound, err)
 		return
 	}
-	character, err := c.st.Galgame.LoadCharacter(session.CharacterID)
+	character, err := c.tavern.LoadCharacter(session.CharacterID)
 	if err != nil {
 		envelopeErr(w, 422, codeInvalidRequest, err)
 		return
@@ -169,20 +177,20 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 	}
 	now := time.Now().UTC()
 	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "user", Content: input, CreatedAt: now})
-	reply, err := c.rt.GenerateGalgameReply(r.Context(), character, session, input)
+	reply, err := galgame.Reply(r.Context(), c.chat, character, session, input)
 	if err != nil {
 		envelopeErr(w, 502, codeConflict, err)
 		return
 	}
 	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "assistant", Name: character.Name, Content: reply, CreatedAt: time.Now().UTC()})
-	if err := c.st.Galgame.SaveSession(session); err != nil {
+	if err := c.tavern.SaveSession(session); err != nil {
 		envelopeErr(w, 500, codeConflict, err)
 		return
 	}
 	imageJob, imageErr := c.startGalgameImage(session, character, reply)
 	if imageErr == nil {
 		session.Messages[len(session.Messages)-1].ImageJobID = imageJob.JobID
-		_ = c.st.Galgame.SaveSession(session)
+		_ = c.tavern.SaveSession(session)
 	}
 	data := map[string]any{"session": session, "reply": reply}
 	if imageJob.JobID != "" {
@@ -197,7 +205,7 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 // startGalgameImage adapts conversation context to the same PromptRequest and
 // ImageJob pipeline used by novel writing units.
 func (c *v2Controller) startGalgameImage(session store.GalgameSession, character store.GalgameCharacter, reply string) (store.ImageJob, error) {
-	bridge, err := c.st.ComfyUI.LoadBridgeConfig()
+	bridge, err := c.media.LoadBridgeConfig()
 	if err != nil {
 		return store.ImageJob{}, fmt.Errorf("图片生成桥接配置无法读取")
 	}
@@ -208,11 +216,11 @@ func (c *v2Controller) startGalgameImage(session store.GalgameSession, character
 	if workflowID == "" {
 		workflowID = bridge.WorkflowID
 	}
-	workflow, err := c.st.ComfyUI.LoadWorkflow(workflowID)
+	workflow, err := c.media.LoadWorkflow(workflowID)
 	if err != nil {
 		return store.ImageJob{}, fmt.Errorf("图片工作流不存在")
 	}
-	canvas, err := c.st.ComfyUI.LoadOrCreateWorkflowCanvas(workflow.ID)
+	canvas, err := c.media.LoadOrCreateWorkflowCanvas(workflow.ID)
 	if err != nil {
 		return store.ImageJob{}, err
 	}
@@ -245,27 +253,7 @@ func (c *v2Controller) startGalgameImage(session store.GalgameSession, character
 		UnitText: reply, PreviousTail: tailText(history.String(), bridge.PreviousTailChars),
 		Schema: schemaJSON, SchemaHash: promptSchema.SchemaHash, SystemPrompt: promptSchema.Composed,
 	}
-	workflowHash, err := hashJSON(workflow.Workflow)
-	if err != nil {
-		return store.ImageJob{}, fmt.Errorf("cannot hash workflow")
-	}
-	idempotencyKey := unitImageIdempotency(request, workflow.ID, workflowHash, promptSchema.SchemaHash, imagejob.PromptFingerprint(request.SystemPrompt))
-	if existing, found, findErr := c.st.ComfyUI.FindJobByIdempotencyKey(idempotencyKey); findErr == nil && found {
-		return existing, nil
-	}
-	job := store.ImageJob{
-		JobID: store.NewImageJobID(), UnitID: request.UnitID, WorkflowID: workflow.ID,
-		Status: "prompting", Stage: "prompting", Attempt: 1, IdempotencyKey: idempotencyKey,
-		Trigger: "galgame", SchemaHash: promptSchema.SchemaHash, WorkflowHash: workflowHash,
-		Recoverable: true, StartedAt: time.Now().UTC(),
-	}
-	if err := c.st.ComfyUI.SaveJob(job); err != nil {
-		return store.ImageJob{}, fmt.Errorf("图片任务无法保存")
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	c.mu.Lock()
-	c.running[job.JobID] = cancel
-	c.mu.Unlock()
-	go c.runUnitImagePrompt(ctx, job, workflow, canvas, bridge, promptSchema, request)
-	return job, nil
+	return c.svc.StartGalgame(session.ID, imagesvc.PromptRun{
+		Request: request, Workflow: workflow, Canvas: canvas, Bridge: bridge, Schema: promptSchema,
+	})
 }

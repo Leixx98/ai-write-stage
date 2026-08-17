@@ -1,6 +1,13 @@
 # Web 工作台与 ComfyUI 接口契约
 
-本文是 Web 工作台、Host、Store、Prompter 和 ComfyUI 适配器之间的第一版契约。它约束数据边界，不要求一次性实现所有页面。新增 HTTP API 必须使用统一响应 envelope；现有 `/api/state`、`/api/replay`、`/api/start` 等兼容接口可以保留，但在迁移时应逐步包装到同一 envelope。
+本文是 Web 工作台、Host、Store、Prompter 和 ComfyUI 适配器之间的契约。操作步骤见 [comfyui-canvas-user-guide.md](comfyui-canvas-user-guide.md) 与 [novel-comfy-bridge-user-guide.md](novel-comfy-bridge-user-guide.md)。历史设计稿见 [history/](history/)。
+
+文中区分两类陈述：
+
+- **已实现**：当前代码遵守的边界。
+- **目标边界**：文档曾承诺、代码尚未落地；实现前不得当成现状。
+
+新增 HTTP API 必须使用统一响应 envelope；现有 `/api/state`、`/api/replay`、`/api/start` 等兼容接口可以保留，但在迁移时应逐步包装到同一 envelope。
 
 ## 1. 系统架构
 
@@ -197,7 +204,63 @@ Prompt 模板和模型配置由 Store/Config service 管理；Web 只能编辑�
 
 `path` 只允许点分隔 object key 和非负数组索引；绑定应用于深拷贝，不得修改模板原文。服务端执行节点存在性、`class_type`/`inputs`、绑定类型、必填项、输出节点和默认值范围校验。
 
-### 5.3 ComfyUI REST
+### 5.3 三类 JSON 隔离（已实现）
+
+API workflow、工作流 UI 配置和画布文档是三种不同 JSON，必须使用不同 `format`、文件名和版本号。导入时不能根据字段猜测并静默转换。UI workflow 或 Infinite Canvas JSON（含 `nodes`、`links`、`connections`、`resources`）返回 `code: 3002`。
+
+| 格式 | 用途 | 可否直接 POST ComfyUI `/prompt` |
+| --- | --- | --- |
+| `comfyui_api_v1` | 原始 API workflow（`node_id -> {class_type, inputs}`） | 是（应用 bindings 后的深拷贝） |
+| `ainovel_workflow_config_v1` | fields、bindings、defaults、outputs、instance_id | 否 |
+| `ainovel_comfy_canvas_v1` | 节点位置、边、viewport、暴露字段、测试卡 | 否 |
+
+工作流模板不可变地保存原始 API JSON；每次任务在深拷贝上应用 bindings 和运行参数。
+
+### 5.4 文件布局（已实现）
+
+工作流定义按项目共享，写在项目根 `.ainovel/`；任务、实例和输入媒体按工作区落盘。
+
+```text
+<project>/.ainovel/comfyui/workflows/<id>.json          # 聚合文档（兼容）
+<project>/.ainovel/comfyui/workflows/<id>.api.json      # API workflow
+<project>/.ainovel/comfyui/workflows/<id>.config.json   # 字段与 bindings
+<project>/.ainovel/comfyui/workflows/<id>.canvas.json   # 画布投影
+<workspace>/meta/comfyui/instances.json                 # 多实例与选择策略
+<workspace>/meta/comfyui/jobs/<id>.json                 # ImageJob
+<workspace>/assets/input/<sha256>.<ext>                 # 受控输入媒体
+```
+
+读取时可从聚合文档或双文件恢复；旧路径 `meta/comfyui/workflows/<id>.json` 仅作回退。`format=canvas` 导出的是 ainovel 画布投影，不能提交给 ComfyUI。
+
+### 5.5 多实例选择（已实现）
+
+实例与策略保存在 `meta/comfyui/instances.json`。选择顺序固定为：
+
+```text
+job.instance_id
+  -> workflow.instance_id
+  -> project.default_instance_id
+  -> strategy（least_queue / explicit；其余按 priority + 稳定 ID）
+```
+
+`least_queue` 使用实例 `/queue` 的可观测队列长度。选择结果写入 job，任务开始后不得换实例。地址必须是无 userinfo、query、fragment 的 `http`/`https` URL。
+
+```text
+GET  /api/v2/comfyui/instances
+PUT  /api/v2/comfyui/instances
+POST /api/v2/comfyui/instances/{id}/test
+```
+
+### 5.6 输入媒体（已实现）
+
+```text
+POST /api/v2/comfyui/media/upload
+GET  /api/v2/comfyui/media/{id}
+```
+
+文件保存到 `assets/input/<sha256>.<ext>`。任务参数只携带受控的 `media_ref` / `storage_key`，不允许浏览器提交任意本地路径。
+
+### 5.7 ComfyUI REST
 
 ```text
 POST /prompt                         -> {prompt_id}
@@ -221,9 +284,11 @@ type Client interface {
 
 所有请求接收 context；轮询用可取消 timer；总超时、单请求超时和轮询间隔分别配置。错误必须保留 node id、node type 和截断后的 exception message。取消/超时都要落盘，`/interrupt` 失败不能阻塞本地取消。
 
-## 6. 图片任务和 unit 预留接口
+## 6. 图片任务和 unit 接口
 
-建议新增 `internal/imagejob` service 与 `Store.ImageJobs`：
+`internal/imagejob` 已提供 Schema、Parser 和 Bridge 配置。下面的 `Service` 接口是**目标边界，尚未落地**；当前提交、轮询、取消仍在 `internal/entry/web/v2.go` 的 `v2Controller` 内执行。
+
+目标接口：
 
 ```go
 type Service interface {
@@ -235,7 +300,7 @@ type Service interface {
 }
 ```
 
-任务状态：`pending -> prompting -> submitting -> queued -> running -> completed`；终态另有 `failed`、`timeout`、`cancelled`。严格模式下只有 `completed` 才能通过 unit/章节推进门；非严格模式允许写作继续但必须广播失败状态。
+任务状态：`pending -> prompting -> submitting -> queued -> running -> completed`；终态另有 `failed`、`timeout`、`cancelled`。严格模式目前作用于 Prompter JSON 校验和图片任务提交，**尚未**成为 Engine / Host 的 unit 推进门。非严格模式允许写作继续，失败仍须落盘并在 Web 页面显示。
 
 持久化示例（`meta/images/jobs/<job_id>.json`）：
 
@@ -308,7 +373,7 @@ SSE 每条消息仍为 JSON `data:`。事件 payload 至少包括：
 }
 ```
 
-事件类型：`run.state`、`run.event`、`stream.delta`、`stream.clear`、`comfyui.job.created`、`comfyui.job.progress`、`comfyui.job.completed`、`comfyui.job.failed`、`comfyui.job.cancelled`。Web event broker 是多订阅者广播；浏览器重连通过 replay 序号补齐历史，不依赖前端轮询 ComfyUI。
+已实现的 SSE 覆盖写作运行时：`run.state`、`run.event`、`stream.delta`、`stream.clear`。`comfyui.job.*` 是**目标边界**；当前页面通过 HTTP 轮询 `GET /api/v2/comfyui/jobs/{id}` 获取任务状态，不能依赖 Host SSE 恢复配图任务。
 
 ## 8. 分阶段实施和依赖边界
 
@@ -367,17 +432,51 @@ SSE 每条消息仍为 JSON `data:`。事件 payload 至少包括：
 - 不把 UI workflow JSON 与 API workflow JSON 静默混用。
 - 不允许图片失败悄悄标记 unit 完成；严格模式必须暂停并提供可恢复错误。
 
-## 10. Infinite Canvas 近似工作流扩展
+## 10. 提示词与写作要求预设（已实现）
 
-多 ComfyUI 实例、API workflow 与 canvas/config JSON 的格式隔离、动态节点字段 schema、bindings 自动推断/手工覆盖、输入媒体引用、输出分类预览和迁移兼容的详细契约见 [comfyui_architecture.md](comfyui_architecture.md)。该文档是本文件中 ComfyUI 单实例契约的扩展：新实现优先遵循实例池和版本化 workflow 规则，同时保留当前 `/api/v2/comfyui/*` 路由的兼容字段。
+`GET/PUT /api/v2/settings/prompts` 与 `/api/v2/settings/workflow` 使用 `version: 2`，同时保留旧字段镜像：
 
-## 11. Canvas 工作台 v2
+- `prompts` 始终等于当前激活组合的角色模板；旧前端只提交 `{ "prompts": {...} }` 时，更新当前组合。
+- `writing_rules` 始终等于当前激活写作要求预设的 `text`。
+- 读取 `version` 缺失或小于 2 的文件时，包装成默认预设，不改用户原文。
 
-画布层的完整契约见 [comfyui_canvas_architecture_v2.md](comfyui_canvas_architecture_v2.md)。它定义了 `ainovel_comfy_canvas_v1` 的 CanvasDocument、workflow/mini-test 节点和边、viewport、字段暴露、mini test cards、Canvas GET/PUT/revision、run/status/cancel/retry/output 预览，以及旧单表单页面和旧配置端点的保留/隐藏策略。Canvas JSON 只保存编辑投影，不能直接提交给 ComfyUI `/prompt`。
+```json
+{
+  "version": 2,
+  "active_preset": "默认配置",
+  "presets": {
+    "默认配置": {
+      "name": "默认配置",
+      "prompts": {
+        "architect": "...",
+        "chapter_planner": "...",
+        "writer": "...",
+        "editor": "...",
+        "prompter": "..."
+      }
+    }
+  },
+  "prompts": {}
+}
+```
+
+PUT 使用 `action`：`activate` / `save` / `save_as`。写作要求对应 `activate_writing_rules` / `save_writing_rules` / `save_writing_rules_as`。名称冲突返回 `code: 1003`。提示词组合保存不重启运行中的 Agent。
+
+## 11. 画布文档
+
+画布是 workflow 的编辑和测试投影，不改变 API workflow 语义。
+
+```text
+GET /api/v2/comfyui/workflows/{id}/canvas
+PUT /api/v2/comfyui/workflows/{id}/canvas
+POST /api/v2/comfyui/workflows/{id}/run
+```
+
+CanvasDocument 根对象带 `format: "ainovel_comfy_canvas_v1"`、`workflow_id`、`nodes`、`edges`、`viewport`、`fields`。删除、移动、缩放和字段勾选都不应改写 API workflow；运行时只读取画布上的字段值。更早的画布 DTO 讨论见 [history/comfyui_canvas_architecture_v2.md](history/comfyui_canvas_architecture_v2.md)。
 
 ## 12. Novel Unit -> Prompter -> ComfyUI 桥接契约
 
-完整设计见 [novel_comfy_bridge_architecture.md](novel_comfy_bridge_architecture.md)。本节是 Agent 2/3 必须共同遵守的 HTTP 和 DTO 最小契约。
+HTTP 与 DTO 以本节为准。早期服务接口草图见 [history/novel_comfy_bridge_architecture.md](history/novel_comfy_bridge_architecture.md)，其中 `imagejob.Service` / `Executor` 仍是目标边界。
 
 ### 12.1 Bridge 配置
 
@@ -520,7 +619,7 @@ GET /api/v2/units/{chapter}/{ordinal}/image
 
 ### 12.5 test job 兼容
 
-`POST /api/v2/comfyui/jobs/test` 保留当前请求 DTO。它必须与自动链路共同调用 `StartFromValues -> BindAndStart -> Executor`，但不调用 Prompter，`trigger=test`，也不参与 strict unit 推进门。
+`POST /api/v2/comfyui/jobs/test` 保留当前请求 DTO，`trigger=test`，不调用 Prompter。目标是与自动链路共用同一 `StartFromValues -> BindAndStart -> Executor`；**当前仍由 `v2Controller.runJob` 执行**。
 
 ### 12.6 新增错误码
 
@@ -536,4 +635,14 @@ GET /api/v2/units/{chapter}/{ordinal}/image
 
 ### 12.7 事件
 
-SSE 增加 `comfyui.job.prompting`、`comfyui.job.validating`、`comfyui.job.binding`。payload 至少包含 `job_id`、`unit_id`、`workflow_id`、`status`、`stage`、`attempt`；失败事件增加 `code`、`recoverable` 和经过截断的 `message`。事件不得携带 unit 正文或 `prompt_raw`。
+SSE 增加 `comfyui.job.prompting`、`comfyui.job.validating`、`comfyui.job.binding` 是**目标边界**。payload 至少包含 `job_id`、`unit_id`、`workflow_id`、`status`、`stage`、`attempt`；失败事件增加 `code`、`recoverable` 和经过截断的 `message`。事件不得携带 unit 正文或 `prompt_raw`。当前实现用 HTTP 轮询替代。
+
+## 13. 目标边界（未落地）
+
+以下内容不得写成现状，也不得按「已完成」实现新功能时省略：
+
+1. `internal/imagejob.Service` / `Executor`：HTTP 测试与自动 unit 生成应走同一服务；web handler 不应直接调用模型或 ComfyUI。
+2. ComfyUI job 事件尚未接入 Host SSE；页面不能依赖 `comfyui.job.*`。
+3. `strict` 尚未成为 Engine / Host 的 unit 或章节推进门；图片失败不会自动挡住现有写作循环。
+4. 远端 ComfyUI 实例的输入媒体同步未做：上传文件保存在本地，不会自动调用每个远端实例的 `/upload/image`。
+5. 酒馆 / Galgame 复用同一 ImageJob 管道，但没有独立契约文档。

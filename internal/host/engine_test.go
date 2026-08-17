@@ -94,11 +94,13 @@ func TestIsNonSemanticWorkerFailure(t *testing.T) {
 }
 
 func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
-	st := storepkg.NewStore(t.TempDir())
+	roots := storepkg.Open(t.TempDir(), "")
+	st := roots.Facts
+	media := roots.Media
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ComfyUI.SaveBridgeConfig(imagejob.BridgeConfig{
+	if err := media.SaveBridgeConfig(imagejob.BridgeConfig{
 		Enabled: true, AutoGenerate: true, WorkflowID: "wf", Strict: true,
 		PrompterTimeoutMS: 120000, PreviousTailChars: 1200,
 	}); err != nil {
@@ -111,19 +113,19 @@ func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(imageDir, "001.png"), []byte("image-one"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+	if err := media.SaveJob(storepkg.ImageJob{
 		JobID: "completed-1", Chapter: 1, Ordinal: 1, Status: "completed",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+	if err := media.SaveJob(storepkg.ImageJob{
 		JobID: "failed-2", Chapter: 1, Ordinal: 2, Status: "failed",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	var events []Event
-	e := &engine{store: st, emitEvent: func(event Event) { events = append(events, event) }}
+	e := &engine{store: st, media: media, emitEvent: func(event Event) { events = append(events, event) }}
 	progress, err := e.loadChapterImageProgress(1, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +147,7 @@ func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(imageDir, "002.png"), []byte("image-two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ComfyUI.SaveJob(storepkg.ImageJob{
+	if err := media.SaveJob(storepkg.ImageJob{
 		JobID: "completed-2", Chapter: 1, Ordinal: 2, Status: "completed", StartedAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)

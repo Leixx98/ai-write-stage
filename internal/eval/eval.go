@@ -201,7 +201,7 @@ func loadVariant(dir string) (map[string]string, error) {
 func applyVariant(b *assets.Bundle, prompts map[string]string) error {
 	for file, raw := range prompts {
 		// voice.md 是文风层独立 variant 入口:只替换文风段,协议模板不动,
-		// 组装仍走 BuildWriterPrompt 同一路径(docs/voice-layer.md §3.6)。
+		// 组装仍走 BuildWriterPrompt 同一路径(docs/history/voice-layer.md §3.6)。
 		if file == "voice.md" {
 			b.OverrideVoice(raw)
 			continue

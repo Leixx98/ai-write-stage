@@ -38,10 +38,10 @@
 2. `internal/tools/novel_context`
    负责把小说项目中的结构化数据装配成当前轮可用上下文。
 
-3. `internal/orchestrator/store_summary_*`
+3. `internal/agents/ctxpack`
    负责 Writer 专用的 store-based 快速压缩。
 
-4. `internal/orchestrator/writer_restore.go`
+4. `internal/agents/ctxpack/restore.go`
    负责在 `FullSummary` 之后追加一份压缩后恢复包，确保 Writer 能继续写。
 
 ### 2.2 数据流
@@ -81,20 +81,21 @@
 
 ### 3.2 项目侧接线
 
-- `internal/orchestrator/agents.go`
+- `internal/agents/build.go`
+- `internal/agents/context_manager.go`
 
 作用：
 
-- 组装 Writer 的 `ContextManager`（Coordinator 已于 2026-07-12 退役，见 docs/engine-arbiter.md）
+- 组装 Writer 的 `ContextManager`（Coordinator 已于 2026-07-12 退役，见 docs/history/engine-arbiter.md）
 - 给 Writer 注入额外的 `StoreSummaryCompact`
 - 给 Writer 配置小说定制的 `FullSummary` prompt
 - 给 Writer 配置 `writerRestorePack`
 
 ### 3.3 项目侧压缩与恢复
 
-- `internal/orchestrator/store_summary_strategy.go`
-- `internal/orchestrator/store_summary_builder.go`
-- `internal/orchestrator/writer_restore.go`
+- `internal/agents/ctxpack/strategy.go`
+- `internal/agents/ctxpack/builder.go`
+- `internal/agents/ctxpack/restore.go`
 
 作用：
 
@@ -116,8 +117,8 @@
 
 ### 3.5 交接与恢复
 
-- `internal/orchestrator/handoff_policy.go`
-- `internal/orchestrator/recovery_engine.go`
+- `internal/domain/runtime.go`（`MemoryPolicy.HandoffPreferred`）
+- `internal/host/resume.go`
 
 作用：
 
@@ -126,8 +127,7 @@
 
 ### 3.6 可观测性
 
-- `internal/orchestrator/run.go`
-- `internal/orchestrator/runtime.go`
+- `internal/agents/context_manager.go`
 - `internal/entry/tui/panels.go`
 
 作用：
@@ -244,8 +244,8 @@ Writer 走 `newContextManager`（每次 spawn 由工厂按当前模型窗口重�
 
 实现位置：
 
-- `internal/orchestrator/store_summary_strategy.go`
-- `internal/orchestrator/store_summary_builder.go`
+- `internal/agents/ctxpack/strategy.go`
+- `internal/agents/ctxpack/builder.go`
 
 作用：
 
@@ -392,7 +392,7 @@ Writer 与默认代码助手不同的地方：
 
 实现位置：
 
-- `internal/orchestrator/writer_restore.go`
+- `internal/agents/ctxpack/restore.go`
 
 职责：
 
@@ -506,7 +506,7 @@ Writer 与默认代码助手不同的地方：
 
 实现位置：
 
-- `internal/orchestrator/handoff_policy.go`
+- `internal/domain/runtime.go`
 
 当作品进入更长、更复杂、更依赖结构化工件的阶段时，系统会偏向 handoff。
 
@@ -531,7 +531,7 @@ handoff pack 会记录：
 
 实现位置：
 
-- `internal/orchestrator/run.go`
+- `internal/agents/context_manager.go`
 
 每次上下文重写都会通过 `contextRewriteCallback` 输出：
 
@@ -602,8 +602,8 @@ Scope 的中文标签：
 重点文件：
 
 - `internal/tools/novel_context_builders.go`
-- `internal/orchestrator/store_summary_builder.go`
-- `internal/orchestrator/session.go`
+- `internal/agents/ctxpack/builder.go`
+- `internal/store/session.go`
 
 #### 场景 2：压缩后丢角色状态/伏笔
 

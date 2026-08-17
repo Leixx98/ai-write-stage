@@ -156,6 +156,16 @@ func (io *IO) RemoveFileUnlocked(rel string) error {
 	return err
 }
 
+func (io *IO) RemoveAll(rel string) error {
+	io.mu.Lock()
+	defer io.mu.Unlock()
+	err := os.RemoveAll(io.path(rel))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
 func (io *IO) WithWriteLock(fn func() error) error {
 	io.mu.Lock()
 	defer io.mu.Unlock()

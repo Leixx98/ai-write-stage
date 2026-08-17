@@ -1,4 +1,4 @@
-package host
+package galgame
 
 import (
 	"context"
@@ -9,16 +9,31 @@ import (
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
-// GenerateGalgameReply is the deliberately small model boundary for the
-// interactive mode. Prompt assembly remains in the galgame web/domain layer.
-func (h *Host) GenerateGalgameReply(ctx context.Context, character store.GalgameCharacter, session store.GalgameSession, userInput string) (string, error) {
-	if h == nil || h.models == nil {
+const maxHistory = 24
+const maxReplyTokens = 4096
+
+type GenerateFunc func(ctx context.Context, msgs []agentcore.Message) (string, error)
+
+func Reply(ctx context.Context, generate GenerateFunc, character store.GalgameCharacter, session store.GalgameSession, userInput string) (string, error) {
+	if generate == nil {
 		return "", fmt.Errorf("galgame model is unavailable")
 	}
 	userInput = strings.TrimSpace(userInput)
 	if userInput == "" {
 		return "", fmt.Errorf("user input is empty")
 	}
+	response, err := generate(ctx, composeMessages(character, session, userInput))
+	if err != nil {
+		return "", fmt.Errorf("galgame generate: %w", err)
+	}
+	text := strings.TrimSpace(response)
+	if text == "" {
+		return "", fmt.Errorf("galgame returned an empty response")
+	}
+	return text, nil
+}
+
+func composeMessages(character store.GalgameCharacter, session store.GalgameSession, userInput string) []agentcore.Message {
 	system := strings.TrimSpace(character.SystemPrompt)
 	if system == "" {
 		system = "You are roleplaying the character below. Stay in character and reply naturally.\n\nCharacter prompt:\n" + character.Prompt
@@ -37,8 +52,8 @@ func (h *Host) GenerateGalgameReply(ctx context.Context, character store.Galgame
 	}
 	msgs := []agentcore.Message{agentcore.SystemMsg(system)}
 	start := 0
-	if len(session.Messages) > 24 {
-		start = len(session.Messages) - 24
+	if len(session.Messages) > maxHistory {
+		start = len(session.Messages) - maxHistory
 	}
 	for _, m := range session.Messages[start:] {
 		if strings.TrimSpace(m.Content) == "" {
@@ -50,22 +65,7 @@ func (h *Host) GenerateGalgameReply(ctx context.Context, character store.Galgame
 		}
 		msgs = append(msgs, agentcore.Message{Role: role, Content: []agentcore.ContentBlock{agentcore.TextBlock(m.Content)}})
 	}
-	msgs = append(msgs, agentcore.UserMsg(userInput))
-	h.mu.Lock()
-	var record func(string, string, agentcore.AgentMessage)
-	if h.usage != nil {
-		record = h.usage.Record
-	}
-	model := newUsageTrackedModel(h.models.ForRole("galgame"), "galgame", record)
-	thinking := h.resolveThinkingForRoleLocked("galgame")
-	h.mu.Unlock()
-	response, err := model.Generate(ctx, msgs, nil, agentcore.WithThinking(thinking), agentcore.WithMaxTokens(4096))
-	if err != nil {
-		return "", fmt.Errorf("galgame generate: %w", err)
-	}
-	text := strings.TrimSpace(response.Message.TextContent())
-	if text == "" {
-		return "", fmt.Errorf("galgame returned an empty response")
-	}
-	return text, nil
+	return append(msgs, agentcore.UserMsg(userInput))
 }
+
+func MaxReplyTokens() int { return maxReplyTokens }

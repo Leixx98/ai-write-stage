@@ -24,9 +24,10 @@ import (
 
 // engine 是确定性执行引擎:读事实 → Route → 前置校验 → 直接运行 Worker →
 // 检查推进 → 循环;语义场景按需咨询 Arbiter。它执行决定,不参与文学判断
-// (docs/engine-rfc.md)。单 goroutine 串行,控制状态只在循环边界变更。
+// (docs/history/engine-rfc.md)。单 goroutine 串行,控制状态只在循环边界变更。
 type engine struct {
 	store   *storepkg.Store
+	media   *storepkg.ComfyUIStore
 	workers *subagent.Runner
 
 	arbiterModel    agentcore.ChatModel
@@ -361,7 +362,10 @@ func (e *engine) waitForChapterImages(ctx context.Context, chapter, totalUnits i
 }
 
 func (e *engine) loadChapterImageProgress(chapter, totalUnits int) (chapterImageProgress, error) {
-	bridge, err := e.store.ComfyUI.LoadBridgeConfig()
+	if e.media == nil {
+		return chapterImageProgress{}, nil
+	}
+	bridge, err := e.media.LoadBridgeConfig()
 	if err != nil {
 		return chapterImageProgress{}, err
 	}
@@ -369,7 +373,7 @@ func (e *engine) loadChapterImageProgress(chapter, totalUnits int) (chapterImage
 	if !progress.required {
 		return progress, nil
 	}
-	jobs, err := e.store.ComfyUI.ListJobs()
+	jobs, err := e.media.ListJobs()
 	if err != nil {
 		return chapterImageProgress{}, err
 	}

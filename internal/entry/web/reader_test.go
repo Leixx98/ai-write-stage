@@ -79,7 +79,7 @@ func TestReaderRendersSafeMarkdownAndRewritesUnitImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := response.Data.HTML
-	for _, want := range []string{"<p>第一段。</p>", "/api/units/1/1"} {
+	for _, want := range []string{"<p>第一段。</p>", "/api/v2/units/1/1/image"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("reader response missing %q: %s", want, body)
 		}

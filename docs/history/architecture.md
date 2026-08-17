@@ -2,7 +2,7 @@
 
 > 事实层确定，语义层自主：一个串行确定性 Engine、四类自主 Worker、少数几个按需 Arbiter 函数、一个文件系统事实层。
 >
-> 2026-07-12 控制面更替完成：Coordinator LLM 长循环退役，由 Engine（确定性循环）+ Arbiter（语义裁定函数）接管。设计决策与评审记录见 `docs/engine-arbiter.md`，RFC 见 `docs/engine-rfc.md`。
+> 2026-07-12 控制面更替完成：Coordinator LLM 长循环退役，由 Engine（确定性循环）+ Arbiter（语义裁定函数）接管。设计决策与评审记录见 `docs/history/engine-arbiter.md`，RFC 见 `docs/history/engine-rfc.md`。
 
 ---
 

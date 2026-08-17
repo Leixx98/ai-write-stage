@@ -528,7 +528,7 @@ func renderOutline(entries []domain.OutlineEntry) string {
 //
 // commit_chapter 的 feedback(偏离/建议)持久化于此,architect 下次结构操作
 // (expand_arc / append_volume / update_compass)经 novel_context 消费后清空。
-// 事实闭环:工具落盘 → 上下文注入 → 结构操作即消费(docs/engine-arbiter.md 阻断1)。
+// 事实闭环:工具落盘 → 上下文注入 → 结构操作即消费(docs/history/engine-arbiter.md 阻断1)。
 
 // ChapterFeedback 一条带章节号的大纲反馈。
 type ChapterFeedback struct {

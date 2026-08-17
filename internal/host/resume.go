@@ -10,7 +10,7 @@ import (
 
 // resumeLabel 基于事实生成 Resume 的 UI 标签。
 // label 为空表示无可恢复状态（应走新建）。恢复本身不需要任何 prompt——
-// Engine 只恢复事实：从 store 重算路由续跑（docs/engine-rfc.md §6）。
+// Engine 只恢复事实：从 store 重算路由续跑（docs/history/engine-rfc.md §6）。
 func resumeLabel(store *storepkg.Store) (string, error) {
 	progress, err := store.Progress.Load()
 	if err != nil && !os.IsNotExist(err) {

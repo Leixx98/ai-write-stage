@@ -10,14 +10,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/voocel/ainovel-cli/assets"
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/entry/startup"
 	"github.com/voocel/ainovel-cli/internal/host"
 	buildversion "github.com/voocel/ainovel-cli/internal/version"
 )
@@ -42,13 +40,14 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, build buildversion.Info, op
 		return err
 	}
 	defer rt.Close()
+	_ = build
 
 	// Web startup only restores the host and exposes the saved progress. Keep
 	// the engine paused until the user explicitly clicks Continue in the UI.
 
 	server := &http.Server{
 		Addr:              listen,
-		Handler:           newHandler(rt, build.Version),
+		Handler:           newHandler(rt),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
@@ -60,7 +59,7 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, build buildversion.Info, op
 	return err
 }
 
-func newHandler(rt *host.Host, version string) http.Handler {
+func newHandler(rt *host.Host) http.Handler {
 	events := newEventBroker(rt)
 	streams := newStreamBroker(rt)
 	mux := http.NewServeMux()
@@ -87,62 +86,8 @@ func newHandler(rt *host.Host, version string) http.Handler {
 		w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(name)))
 		_, _ = w.Write(data)
 	})
-	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"version":      version,
-			"snapshot":     rt.Snapshot(),
-			"dir":          rt.Dir(),
-			"workspace_id": webWorkspaceID(rt.Dir()),
-		})
-	})
-	mux.HandleFunc("/api/replay", func(w http.ResponseWriter, r *http.Request) {
-		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-		items, err := rt.ReplayQueue(after)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, items)
-	})
-	mux.HandleFunc("/api/events", events.handler)
-	mux.HandleFunc("/api/stream", streams.handler)
 	mux.HandleFunc("/api/v2/events", events.handler)
 	mux.HandleFunc("/api/v2/stream", streams.handler)
-	mux.HandleFunc("/api/start", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		var req struct {
-			Prompt string `json:"prompt"`
-		}
-		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		plan, err := startup.PrepareQuick(startup.Request{Mode: startup.ModeQuick, UserPrompt: req.Prompt, OutputDir: rt.Dir(), Interactive: true})
-		if err == nil {
-			err = rt.PrepareUserRules(plan.RawPrompt)
-		}
-		if err == nil {
-			err = rt.StartPrepared(plan.RawPrompt)
-		}
-		if err != nil {
-			writeError(w, http.StatusConflict, err)
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]any{"started": true})
-	})
-	mux.HandleFunc("/api/continue", commandHandler(func(rt *host.Host, text string) error { return rt.Continue(text) }, rt))
-	mux.HandleFunc("/api/steer", commandHandler(func(rt *host.Host, text string) error { return rt.Steer(text) }, rt))
-	mux.HandleFunc("/api/abort", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]any{"stopped": rt.Abort()})
-	})
-	mux.HandleFunc("/api/units/", unitMediaHandler(rt))
 	registerV2(mux, rt)
 	return withNoCache(mux)
 }
@@ -267,85 +212,6 @@ func (b *streamBroker) handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func commandHandler(fn func(*host.Host, string) error, rt *host.Host) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		var req struct {
-			Text string `json:"text"`
-		}
-		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		if err := fn(rt, strings.TrimSpace(req.Text)); err != nil {
-			writeError(w, http.StatusConflict, err)
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true})
-	}
-}
-
-func eventStream(rt *host.Host) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case ev, ok := <-rt.Events():
-				if !ok {
-					return
-				}
-				if !writeSSE(w, ev) {
-					return
-				}
-				flusher.Flush()
-			}
-		}
-	}
-}
-
-func textStream(rt *host.Host) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case delta, ok := <-rt.Stream():
-				if !ok {
-					return
-				}
-				payload := map[string]any{"delta": delta}
-				if delta == host.StreamClearSentinel {
-					payload = map[string]any{"clear": true}
-				}
-				if !writeSSE(w, payload) {
-					return
-				}
-				flusher.Flush()
-			}
-		}
-	}
-}
-
 func writeSSE(w io.Writer, value any) bool {
 	b, err := json.Marshal(value)
 	if err != nil {
@@ -353,41 +219,6 @@ func writeSSE(w io.Writer, value any) bool {
 	}
 	_, err = fmt.Fprintf(w, "data: %s\n\n", b)
 	return err == nil
-}
-
-func unitMediaHandler(rt *host.Host) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		if len(parts) != 4 || parts[0] != "api" || parts[1] != "units" {
-			http.NotFound(w, r)
-			return
-		}
-		chapter, err1 := strconv.Atoi(parts[2])
-		ordinal, err2 := strconv.Atoi(parts[3])
-		if err1 != nil || err2 != nil || chapter <= 0 || ordinal <= 0 || chapter > 100000 || ordinal > 100000 {
-			http.Error(w, "invalid unit", http.StatusBadRequest)
-			return
-		}
-		base := filepath.Join(rt.Dir(), "drafts", fmt.Sprintf("%02d.units", chapter), fmt.Sprintf("%03d", ordinal))
-		for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp"} {
-			path := base + ext
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				http.ServeFile(w, r, path)
-				return
-			}
-		}
-		http.NotFound(w, r)
-	}
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 
 func withNoCache(next http.Handler) http.Handler {

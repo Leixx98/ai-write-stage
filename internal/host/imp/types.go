@@ -1,4 +1,4 @@
-// Package imp 实现外部小说的分阶段语义导入管线（docs/import-pipeline.md）。
+// Package imp 实现外部小说的分阶段语义导入管线（docs/history/import-pipeline.md）。
 //
 // 模型负责理解开放语义，代码负责坐标、覆盖、类型、哈希、顺序和幂等；全部语义产物在
 // 独立工作区（meta/import/）验证完成后，才发布到正式书籍状态。下一动作只从工件推导

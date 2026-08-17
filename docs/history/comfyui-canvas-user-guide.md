@@ -13,7 +13,7 @@
 - 从 ComfyUI 导出 **API workflow JSON**。它应是“节点 ID -> `{class_type, inputs}`”的对象，而不是包含 `nodes`、`links`、`extra` 的编辑器 UI workflow。
 - ainovel Web 进程使用的输出目录可写。图片测试结果默认写入 `meta/images/tests/`；带章节和 unit 的任务写入 `drafts/<chapter>.units/<ordinal>.png`。
 
-如果开启严格模式，图片任务失败、超时或取消会阻止后续 unit/章节推进。遇到错误时先检查 ComfyUI 服务、模型文件、工作流节点和显存，再重试。
+严格模式目前作用于 Prompter JSON 校验和图片任务提交；它还不是 Engine 写作循环的硬门禁。遇到错误时先检查 ComfyUI 服务、模型文件、工作流节点和显存，再重试。接口细节见 [api_contracts.md](api_contracts.md)。
 
 ## 2. 启动 Web 工作台
 
@@ -30,7 +30,9 @@ go build -o ainovel-web-cli.exe ./cmd/ainovel-cli
 .\ainovel-web-cli.exe --web --listen 127.0.0.1:8080
 ```
 
-打开 `http://127.0.0.1:8080`。若端口被占用，把 `--listen` 改为其他本机地址，例如 `127.0.0.1:8081`。Web 进程会在终端显示访问地址，运行日志写入工作目录的 `web.log`。
+打开 `http://127.0.0.1:8080`。若端口被占用，把 `--listen` 改为其他本机地址，例如 `127.0.0.1:8081`。`--web` 不能与 `--headless`、`--prompt` 或 `--prompt-file` 同时使用；创作需求从页面输入框提交。Web 进程会在终端显示访问地址，运行日志写入当前输出目录的 `logs/web.log`。
+
+旧版 `/api/state`、`/api/events`、`/api/stream` 仍兼容现有工作台；新页面优先使用 `/api/v2/*`。JSON 响应为 `{ "code": 0, "data": {}, "msg": "" }`。图片等媒体响应返回真实 `image/*` 内容，并附 `X-API-Code: 0`。
 
 ## 3. 最小 ComfyUI 设置
 
@@ -43,7 +45,7 @@ go build -o ainovel-web-cli.exe ./cmd/ainovel-cli
 | Poll interval | `1000` | 查询 ComfyUI 历史状态的间隔，单位毫秒 |
 | Client ID | `ainovel-web` | 提交到 ComfyUI 的客户端标识 |
 | Enabled | 打开 | 允许提交任务 |
-| Strict mode | 按需打开 | 打开后图片任务是写作推进的硬门禁 |
+| Strict mode | 按需打开 | 打开后 Prompter 必须返回全部必填字段；失败停在校验阶段。它还不是 Engine 推进门 |
 
 点击 **Save**，再点击 **Test connection**。地址格式错误会返回 `code: 2001`；服务不可达通常返回 `code: 3001`。错误提示不会回显密钥、完整 prompt 或本机绝对路径。
 
@@ -56,12 +58,12 @@ go build -o ainovel-web-cli.exe ./cmd/ainovel-cli
 3. 工作流出现在左侧列表，中间画布会自动生成节点和连线。
 4. 点击 **Save workflow** 持久化工作流。
 
-导入请求使用 `POST /api/v2/comfyui/workflows/import`。工作流和画布分开保存：
+导入请求使用 `POST /api/v2/comfyui/workflows/import`。工作流定义按项目共享，写在 `.ainovel/comfyui/workflows/`；画布与 config 同行：
 
 ```text
-meta/comfyui/workflows/<id>.api.json
-meta/comfyui/workflows/<id>.config.json
-meta/comfyui/workflows/<id>.canvas.json
+<project>/.ainovel/comfyui/workflows/<id>.api.json
+<project>/.ainovel/comfyui/workflows/<id>.config.json
+<project>/.ainovel/comfyui/workflows/<id>.canvas.json
 ```
 
 如果选择的是 UI workflow，页面会提示先导出 API 格式，不会把 `nodes`/`links` JSON 静默保存成可运行模板。导入校验失败时检查返回的 `data.errors`，常见原因是节点缺少 `class_type`/`inputs` 或绑定引用了不存在的节点。

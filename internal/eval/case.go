@@ -2,7 +2,7 @@
 //
 // 设计立足点：评测器（确定性诊断 diag、全书文体 stylestat、七维 rubric）项目里已经
 // 存在，eval 只做薄薄一层——批量驱动 case、采集产出、把 diag Finding 与 case 契约映射
-// 成门禁、聚合报告。一份事实定义，不在评测层重写一遍判断。详见 docs/evaluation-system.md。
+// 成门禁、聚合报告。一份事实定义，不在评测层重写一遍判断。详见 docs/history/evaluation-system.md。
 //
 // 当前已覆盖确定性主线：单路门禁、baseline/variant A/B delta、repeat 聚合与 stylestat 回归。
 // LLM Judge 仍是可选后续层，不能污染确定性门禁。
@@ -49,7 +49,7 @@ type Expect struct {
 }
 
 // Gate 是本 case 的门禁阈值。本期只用 MaxSeverity；其余字段为 A/B（regression）阶段预留，
-// 解析但不参与门禁——保留是为了 case 文件能按 docs/evaluation-system.md 的完整 schema 书写。
+// 解析但不参与门禁——保留是为了 case 文件能按 docs/history/evaluation-system.md 的完整 schema 书写。
 type Gate struct {
 	MaxSeverity string `json:"max_severity,omitempty"` // diag Finding 允许的最高严重度（默认 warning）：超过即 hard fail
 

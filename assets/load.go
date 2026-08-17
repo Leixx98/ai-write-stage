@@ -145,7 +145,7 @@ type Bundle struct {
 	References tools.References
 	Prompts    Prompts
 	Styles     map[string]string
-	Voice      string // 写作标准(文风层),已按三层覆盖组装;见 docs/voice-layer.md
+	Voice      string // 写作标准(文风层),已按三层覆盖组装;见 docs/history/voice-layer.md
 }
 
 // LoadOptions 声明文风层的覆盖来源。空目录 = 跳过该层(eval 传零值以获得

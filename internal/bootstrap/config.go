@@ -197,7 +197,7 @@ type RoleConfig struct {
 
 // knownRoles 支持的可配置角色名。Arbiter 当前不开放角色级配置，
 // 统一使用顶层默认模型（host.arbiterModel 用 models.Default）。
-// import_* 是导入语义函数的模型档位旋钮（docs/import-pipeline.md §13.1）：
+// import_* 是导入语义函数的模型档位旋钮（docs/history/import-pipeline.md §13.1）：
 // 未配置时落 architect，配置后可把机械性更强的函数指到更便宜档位。
 var knownRoles = map[string]bool{
 	"architect":         true,

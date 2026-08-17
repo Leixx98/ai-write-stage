@@ -34,6 +34,12 @@ type Prompter interface {
 	Generate(context.Context, PromptRequest) (string, error)
 }
 
+type PrompterFunc func(context.Context, PromptRequest) (string, error)
+
+func (f PrompterFunc) Generate(ctx context.Context, request PromptRequest) (string, error) {
+	return f(ctx, request)
+}
+
 // UserPrompt serializes bounded novel context. Field JSON lives in the system prompt.
 func UserPrompt(request PromptRequest) (string, error) {
 	payload := struct {

@@ -2,7 +2,6 @@ package web
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,37 @@ import (
 	"github.com/voocel/ainovel-cli/internal/imagejob"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
+
+func TestV2ControllerUsesHostStore(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	workspace := t.TempDir()
+	t.Chdir(workspace)
+	provider := bootstrap.ProviderConfig{
+		Type: "openai", APIKey: "test-key", BaseURL: "https://example.com/v1",
+		Models: []bootstrap.ModelConfig{{Name: "default-model"}},
+	}
+	if err := bootstrap.SaveModelLibrary(bootstrap.ModelLibrary{
+		Version: 1, ProviderOrder: []string{"proxy"},
+		Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := bootstrap.Config{
+		Provider: "proxy", ModelName: "default-model", Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
+		OutputDir: filepath.Join(workspace, "output", "novel"), ProjectDir: workspace, Style: "default",
+	}
+	rt, err := host.New(cfg, assets.Load("default", assets.DefaultLoadOptions(cfg.OutputDir)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	controller := newV2Controller(rt)
+	if controller.st != rt.Store() || controller.media != rt.Roots().Media || controller.tavern != rt.Roots().Tavern {
+		t.Fatal("web controller must reuse the Host workspace roots")
+	}
+}
 
 func TestModelSettingsSelectRolePersistsWorkspaceWithoutSecrets(t *testing.T) {
 	home := t.TempDir()
@@ -131,12 +161,14 @@ func TestWebWorkspaceIDIsStableAndScopedToOutputDirectory(t *testing.T) {
 }
 
 func TestSavePrompterPresetPersistsPresetAndWorkflowTemplate(t *testing.T) {
-	st := store.NewStore(t.TempDir())
+	roots := store.Open(t.TempDir(), "")
+	st := roots.Facts
+	media := roots.Media
 	wf := comfyui.Workflow{ID: "wf", Name: "test", Workflow: map[string]any{}}
-	if err := st.ComfyUI.SaveWorkflow(wf); err != nil {
+	if err := media.SaveWorkflow(wf); err != nil {
 		t.Fatal(err)
 	}
-	controller := &v2Controller{st: st, running: map[string]context.CancelFunc{}}
+	controller := &v2Controller{st: st, media: media}
 	body, _ := json.Marshal(map[string]any{
 		"action": "save_as", "name": "双人构图", "workflow_id": "wf",
 		"template": "return exact json for two characters", "overwrite": false,
@@ -147,11 +179,11 @@ func TestSavePrompterPresetPersistsPresetAndWorkflowTemplate(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("save preset returned %d: %s", recorder.Code, recorder.Body.String())
 	}
-	doc, err := st.ComfyUI.LoadPrompterPresets()
+	doc, err := media.LoadPrompterPresets()
 	if err != nil || doc.Presets["双人构图"].Template != "return exact json for two characters" {
 		t.Fatalf("preset was not persisted: %#v, %v", doc, err)
 	}
-	canvas, err := st.ComfyUI.LoadWorkflowCanvas("wf")
+	canvas, err := media.LoadWorkflowCanvas("wf")
 	if err != nil || canvas.PrompterPreset != "双人构图" || canvas.PrompterTemplate != "return exact json for two characters" {
 		t.Fatalf("workflow prompt was not updated: %#v, %v", canvas, err)
 	}

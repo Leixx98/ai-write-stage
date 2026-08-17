@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -20,9 +19,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/domain"
 	"github.com/voocel/ainovel-cli/internal/flow"
-	"github.com/voocel/ainovel-cli/internal/host/exp"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
-	"github.com/voocel/ainovel-cli/internal/host/sim"
 	runtimelog "github.com/voocel/ainovel-cli/internal/logger"
 	modelreg "github.com/voocel/ainovel-cli/internal/models"
 	"github.com/voocel/ainovel-cli/internal/notify"
@@ -38,6 +35,7 @@ type Host struct {
 	cfg             bootstrap.Config
 	bundle          assets.Bundle
 	store           *storepkg.Store
+	roots           *storepkg.Roots
 	bookLease       *bookLease
 	styleStats      *tools.StyleStatsIndex
 	models          *bootstrap.ModelSet
@@ -137,7 +135,8 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 	// 起后台 goroutine 从 OpenRouter 刷新模型元数据（窗口/价格），磁盘缓存 24h。
 	modelreg.StartPricingRefresh(modelreg.DefaultRegistry(), bootstrap.DefaultConfigDir())
 
-	store := storepkg.NewStoreForProject(cfg.OutputDir, cfg.ProjectDir)
+	roots := storepkg.Open(cfg.OutputDir, cfg.ProjectDir)
+	store := roots.Facts
 	if err := store.Init(); err != nil {
 		return nil, fmt.Errorf("init store: %w", err)
 	}
@@ -191,6 +190,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 		cfg:             cfg,
 		bundle:          bundle,
 		store:           store,
+		roots:           roots,
 		bookLease:       bookLease,
 		styleStats:      styleStats,
 		models:          models,
@@ -261,10 +261,11 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 				Summary: fmt.Sprintf("StopGuard: %s 未完成必要产物就试图结束，已拦截催促（连续第 %d 次）", agent, n), Level: "info"})
 		}
 	}
-	// Engine:确定性执行引擎(docs/engine-rfc.md)。arbiter 用 Default 模型(过渡限制,
+	// Engine:确定性执行引擎(docs/history/engine-rfc.md)。arbiter 用 Default 模型(过渡限制,
 	// 见 engine-arbiter.md §4.2)。
 	h.engine = &engine{
 		store:           store,
+		media:           roots.Media,
 		workers:         workers,
 		arbiterModel:    newUsageTrackedModel(models.Default, "arbiter", usage.Record),
 		failurePrompt:   bundle.Prompts.ArbiterFailure,
@@ -883,7 +884,7 @@ func (h *Host) abortWithEvent(summary, level string) bool {
 		return true
 	}
 	// Engine 未运行但独占作业（导入等）在跑：它同样在烧钱，预算硬停/手动暂停必须
-	// 能停掉它——否则预算政策对导入形同虚设（docs/import-pipeline.md §13.1）。
+	// 能停掉它——否则预算政策对导入形同虚设（docs/history/import-pipeline.md §13.1）。
 	if cancelExclusive != nil {
 		cancelExclusive()
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
@@ -1025,6 +1026,14 @@ func (h *Host) Done() <-chan struct{} { return h.done }
 func (h *Host) Closed() <-chan struct{} { return h.closed }
 func (h *Host) Dir() string             { return h.store.Dir() }
 func (h *Host) ProjectDir() string      { return h.cfg.ProjectDir }
+
+// Store returns the Host's existing store. Entry points reuse this pointer
+// instead of constructing a second Store for the same directory.
+func (h *Host) Store() *storepkg.Store { return h.store }
+
+// Roots returns the Host's novel/media/tavern stores. Entry points reuse these
+// pointers instead of constructing a second workspace for the same directory.
+func (h *Host) Roots() *storepkg.Roots { return h.roots }
 
 // ── 事件发射 ──
 
@@ -1649,183 +1658,6 @@ func truncate(s string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "..."
 }
 
-// ImportFrom 启动一次外部小说语义编译导入：ingest → segment → analyze → synthesize → publish。
-// 模型只裁定开放语义（边界/事实/综合），Go 掌管坐标/覆盖/幂等；与 Engine 运行互斥，
-// 导入完成后由 AdvanceHold 决定是否续写。
-// 返回的事件通道由 imp.Run 关闭，调用方负责消费（满则丢弃以防阻塞管线协程）。
-func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Event, error) {
-	// 预算启动前置检查与 Start/Resume/Continue 同一纪律：导入是全流程模型调用，
-	// 预算已超时不得启动（§13.1「纳入现有预算哨兵」）。
-	if err := h.budget.Refuse(); err != nil {
-		return nil, err
-	}
-	if err := h.acquireExclusive("导入"); err != nil {
-		return nil, err
-	}
-	// 登记取消函数：预算硬停/手动暂停经 abortWithEvent 取消导入自己的 context
-	//（否则哨兵只会去暂停并未运行的 Engine，导入继续烧钱）。
-	ctx, cancel := context.WithCancel(ctx)
-	h.mu.Lock()
-	h.exclusiveCancel = cancel
-	h.mu.Unlock()
-
-	deps := imp.Deps{
-		Store:         h.store,
-		CommitChapter: tools.NewCommitChapterTool(h.store, h.styleStats),
-		Segment:       h.importCaller("segment"),
-		Analyze:       h.importCaller("analyze"),
-		Synthesize:    h.importCaller("synthesize"),
-		Prompts: imp.Prompts{
-			Segment:    h.bundle.Prompts.ImportSegment,
-			Analyze:    h.bundle.Prompts.ImportAnalyze,
-			Synthesize: h.bundle.Prompts.ImportSynthesize,
-			Range:      h.bundle.Prompts.ImportRange,
-		},
-	}
-	ch, err := imp.Run(ctx, deps, opts)
-	if err != nil {
-		h.releaseExclusive()
-		return nil, err
-	}
-	return h.superviseImport(ch, opts), nil
-}
-
-// StartImport is the Host-owned async entry used by web clients. It drains
-// the import stream and republishes progress through the normal Host events.
-func (h *Host) StartImport(opts imp.Options) error {
-	ch, err := h.ImportFrom(context.Background(), opts)
-	if err != nil {
-		return err
-	}
-	if !h.launchAsync(func() {
-		for ev := range ch {
-			summary := ev.Message
-			level := ev.Level
-			if ev.Err != nil {
-				if level == "" {
-					level = "error"
-				}
-				summary = fmt.Sprintf("%s: %v", summary, ev.Err)
-			}
-			h.emitEvent(Event{Time: ev.Time, Category: "IMPORT", Summary: summary, Level: level})
-		}
-	}) {
-		return fmt.Errorf("Host is closing; cannot start import")
-	}
-	return nil
-}
-
-// ImportResumeHint 返回未完成导入的一行提示（无则空串），供 TUI 启动时主动告知（RFC §18.2）。
-// 只在启动时调用一次：内部会重算工作区各工件的 InputDigest，不适合放进快照轮询。
-func (h *Host) ImportResumeHint() string {
-	return imp.ResumeSummary(h.store)
-}
-
-// importCaller 解析一个导入语义函数的模型档位（RFC §13.1）：roles 配置存在 import_<fn>
-// 则用该档位（用量也记该角色的账），否则落 architect。这是调用配置，不改任何语义契约。
-func (h *Host) importCaller(fn string) imp.Caller {
-	role := "import_" + fn
-	if _, _, explicit := h.models.CurrentSelection(role); !explicit {
-		role = "architect"
-	}
-	model := h.models.ForRoleWithFailover(role, func(ev bootstrap.FailoverEvent) {
-		slog.Warn("导入 provider 切换", "module", "import", "role", ev.Role,
-			"reason", ev.Reason,
-			"from", fmt.Sprintf("%s/%s", ev.FromProvider, ev.FromModel),
-			"to", fmt.Sprintf("%s/%s", ev.ToProvider, ev.ToModel),
-			"err", ev.Err)
-	})
-	model = newUsageTrackedModel(model, role, h.usage.Record)
-	return imp.Caller{Model: model, Runtime: h.importModelRuntime(role, model)}
-}
-
-// importModelRuntime 探测所选档位角色模型的调用能力，供 imp 双预算 / thinking 自适应使用（RFC §13/§21）。
-// 探测失败的字段留零值，imp 侧回退保守默认，保证无能力信息也能正确运行。
-// 结构化输出由 imp 的 llmcontract 在每次请求前现读模型事实，不在 Runtime 重复缓存。
-func (h *Host) importModelRuntime(role string, model agentcore.ChatModel) imp.ModelRuntime {
-	var rt imp.ModelRuntime
-	provider, name, _ := h.models.CurrentSelection(role)
-	if name == "" {
-		name = bootstrap.ModelName(model)
-		provider = bootstrap.ModelProvider(model)
-	}
-	// context / completion 上限：registry 是唯一可信来源（被包装模型的 Info() 不含窗口）。
-	rt.ContextTokens, _ = h.cfg.ResolveContextWindow(provider, name)
-	if entry, ok := modelreg.DefaultRegistry().Resolve(name); ok {
-		rt.MaxOutputTokens = entry.MaxTokens
-	}
-	// thinking：按角色 reasoning effort 与模型能力 resolve；不支持则不发（与 arbiter 同策略）。
-	if level, err := agents.ParseThinkingLevel(h.cfg.ResolveReasoningEffort(role)); err == nil {
-		if resolved, ok := agents.ResolveThinkingForModel(model, level); ok {
-			rt.Thinking = resolved
-		}
-	}
-	return rt
-}
-
-// Simulate 读取 simulate 目录并生成或增量更新仿写画像。
-func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("get working dir: %w", err)
-	}
-	return h.SimulateFrom(ctx, filepath.Join(wd, "simulate"))
-}
-
-// SimulateFrom runs the imitation pipeline against an explicit source
-// directory. The operation remains owned by Host so exclusivity is enforced.
-func (h *Host) SimulateFrom(ctx context.Context, sourceDir string) (<-chan sim.Event, error) {
-	if err := h.acquireExclusive("生成仿写画像"); err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	h.mu.Lock()
-	h.exclusiveCancel = cancel
-	h.mu.Unlock()
-
-	sourceDir = strings.TrimSpace(sourceDir)
-	if sourceDir == "" {
-		h.releaseExclusive()
-		return nil, fmt.Errorf("simulation source directory is required")
-	}
-	deps := sim.Deps{
-		Store: h.store,
-		LLM:   h.models.ForRole("architect"),
-		Prompts: sim.Prompts{
-			Source: h.bundle.Prompts.SimulationSource,
-			Merge:  h.bundle.Prompts.SimulationMerge,
-		},
-	}
-	ch, err := sim.Run(ctx, deps, sim.Options{SourceDir: sourceDir})
-	if err != nil {
-		h.releaseExclusive()
-		return nil, err
-	}
-	return superviseExclusive(h, ch), nil
-}
-
-// StartSimulation is the Host-owned async entry used by web clients.
-func (h *Host) StartSimulation(sourceDir string) error {
-	ch, err := h.SimulateFrom(context.Background(), sourceDir)
-	if err != nil {
-		return err
-	}
-	if !h.launchAsync(func() {
-		for ev := range ch {
-			summary := ev.Message
-			level := ""
-			if ev.Err != nil {
-				level = "error"
-				summary = fmt.Sprintf("%s: %v", summary, ev.Err)
-			}
-			h.emitEvent(Event{Time: ev.Time, Category: "SIMULATE", Summary: summary, Level: level})
-		}
-	}) {
-		return fmt.Errorf("Host is closing; cannot start simulation")
-	}
-	return nil
-}
-
 // ApplyWritingRules replaces the settings-page writing-rules contribution in the
 // runtime user-rules snapshot. It is intentionally a Host method so web handlers
 // do not write runtime state behind Host's back.
@@ -1844,23 +1676,6 @@ func (h *Host) ApplyWritingRules(text string) error {
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: "Writing rules updated", Level: "info"})
 	}
 	return nil
-}
-
-// ImportSimulationProfile 导入此前生成的仿写画像。
-func (h *Host) ImportSimulationProfile(ctx context.Context, path string) (<-chan sim.Event, error) {
-	if err := h.acquireExclusive("导入仿写画像"); err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	h.mu.Lock()
-	h.exclusiveCancel = cancel
-	h.mu.Unlock()
-	ch, err := sim.RunImport(ctx, h.store, path)
-	if err != nil {
-		h.releaseExclusive()
-		return nil, err
-	}
-	return superviseExclusive(h, ch), nil
 }
 
 // acquireExclusive 原子占用后台独占作业槽（import/simulate）：Engine 运行中、阶段共创窗口内、
@@ -1920,41 +1735,6 @@ func superviseExclusive[T any](h *Host, src <-chan T) <-chan T {
 	return out
 }
 
-// superviseImport 是"导入完成后是否接力"的唯一所有者：转发导入事件，成功完成时先释放独占槽、
-// 再决定并执行接力，最后把真实接力结果写进 StageDone 事件的 Continued 字段。TUI 只据此渲染，
-// 不再用本地 --continue 标志臆测运行态（消除 Runner/Host/TUI 三方各自解释导致的时序竞态）。
-func (h *Host) superviseImport(src <-chan imp.Event, opts imp.Options) <-chan imp.Event {
-	out := make(chan imp.Event, 32)
-	if !h.launchAsync(func() {
-		defer close(out)
-		released := false
-		release := func() {
-			if !released {
-				released = true
-				h.releaseExclusive()
-			}
-		}
-		defer release()
-		for ev := range src {
-			if ev.Stage == imp.StageDone {
-				release() // 先释放独占槽，接力的 startEngine 才能通过独占门禁
-				ev.Continued = h.continueAfterImport(opts)
-			}
-			select {
-			case out <- ev:
-			case <-h.runCtx.Done():
-				for range src {
-				}
-				return
-			}
-		}
-	}) {
-		close(out)
-		h.releaseExclusive()
-	}
-	return out
-}
-
 // launchAsync 在 Host 生命周期内登记一个后台任务。closing 与 WaitGroup.Add 受同一
 // 把锁保护，保证 Close 开始 Wait 后不会再出现新的 Add。
 func (h *Host) launchAsync(fn func()) bool {
@@ -1979,49 +1759,4 @@ func (h *Host) runAsync(fn func() error) (error, bool) {
 		return nil, false
 	}
 	return <-result, true
-}
-
-// continueAfterImport 决定并执行 --continue 的真正自动接力，返回 Engine 是否已启动。
-// 有效接力意图 = 本次 opts 或工作区持久化 intent（覆盖崩溃后无参数 /import 恢复的场景）；
-// 仅 auto 推进模式接力，由自适应扩弧规划承接开放故事、或让已完结故事收尾；review 交用户 /next。
-func (h *Host) continueAfterImport(opts imp.Options) bool {
-	want := opts.ContinueAfter
-	if !want {
-		in, err := imp.OpenWorkspace(h.store.Dir()).LoadIntent()
-		if err != nil {
-			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
-				Summary: "导入已完成，但自动接力意图读取失败：" + err.Error()})
-		} else if in != nil {
-			want = in.ContinueAfterImport
-		}
-	}
-	if !want {
-		return false
-	}
-	meta, err := h.store.RunMeta.Load()
-	if err != nil || meta == nil {
-		slog.Warn("导入自动接力读取 RunMeta 失败", "module", "host", "err", err)
-		return false
-	}
-	if meta.AdvanceMode != domain.ChapterAdvanceAuto {
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
-			Summary: "导入完成；当前为逐章验收模式，输入继续或 /next 接力续写"})
-		return false
-	}
-	h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info", Summary: "导入完成，自动接力续写"})
-	if !h.startEngine(nil) {
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
-			Summary: "自动接力启动失败，请输入继续指令手动恢复"})
-		return false
-	}
-	return true
-}
-
-// Export 导出已完成章节为外部文件（支持 TXT / EPUB）。
-//
-// 与 ImportFrom 不同：导出是只读操作（不动 Progress / Checkpoint），
-// 因此**不要求 Engine 停机**——写作中途也可以随时导出"现阶段成品"。
-// 只读到 Progress.CompletedChapters + 章节终稿 + 大纲 + premise 的一致快照。
-func (h *Host) Export(ctx context.Context, opts exp.Options) (*exp.Result, error) {
-	return exp.Run(ctx, exp.Deps{Store: h.store}, opts)
 }

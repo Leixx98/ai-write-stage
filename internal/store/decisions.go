@@ -13,7 +13,7 @@ import (
 
 // DecisionStore 审计运行时的 LLM 语义裁定(meta/decisions.jsonl,append-only)。
 //
-// 定位(docs/engine-arbiter.md §4.3):审计与离线重放的数据源——记录"当时看到什么
+// 定位(docs/history/engine-arbiter.md §4.3):审计与离线重放的数据源——记录"当时看到什么
 // 事实、做了什么裁定",供 eval 回归与未来 Arbiter 的 A/B 对照。它**不是**事件溯源,
 // 也**不是**恢复数据源(恢复只依赖 Progress/Checkpoint/RunMeta 等事实层)。
 type DecisionStore struct{ io *IO }

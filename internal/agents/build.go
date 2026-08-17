@@ -102,7 +102,7 @@ func resolvedRoleThinking(model agentcore.ChatModel, cfg bootstrap.Config, role 
 
 // BuildWorkers 组装 Worker(architect_short/long、chapter_planner、writer)为可程序化
 // 调用的 subagent.Runner。Engine 直接调用其类型化入口，无 LLM 工具层
-// (docs/engine-rfc.md §1)。
+// (docs/history/engine-rfc.md §1)。
 // 返回 Runner、WriterRestorePack 与 ApplyThinking(运行时 /model 联动各角色推理强度;
 // writer/architect 的 ContextManager 走工厂自动重建)。
 // onGuardBlock 可选(nil 安全):各 Worker StopGuard 的拦截/升级审计回调。
@@ -242,7 +242,7 @@ func BuildWorkers(
 		},
 	}
 	// 唯一组装路径:协议模板 {{VOICE}} 原位回填文风段,再追加风格预设。
-	// eval 的 voice A/B 走同一函数,保证两臂等价(docs/voice-layer.md §3.2)。
+	// eval 的 voice A/B 走同一函数,保证两臂等价(docs/history/voice-layer.md §3.2)。
 	writerPrompt := assets.BuildWriterPrompt(bundle.Prompts.Writer, bundle.Voice, bundle.Styles[cfg.Style])
 
 	restore := &ctxpack.WriterRestorePack{}

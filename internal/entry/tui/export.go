@@ -29,7 +29,7 @@ func startExport(rt *host.Host, args []string) (tea.Cmd, error) {
 		return nil, err
 	}
 	return func() tea.Msg {
-		res, err := rt.Export(context.Background(), opts)
+		res, err := exp.Run(context.Background(), exp.Deps{Store: rt.Store()}, opts)
 		return exportDoneMsg{result: res, err: err}
 	}, nil
 }

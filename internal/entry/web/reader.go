@@ -138,10 +138,10 @@ func renderReaderMarkdown(chapter int, source string) (string, error) {
 		imageChapter, chapterErr := strconv.Atoi(matches[1])
 		ordinal, ordinalErr := strconv.Atoi(matches[2])
 		if chapterErr != nil || ordinalErr != nil || imageChapter != chapter || ordinal <= 0 {
-			image.Destination = []byte("/api/units/not-found")
+			image.Destination = []byte("/api/v2/units/not-found")
 			return ast.WalkContinue, nil
 		}
-		image.Destination = []byte(fmt.Sprintf("/api/units/%d/%d", chapter, ordinal))
+		image.Destination = []byte(fmt.Sprintf("/api/v2/units/%d/%d/image", chapter, ordinal))
 		return ast.WalkContinue, nil
 	})
 	if err != nil {

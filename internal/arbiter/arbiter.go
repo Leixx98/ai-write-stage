@@ -1,6 +1,6 @@
 // Package arbiter 是语义裁定层:按需唤醒的 LLM-as-function。
 //
-// 两平面对称(docs/engine-arbiter.md §二):
+// 两平面对称(docs/history/engine-arbiter.md §二):
 //
 //	确定性平面:  flow.LoadState   → flow.Route     → Instruction
 //	语义平面:    arbiter.Collect* → arbiter.Decide* → XxxDecision

@@ -12,7 +12,8 @@ import (
 	"github.com/voocel/ainovel-cli/internal/errs"
 )
 
-// Store 是状态管理的组合根，持有所有子存储。
+// Store is the novel-facts composition root. Image jobs and tavern sessions
+// live on Roots.Media / Roots.Tavern, not on this type.
 type Store struct {
 	dir string
 
@@ -32,32 +33,38 @@ type Store struct {
 	Usage       *UsageStore
 	Simulation  *SimulationStore
 	Decisions   *DecisionStore
-	ComfyUI     *ComfyUIStore
-	Galgame     *GalgameStore
 
 	crossMu sync.Mutex // 串行化跨域协调；不代表多个文件具备事务原子性
 }
 
+// Roots is the process-wide workspace: novel facts, image media, and tavern.
+// All three point at the existing on-disk layout; Open does not move files.
+type Roots struct {
+	Facts  *Store
+	Media  *ComfyUIStore
+	Tavern *GalgameStore
+}
+
 // NewStore 创建状态管理器，dir 为小说输出根目录。
 func NewStore(dir string) *Store {
-	return newStore(dir, "")
+	return Open(dir, "").Facts
 }
 
-// NewStoreForProject creates a store whose ComfyUI definitions are shared by
-// all workspaces under the same project root. Novel facts and image jobs still
-// remain under dir.
+// NewStoreForProject creates novel facts for a workspace. ComfyUI definitions
+// are shared via Open(dir, projectDir).Media, not via this Store.
 func NewStoreForProject(dir, projectDir string) *Store {
-	return newStore(dir, projectDir)
+	return Open(dir, projectDir).Facts
 }
 
-func newStore(dir, projectDir string) *Store {
+// Open builds the three composition roots for one book directory.
+func Open(dir, projectDir string) *Roots {
 	io := newIO(dir)
 	projectIO := io
 	if projectDir != "" {
 		projectIO = newIO(filepath.Join(projectDir, ".ainovel"))
 	}
 	outline := NewOutlineStore(io)
-	return &Store{
+	facts := &Store{
 		dir:         dir,
 		Progress:    NewProgressStore(newIO(dir)),
 		Outline:     outline,
@@ -75,8 +82,11 @@ func newStore(dir, projectDir string) *Store {
 		Usage:       NewUsageStore(newIO(dir)),
 		Simulation:  NewSimulationStore(newIO(dir)),
 		Decisions:   NewDecisionStore(newIO(dir)),
-		ComfyUI:     NewComfyUIStoreWithProject(io, projectIO),
-		Galgame:     NewGalgameStore(io),
+	}
+	return &Roots{
+		Facts:  facts,
+		Media:  NewComfyUIStoreWithProject(io, projectIO),
+		Tavern: NewGalgameStore(io),
 	}
 }
 

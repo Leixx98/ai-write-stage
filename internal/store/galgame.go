@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // GalgameCharacter is intentionally extensible: the first version only uses
@@ -58,11 +59,84 @@ func NewGalgameStore(io *IO) *GalgameStore { return &GalgameStore{io: io} }
 func safeGalgameID(id string) bool {
 	return strings.TrimSpace(id) != "" && filepath.Base(id) == id && !strings.ContainsAny(id, `/\\`)
 }
+func (s *GalgameStore) NewCharacterID(name string, createdAt time.Time) string {
+	return s.uniqueFileID(s.characterPath, joinGalgameID(createdAt, sanitizeGalgameName(name, "character")))
+}
+func (s *GalgameStore) NewSessionID(characterName, sessionName string, createdAt time.Time) string {
+	return s.uniqueFileID(s.sessionPath, joinGalgameID(createdAt, sanitizeGalgameName(characterName, "character"), sanitizeGalgameName(sessionName, "session")))
+}
+func (s *GalgameStore) uniqueFileID(pathFn func(string) string, base string) string {
+	if s.fileMissing(pathFn(base)) {
+		return base
+	}
+	for i := 2; i < 10000; i++ {
+		id := fmt.Sprintf("%s_%d", base, i)
+		if s.fileMissing(pathFn(id)) {
+			return id
+		}
+	}
+	return fmt.Sprintf("%s_%d", base, time.Now().UnixNano())
+}
+func (s *GalgameStore) fileMissing(rel string) bool {
+	_, err := os.Stat(s.io.path(rel))
+	return os.IsNotExist(err)
+}
+func joinGalgameID(createdAt time.Time, parts ...string) string {
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	cleaned := make([]string, 0, len(parts)+1)
+	for _, part := range parts {
+		if part != "" {
+			cleaned = append(cleaned, part)
+		}
+	}
+	if len(cleaned) == 0 {
+		cleaned = append(cleaned, "untitled")
+	}
+	return strings.Join(cleaned, "_") + "_" + createdAt.UTC().Format("20060102_150405")
+}
+func sanitizeGalgameName(name, fallback string) string {
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range strings.TrimSpace(name) {
+		if r < 32 || r == 127 || r == '%' || unicode.IsSpace(r) || strings.ContainsRune(`<>:"/\|?*`, r) {
+			if !lastUnderscore {
+				b.WriteByte('_')
+				lastUnderscore = true
+			}
+			continue
+		}
+		b.WriteRune(r)
+		lastUnderscore = false
+	}
+	s := strings.Trim(b.String(), "._")
+	if s == "" {
+		s = fallback
+	}
+	return truncateRunes(s, 40)
+}
+func truncateRunes(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	i := 0
+	for idx := range s {
+		if i == n {
+			return s[:idx]
+		}
+		i++
+	}
+	return s
+}
 func (s *GalgameStore) characterPath(id string) string {
 	return filepath.ToSlash(filepath.Join("galgame/characters", id+".json"))
 }
 func (s *GalgameStore) sessionPath(id string) string {
 	return filepath.ToSlash(filepath.Join("galgame/sessions", id+".json"))
+}
+func (s *GalgameStore) sessionDir(id string) string {
+	return filepath.ToSlash(filepath.Join("galgame/sessions", id))
 }
 
 func (s *GalgameStore) SaveCharacter(c GalgameCharacter) error {
@@ -159,5 +233,8 @@ func (s *GalgameStore) DeleteSession(id string) error {
 	if !safeGalgameID(id) {
 		return fmt.Errorf("invalid session id")
 	}
-	return s.io.RemoveFile(s.sessionPath(id))
+	if err := s.io.RemoveFile(s.sessionPath(id)); err != nil {
+		return err
+	}
+	return s.io.RemoveAll(s.sessionDir(id))
 }
