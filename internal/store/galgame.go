@@ -10,12 +10,11 @@ import (
 	"unicode"
 )
 
-// GalgameCharacter is intentionally extensible: the first version only uses
-// Prompt, while the remaining fields reserve the SillyTavern-compatible shape.
+// GalgameCharacter stores the supported subset of a SillyTavern character
+// card. Extensions are preserved for future features but are not interpreted.
 type GalgameCharacter struct {
 	ID                      string         `json:"id"`
 	Name                    string         `json:"name"`
-	Prompt                  string         `json:"prompt"`
 	Description             string         `json:"description,omitempty"`
 	Personality             string         `json:"personality,omitempty"`
 	Scenario                string         `json:"scenario,omitempty"`
@@ -42,7 +41,6 @@ type GalgameSession struct {
 	ID              string           `json:"id"`
 	Name            string           `json:"name"`
 	CharacterID     string           `json:"character_id"`
-	StoryPreset     string           `json:"story_preset,omitempty"`
 	UserPersona     string           `json:"user_persona,omitempty"`
 	Messages        []GalgameMessage `json:"messages"`
 	ImageWorkflowID string           `json:"image_workflow_id,omitempty"`
@@ -143,8 +141,11 @@ func (s *GalgameStore) SaveCharacter(c GalgameCharacter) error {
 	if !safeGalgameID(c.ID) {
 		return fmt.Errorf("invalid character id")
 	}
-	if strings.TrimSpace(c.Prompt) == "" {
-		return fmt.Errorf("character prompt is required")
+	if strings.TrimSpace(c.Name) == "" {
+		return fmt.Errorf("character name is required")
+	}
+	if strings.TrimSpace(c.Description) == "" && strings.TrimSpace(c.Personality) == "" && strings.TrimSpace(c.Scenario) == "" && strings.TrimSpace(c.SystemPrompt) == "" {
+		return fmt.Errorf("character definition is required")
 	}
 	if c.CreatedAt.IsZero() {
 		c.CreatedAt = time.Now().UTC()

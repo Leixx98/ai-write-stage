@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,34 @@ import (
 )
 
 func galgameID(prefix string) string { return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano()) }
+
+func (c *v2Controller) importGalgameCharacter(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 4<<20+1))
+	if err != nil {
+		envelopeErr(w, 400, codeInvalidRequest, err)
+		return
+	}
+	if len(raw) > 4<<20 {
+		envelopeErr(w, 413, codeInvalidRequest, fmt.Errorf("character card exceeds 4 MiB"))
+		return
+	}
+	item, err := galgame.ImportCharacterJSON(raw)
+	if err != nil {
+		envelopeErr(w, 422, codeInvalidRequest, err)
+		return
+	}
+	item.CreatedAt = time.Now().UTC()
+	item.ID = c.tavern.NewCharacterID(item.Name, item.CreatedAt)
+	if err := c.tavern.SaveCharacter(item); err != nil {
+		envelopeErr(w, 422, codeInvalidRequest, err)
+		return
+	}
+	envelope(w, 201, 0, item, "")
+}
 
 func (c *v2Controller) galgameCharacters(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -95,11 +124,15 @@ func (c *v2Controller) galgameSessions(w http.ResponseWriter, r *http.Request) {
 		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
 		return
 	}
-	var item store.GalgameSession
-	if err := decodeBody(r, &item); err != nil {
+	var request struct {
+		store.GalgameSession
+		GreetingIndex int `json:"greeting_index"`
+	}
+	if err := decodeBody(r, &request); err != nil {
 		envelopeErr(w, 400, codeInvalidRequest, err)
 		return
 	}
+	item := request.GalgameSession
 	if strings.TrimSpace(item.CharacterID) == "" {
 		envelopeErr(w, 422, codeInvalidRequest, fmt.Errorf("character_id is required"))
 		return
@@ -114,6 +147,12 @@ func (c *v2Controller) galgameSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	if item.ID == "" {
 		item.ID = c.tavern.NewSessionID(character.Name, item.Name, item.CreatedAt)
+	}
+	item = galgame.InitializeSession(character, item, item.CreatedAt, request.GreetingIndex)
+	for index := range item.Messages {
+		if item.Messages[index].ID == "" {
+			item.Messages[index].ID = galgameID("msg")
+		}
 	}
 	if err := c.tavern.SaveSession(item); err != nil {
 		envelopeErr(w, 422, codeInvalidRequest, err)
@@ -135,6 +174,31 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 			item, err := c.tavern.LoadSession(id)
 			if err != nil {
 				envelopeErr(w, 404, codeNotFound, err)
+				return
+			}
+			envelope(w, 200, 0, item, "")
+		case http.MethodPut:
+			item, err := c.tavern.LoadSession(id)
+			if err != nil {
+				envelopeErr(w, 404, codeNotFound, err)
+				return
+			}
+			var update struct {
+				Name            string `json:"name"`
+				UserPersona     string `json:"user_persona"`
+				ImageWorkflowID string `json:"image_workflow_id"`
+			}
+			if err := decodeBody(r, &update); err != nil {
+				envelopeErr(w, 400, codeInvalidRequest, err)
+				return
+			}
+			if strings.TrimSpace(update.Name) != "" {
+				item.Name = strings.TrimSpace(update.Name)
+			}
+			item.UserPersona = strings.TrimSpace(update.UserPersona)
+			item.ImageWorkflowID = strings.TrimSpace(update.ImageWorkflowID)
+			if err := c.tavern.SaveSession(item); err != nil {
+				envelopeErr(w, 500, codeConflict, err)
 				return
 			}
 			envelope(w, 200, 0, item, "")
@@ -175,13 +239,17 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		envelopeErr(w, 422, codeInvalidRequest, fmt.Errorf("user_input is required"))
 		return
 	}
-	now := time.Now().UTC()
-	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "user", Content: input, CreatedAt: now})
-	reply, err := galgame.Reply(r.Context(), c.chat, character, session, input)
+	contextWindow := 0
+	if c.rt != nil {
+		contextWindow = c.rt.GalgameContextWindow()
+	}
+	reply, err := galgame.Reply(r.Context(), c.chat, character, session, input, galgame.ReplyOptions{ContextWindow: contextWindow})
 	if err != nil {
 		envelopeErr(w, 502, codeConflict, err)
 		return
 	}
+	now := time.Now().UTC()
+	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "user", Content: input, CreatedAt: now})
 	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "assistant", Name: character.Name, Content: reply, CreatedAt: time.Now().UTC()})
 	if err := c.tavern.SaveSession(session); err != nil {
 		envelopeErr(w, 500, codeConflict, err)
@@ -235,10 +303,17 @@ func (c *v2Controller) startGalgameImage(session store.GalgameSession, character
 	if err != nil {
 		return store.ImageJob{}, err
 	}
-	plan := "角色设定：\n" + character.Prompt
-	if strings.TrimSpace(session.StoryPreset) != "" {
-		plan += "\n\n剧情预设：\n" + session.StoryPreset
+	var planParts []string
+	if value := strings.TrimSpace(character.Description); value != "" {
+		planParts = append(planParts, "角色描述：\n"+value)
 	}
+	if value := strings.TrimSpace(character.Personality); value != "" {
+		planParts = append(planParts, "角色性格：\n"+value)
+	}
+	if value := strings.TrimSpace(character.Scenario); value != "" {
+		planParts = append(planParts, "场景：\n"+value)
+	}
+	plan := strings.Join(planParts, "\n\n")
 	var history strings.Builder
 	end := len(session.Messages) - 1
 	start := end - 6

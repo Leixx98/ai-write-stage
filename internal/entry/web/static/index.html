@@ -84,7 +84,31 @@
       <div id="galgame-dialogue" class="galgame-dialogue"><div class="muted">导入角色卡并开始对话。</div></div>
       <form id="galgame-input" class="galgame-input"><textarea id="galgame-user-input" rows="2" placeholder="输入你的回复..."></textarea><button type="submit">发送</button></form>
     </section>
-    <aside id="galgame-drawer" class="galgame-drawer" hidden><div class="section-heading"><div><h2>Galgame 设置</h2><p>第一版仅使用角色 Prompt，其他角色卡字段预留。</p></div><button id="galgame-close-settings" class="small" type="button">关闭</button></div><div class="form-grid"><label>角色<select id="galgame-character-select"></select></label><label>会话<select id="galgame-session-select"></select></label><label class="wide">剧情预设<textarea id="galgame-story" rows="4" placeholder="当前剧情、世界背景或本轮目标"></textarea></label><label class="wide">角色 Prompt<textarea id="galgame-prompt" rows="8" placeholder="角色卡的核心 character prompt"></textarea></label><label class="wide">导入 JSON 角色卡<input id="galgame-card-file" type="file" accept=".json,application/json"><small class="field-help">只读取 JSON；可包含 name、prompt、description、scenario 等预留字段。</small></label></div><div class="button-row"><button id="galgame-save-character" type="button">保存角色卡</button><button id="galgame-new-session" type="button">新建会话</button></div><div id="galgame-settings-msg" class="notice"></div></aside>
+    <aside id="galgame-drawer" class="galgame-drawer" hidden>
+      <div class="section-heading"><div><h2>Galgame 设置</h2></div><button id="galgame-close-settings" class="small" type="button">关闭</button></div>
+      <div class="form-grid">
+        <label>角色<select id="galgame-character-select"></select></label>
+        <label>会话<select id="galgame-session-select"></select></label>
+        <h3 class="galgame-form-section">角色卡</h3>
+        <label class="wide">导入 JSON 角色卡<input id="galgame-card-file" type="file" accept=".json,application/json"><small class="field-help">支持扁平角色卡和带 data 的 SillyTavern JSON 角色卡。</small></label>
+        <label>角色名<input id="galgame-character-name-input" placeholder="角色名"></label>
+        <label class="wide">角色描述<textarea id="galgame-description" rows="5"></textarea></label>
+        <label class="wide">性格<textarea id="galgame-personality" rows="3"></textarea></label>
+        <label class="wide">场景<textarea id="galgame-scenario" rows="4"></textarea></label>
+        <label class="wide">第一条消息<textarea id="galgame-first-message" rows="4"></textarea></label>
+        <label class="wide">对话示例<textarea id="galgame-example-dialogue" rows="6"></textarea></label>
+        <label class="wide">System Prompt<textarea id="galgame-system-prompt" rows="5"></textarea></label>
+        <label class="wide">历史后指令<textarea id="galgame-post-history" rows="4"></textarea></label>
+        <label class="wide">备用开场白<textarea id="galgame-alternate-greetings" rows="4" placeholder="每行一条"></textarea></label>
+        <label class="wide">Extensions JSON<textarea id="galgame-extensions" rows="5" spellcheck="false"></textarea></label>
+        <h3 class="galgame-form-section">会话</h3>
+        <label>会话名称<input id="galgame-session-name-input" placeholder="会话名称"></label>
+        <label>开场白<select id="galgame-greeting-select"></select></label>
+        <label class="wide">用户身份<textarea id="galgame-user-persona" rows="3" placeholder="用户在当前会话中的名字或身份"></textarea></label>
+      </div>
+      <div class="button-row"><button id="galgame-save-character" type="button">保存角色卡</button><button id="galgame-save-session" type="button">保存会话</button><button id="galgame-new-session" type="button">新建会话</button></div>
+      <div id="galgame-settings-msg" class="notice"></div>
+    </aside>
   </main>
 
   <main id="api-settings" class="view settings-view"><section class="settings-panel model-settings-panel">

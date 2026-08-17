@@ -96,6 +96,8 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.config(w, r)
 	case p == "galgame/characters":
 		c.galgameCharacters(w, r)
+	case p == "galgame/characters/import":
+		c.importGalgameCharacter(w, r)
 	case strings.HasPrefix(p, "galgame/characters/"):
 		c.galgameCharacter(w, r, strings.TrimPrefix(p, "galgame/characters/"))
 	case p == "galgame/sessions":

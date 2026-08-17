@@ -1,0 +1,51 @@
+package web
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/voocel/ainovel-cli/internal/store"
+)
+
+func TestImportGalgameCharacterNormalizesAndSavesCard(t *testing.T) {
+	roots := store.Open(t.TempDir(), "")
+	controller := &v2Controller{tavern: roots.Tavern}
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/galgame/characters/import", bytes.NewBufferString(`{"spec":"chara_card_v2","data":{"name":"林晚","description":"情报员","personality":"冷静","first_mes":"你好"}}`))
+	recorder := httptest.NewRecorder()
+	controller.importGalgameCharacter(recorder, request)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("import returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	characters, err := roots.Tavern.ListCharacters()
+	if err != nil || len(characters) != 1 {
+		t.Fatalf("characters = %#v, %v", characters, err)
+	}
+	if characters[0].Description != "情报员" || characters[0].Personality != "冷静" || characters[0].FirstMessage != "你好" {
+		t.Fatalf("character = %#v", characters[0])
+	}
+}
+
+func TestCreateGalgameSessionInitializesSelectedGreeting(t *testing.T) {
+	roots := store.Open(t.TempDir(), "")
+	character := store.GalgameCharacter{ID: "char", Name: "林晚", Description: "情报员", FirstMessage: "默认", AlternateGreetings: []string{"备用"}}
+	if err := roots.Tavern.SaveCharacter(character); err != nil {
+		t.Fatal(err)
+	}
+	controller := &v2Controller{tavern: roots.Tavern}
+	body, _ := json.Marshal(map[string]any{"name": "测试会话", "character_id": "char", "user_persona": "旅人", "greeting_index": 1})
+	recorder := httptest.NewRecorder()
+	controller.galgameSessions(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/galgame/sessions", bytes.NewReader(body)))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("create returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	sessions, err := roots.Tavern.ListSessions()
+	if err != nil || len(sessions) != 1 || len(sessions[0].Messages) != 1 {
+		t.Fatalf("sessions = %#v, %v", sessions, err)
+	}
+	if sessions[0].Messages[0].Content != "备用" || sessions[0].Messages[0].ID == "" {
+		t.Fatalf("greeting = %#v", sessions[0].Messages[0])
+	}
+}

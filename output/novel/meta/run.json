@@ -1,0 +1,7 @@
+{
+  "started_at": "2026-08-17T22:43:15+08:00",
+  "provider": "modelscope",
+  "style": "default",
+  "model": "inclusionAI/Ling-3.0-flash",
+  "advance_mode": "auto"
+}

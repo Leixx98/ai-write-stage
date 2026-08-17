@@ -55,7 +55,7 @@ func TestNewGalgameIDsAvoidCollisions(t *testing.T) {
 	tavern := Open(dir, dir).Tavern
 	created := time.Date(2026, 8, 17, 7, 53, 12, 0, time.UTC)
 	first := tavern.NewCharacterID("林晚", created)
-	if err := tavern.SaveCharacter(GalgameCharacter{ID: first, Name: "林晚", Prompt: "p"}); err != nil {
+	if err := tavern.SaveCharacter(GalgameCharacter{ID: first, Name: "林晚", Description: "角色"}); err != nil {
 		t.Fatal(err)
 	}
 	second := tavern.NewCharacterID("林晚", created)

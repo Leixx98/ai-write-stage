@@ -29,3 +29,14 @@ func (h *Host) NewGalgameGenerate() galgame.GenerateFunc {
 		return strings.TrimSpace(response.Message.TextContent()), nil
 	}
 }
+
+// GalgameContextWindow resolves the currently selected model on every call so
+// prompt trimming follows runtime model switches.
+func (h *Host) GalgameContextWindow() int {
+	if h == nil || h.models == nil {
+		return 0
+	}
+	provider, model, _ := h.models.CurrentSelection("galgame")
+	window, _ := h.models.ResolveContextWindow(provider, model)
+	return window
+}
