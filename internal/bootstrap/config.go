@@ -205,6 +205,7 @@ var knownRoles = map[string]bool{
 	"writer":            true,
 	"editor":            true,
 	"prompter":          true,
+	"galgame":           true,
 	"import_segment":    true,
 	"import_analyze":    true,
 	"import_synthesize": true,
@@ -318,7 +319,7 @@ func (c *Config) ValidateBase() error {
 			return err
 		}
 		if !knownRoles[role] {
-			return fmt.Errorf("unknown role %q in roles config (valid: architect/chapter_planner/writer/editor/prompter/import_segment/import_analyze/import_synthesize): %w", role, errs.ErrConfig)
+			return fmt.Errorf("unknown role %q in roles config (valid: architect/chapter_planner/writer/editor/prompter/galgame/import_segment/import_analyze/import_synthesize): %w", role, errs.ErrConfig)
 		}
 		if rc.Provider == "" || rc.Model == "" {
 			return fmt.Errorf("role %q must have both provider and model: %w", role, errs.ErrConfig)

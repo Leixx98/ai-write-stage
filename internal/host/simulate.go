@@ -22,6 +22,9 @@ func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
 // SimulateFrom runs the imitation pipeline against an explicit source
 // directory. The operation remains owned by Host so exclusivity is enforced.
 func (h *Host) SimulateFrom(ctx context.Context, sourceDir string) (<-chan sim.Event, error) {
+	if err := h.playActiveError(); err != nil {
+		return nil, err
+	}
 	if err := h.acquireExclusive("生成仿写画像"); err != nil {
 		return nil, err
 	}

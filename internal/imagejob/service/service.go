@@ -14,11 +14,13 @@ const (
 	TriggerTest    = "test"
 	TriggerUnit    = "unit"
 	TriggerGalgame = "galgame"
+	TriggerPlay    = "play"
 )
 
 var (
 	ErrInvalidUnitIdentity    = errors.New("unit image requires chapter > 0 and ordinal > 0")
 	ErrInvalidGalgameIdentity = errors.New("galgame image requires a session id and must not set chapter or ordinal")
+	ErrInvalidPlayIdentity    = errors.New("play image requires a play id and beat ordinal")
 	ErrUnitBusy               = errors.New("unit image job already running")
 	ErrNotFound               = errors.New("image job not found")
 	ErrWorkflow               = errors.New("workflow")

@@ -5,6 +5,7 @@
     ['architect', '架构师'],
     ['chapter_planner', '章节规划师'],
     ['writer', '写作者'],
+    ['galgame', '酒馆对话'],
     ['editor', '编辑'],
     ['prompter', '图片提示词'],
     ['import_segment', '导入分段'],

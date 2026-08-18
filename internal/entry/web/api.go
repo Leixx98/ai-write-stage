@@ -100,6 +100,10 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.importGalgameCharacter(w, r)
 	case strings.HasPrefix(p, "galgame/characters/"):
 		c.galgameCharacter(w, r, strings.TrimPrefix(p, "galgame/characters/"))
+	case p == "galgame/plays":
+		c.galgamePlays(w, r)
+	case strings.HasPrefix(p, "galgame/plays/"):
+		c.galgamePlay(w, r, strings.TrimPrefix(p, "galgame/plays/"))
 	case p == "galgame/sessions":
 		c.galgameSessions(w, r)
 	case strings.HasPrefix(p, "galgame/sessions/"):

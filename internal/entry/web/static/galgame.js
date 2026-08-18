@@ -2,6 +2,35 @@
 (() => {
   let galgameState = { characters: [], sessions: [], character: null, session: null, selectedImageJobId: '', loaded: false };
 
+  function fieldValue(id) { return $(id)?.value?.trim() || ''; }
+  function setField(id, value) { const el = $(id); if (el) el.value = value ?? ''; }
+  function isPlayMode() { return document.querySelector('.galgame-stage')?.classList.contains('is-play'); }
+
+  function openGalgameSettings() {
+    const drawer = $('galgame-drawer');
+    const backdrop = $('galgame-drawer-backdrop');
+    if (drawer) drawer.hidden = false;
+    if (backdrop) backdrop.hidden = false;
+    syncSettingsMode(isPlayMode());
+    loadGalgame();
+  }
+
+  function closeGalgameSettings() {
+    const drawer = $('galgame-drawer');
+    const backdrop = $('galgame-drawer-backdrop');
+    if (drawer) drawer.hidden = true;
+    if (backdrop) backdrop.hidden = true;
+  }
+
+  function syncSettingsMode(playMode) {
+    const title = $('galgame-settings-title');
+    if (title) title.textContent = playMode ? '剧场设置' : '对话设置';
+    const chat = $('galgame-chat-settings');
+    const play = $('galgame-play-settings');
+    if (chat) chat.hidden = playMode;
+    if (play) play.hidden = !playMode;
+  }
+
   async function loadGalgame() {
     if (galgameState.loaded) return;
     galgameState.loaded = true;
@@ -9,53 +38,79 @@
       galgameState.characters = await api('/api/v2/galgame/characters') || [];
       galgameState.sessions = await api('/api/v2/galgame/sessions') || [];
     } catch (error) {
+      galgameState.loaded = false;
       notify(`Galgame 加载失败：${error.message}`, 'galgame-settings-msg', 'error');
       return;
     }
     renderGalgameSelectors();
     if (galgameState.characters[0]) await selectGalgameCharacter(galgameState.characters[0].id);
-    else renderCharacterForm();
+    else {
+      renderCharacterForm();
+      renderSessionForm();
+      renderGalgameDialogue();
+    }
   }
 
   function characterSessions() {
     return galgameState.sessions.filter((session) => session.character_id === galgameState.character?.id);
   }
 
+  function fillCharacterSelect(el) {
+    if (!el) return;
+    const placeholder = galgameState.characters.length ? '选择角色' : '尚未创建角色';
+    el.innerHTML = `<option value="">${placeholder}</option>` + galgameState.characters.map((character) => `<option value="${esc(character.id)}">${esc(character.name || character.id)}</option>`).join('');
+    el.value = galgameState.character?.id || '';
+  }
+
   function renderGalgameSelectors() {
-    const characters = $('galgame-character-select');
+    fillCharacterSelect($('galgame-character-select'));
+    fillCharacterSelect($('galgame-play-character-select'));
     const sessions = $('galgame-session-select');
-    if (!characters || !sessions) return;
-    characters.innerHTML = galgameState.characters.map((character) => `<option value="${esc(character.id)}">${esc(character.name || character.id)}</option>`).join('');
-    sessions.innerHTML = characterSessions().map((session) => `<option value="${esc(session.id)}">${esc(session.name || session.id)}</option>`).join('');
-    if (galgameState.character) characters.value = galgameState.character.id;
-    if (galgameState.session) sessions.value = galgameState.session.id;
+    if (!sessions) return;
+    const items = characterSessions();
+    sessions.innerHTML = `<option value="">${items.length ? '选择会话' : '尚未创建会话'}</option>` + items.map((session) => `<option value="${esc(session.id)}">${esc(session.name || session.id)}</option>`).join('');
+    sessions.value = galgameState.session?.id || '';
   }
 
   function renderCharacterForm() {
     const character = galgameState.character || {};
     $('galgame-character-name').textContent = character.name || '选择角色';
-    $('galgame-character-name-input').value = character.name || '';
-    $('galgame-description').value = character.description || '';
-    $('galgame-personality').value = character.personality || '';
-    $('galgame-scenario').value = character.scenario || '';
-    $('galgame-first-message').value = character.first_mes || '';
-    $('galgame-example-dialogue').value = character.mes_example || '';
-    $('galgame-system-prompt').value = character.system_prompt || '';
-    $('galgame-post-history').value = character.post_history_instructions || '';
-    $('galgame-alternate-greetings').value = (character.alternate_greetings || []).join('\n');
-    $('galgame-extensions').value = JSON.stringify(character.extensions || {}, null, 2);
+    setField('galgame-character-name-input', character.name || '');
+    setField('galgame-description', character.description || '');
+    setField('galgame-personality', character.personality || '');
+    setField('galgame-scenario', character.scenario || '');
+    setField('galgame-first-message', character.first_mes || '');
+    setField('galgame-example-dialogue', character.mes_example || '');
+    setField('galgame-system-prompt', character.system_prompt || '');
+    setField('galgame-post-history', character.post_history_instructions || '');
+    setField('galgame-alternate-greetings', (character.alternate_greetings || []).join('\n'));
+    setField('galgame-extensions', JSON.stringify(character.extensions || {}, null, 2));
     const greetings = [character.first_mes || '无开场白', ...(character.alternate_greetings || [])];
-    $('galgame-greeting-select').innerHTML = greetings.map((greeting, index) => `<option value="${index}">${index === 0 ? '默认' : `备用 ${index}`}：${esc(greeting.slice(0, 36))}</option>`).join('');
+    const greetingSelect = $('galgame-greeting-select');
+    if (greetingSelect) greetingSelect.innerHTML = greetings.map((greeting, index) => `<option value="${index}">${index === 0 ? '默认' : `备用 ${index}`}：${esc(greeting.slice(0, 36))}</option>`).join('');
   }
 
   function renderSessionForm() {
     const session = galgameState.session || {};
-    $('galgame-session-name').textContent = session.name || 'Galgame 会话';
-    $('galgame-session-name-input').value = session.name || '';
-    $('galgame-user-persona').value = session.user_persona || '';
+    if (!isPlayMode()) $('galgame-session-name').textContent = session.name || 'Galgame 会话';
+    setField('galgame-session-name-input', session.name || '');
+    setField('galgame-user-persona', session.user_persona || '');
   }
 
   async function selectGalgameCharacter(id) {
+    if (!id) {
+      if (isPlayMode()) {
+        galgameState.character = null;
+        galgameState.session = null;
+        renderCharacterForm();
+        renderSessionForm();
+        renderGalgameSelectors();
+        window.GalgamePlay?.onCharacterChange();
+        return;
+      }
+      newGalgameCharacter();
+      return;
+    }
     try {
       galgameState.character = await api(`/api/v2/galgame/characters/${encodeURIComponent(id)}`);
       const matching = characterSessions();
@@ -68,12 +123,20 @@
         renderSessionForm();
         renderGalgameDialogue();
       }
+      window.GalgamePlay?.onCharacterChange();
     } catch (error) {
       notify(error.message, 'galgame-settings-msg', 'error');
     }
   }
 
   async function selectGalgameSession(id) {
+    if (!id) {
+      galgameState.session = null;
+      renderSessionForm();
+      renderGalgameSelectors();
+      renderGalgameDialogue();
+      return;
+    }
     try {
       galgameState.session = await api(`/api/v2/galgame/sessions/${encodeURIComponent(id)}`);
       renderSessionForm();
@@ -93,17 +156,17 @@
 
   function galgameImageUrl(jobId) { return jobId ? `/api/v2/comfyui/jobs/${encodeURIComponent(jobId)}/outputs/0` : ''; }
 
+  function imageOwnerAllowed(owner) {
+    if (isPlayMode()) return owner === 'play';
+    return owner !== 'play';
+  }
+
   function selectGalgameImage(jobId) {
     galgameState.selectedImageJobId = jobId || '';
     const status = $('galgame-image-status');
     if (status) status.textContent = '';
     if (jobId) showGalgameImage(galgameImageUrl(jobId));
-    else {
-      const image = $('galgame-image');
-      if (image) { image.removeAttribute('src'); image.hidden = true; }
-      const placeholder = $('galgame-image-placeholder');
-      if (placeholder) placeholder.hidden = false;
-    }
+    else hideGalgameImage('', true);
     markSelectedGalgameMessage();
   }
 
@@ -113,20 +176,36 @@
     });
   }
 
+  function emptyChatHTML() {
+    if (!galgameState.character) {
+      return `<div class="galgame-empty"><p class="muted">还没有角色卡。可以手写保存，也可以导入 JSON。</p><div class="button-row"><button type="button" data-galgame-action="new-character">新建角色</button><button type="button" class="small" data-galgame-action="open-settings">打开对话设置</button></div></div>`;
+    }
+    if (!galgameState.session) {
+      return `<div class="galgame-empty"><p class="muted">已选择 ${esc(galgameState.character.name || '角色')}，还没有会话。</p><div class="button-row"><button type="button" data-galgame-action="new-session">新建会话</button><button type="button" class="small" data-galgame-action="open-settings">打开对话设置</button></div></div>`;
+    }
+    return '<div class="muted">选择角色并创建会话。</div>';
+  }
+
   function renderGalgameDialogue() {
+    if (isPlayMode()) return;
     const host = $('galgame-dialogue');
     if (!host) return;
-    host.innerHTML = (galgameState.session?.messages || []).map((message) => {
+    const messages = galgameState.session?.messages || [];
+    if (!messages.length) {
+      host.innerHTML = emptyChatHTML();
+      return;
+    }
+    host.innerHTML = messages.map((message) => {
       const jobId = message.image_job_id || '';
       const hasImage = message.role === 'assistant' && Boolean(jobId);
       const selected = hasImage && jobId === galgameState.selectedImageJobId ? ' selected' : '';
       return `<article class="galgame-message ${message.role === 'assistant' ? 'character' : 'user'}${hasImage ? ' has-image' : ''}${selected}"${hasImage ? ` data-image-job-id="${esc(jobId)}"` : ''}><strong>${esc(message.name || (message.role === 'assistant' ? galgameState.character?.name || '角色' : '你'))}</strong><p>${esc(message.content)}</p></article>`;
-    }).join('') || '<div class="muted">选择角色并创建会话。</div>';
+    }).join('');
     host.scrollTop = host.scrollHeight;
   }
 
   function readExtensions() {
-    const value = $('galgame-extensions').value.trim();
+    const value = fieldValue('galgame-extensions');
     if (!value) return {};
     const parsed = JSON.parse(value);
     if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Extensions 必须是 JSON 对象');
@@ -137,27 +216,45 @@
     return {
       ...(galgameState.character || {}),
       id: galgameState.character?.id || '',
-      name: $('galgame-character-name-input').value.trim(),
-      description: $('galgame-description').value.trim(),
-      personality: $('galgame-personality').value.trim(),
-      scenario: $('galgame-scenario').value.trim(),
-      first_mes: $('galgame-first-message').value.trim(),
-      mes_example: $('galgame-example-dialogue').value.trim(),
-      system_prompt: $('galgame-system-prompt').value.trim(),
-      post_history_instructions: $('galgame-post-history').value.trim(),
-      alternate_greetings: $('galgame-alternate-greetings').value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+      name: fieldValue('galgame-character-name-input'),
+      description: fieldValue('galgame-description'),
+      personality: fieldValue('galgame-personality'),
+      scenario: fieldValue('galgame-scenario'),
+      first_mes: fieldValue('galgame-first-message'),
+      mes_example: fieldValue('galgame-example-dialogue'),
+      system_prompt: fieldValue('galgame-system-prompt'),
+      post_history_instructions: fieldValue('galgame-post-history'),
+      alternate_greetings: ($('galgame-alternate-greetings')?.value || '').split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
       extensions: readExtensions(),
     };
+  }
+
+  function newGalgameCharacter() {
+    galgameState.character = null;
+    galgameState.session = null;
+    renderCharacterForm();
+    renderSessionForm();
+    renderGalgameSelectors();
+    renderGalgameDialogue();
+    window.GalgamePlay?.onCharacterChange();
+    openGalgameSettings();
+    notify('填写角色名，并至少填写描述、性格、场景或 System Prompt 中的一项，然后保存。', 'galgame-settings-msg', '');
   }
 
   async function saveGalgameCharacter() {
     try {
       const body = characterFormData();
+      if (!body.name) return notify('请填写角色名', 'galgame-settings-msg', 'error');
+      if (!body.description && !body.personality && !body.scenario && !body.system_prompt) {
+        return notify('请至少填写角色描述、性格、场景或 System Prompt 中的一项', 'galgame-settings-msg', 'error');
+      }
       const saved = await api(body.id ? `/api/v2/galgame/characters/${encodeURIComponent(body.id)}` : '/api/v2/galgame/characters', { method: body.id ? 'PUT' : 'POST', body: JSON.stringify(body) });
       galgameState.character = saved;
       galgameState.characters = await api('/api/v2/galgame/characters') || [];
       renderCharacterForm();
       renderGalgameSelectors();
+      renderGalgameDialogue();
+      window.GalgamePlay?.onCharacterChange();
       notify('角色卡已保存', 'galgame-settings-msg', 'success');
     } catch (error) {
       notify(error.message, 'galgame-settings-msg', 'error');
@@ -173,21 +270,23 @@
     } catch (error) {
       notify(`角色卡导入失败：${error.message}`, 'galgame-settings-msg', 'error');
     } finally {
-      $('galgame-card-file').value = '';
+      const input = $('galgame-card-file');
+      if (input) input.value = '';
     }
   }
 
   async function newGalgameSession() {
-    if (!galgameState.character) return notify('请先选择角色', 'galgame-settings-msg', 'error');
+    if (!galgameState.character) return notify('请先保存角色卡', 'galgame-settings-msg', 'error');
     try {
       const session = await api('/api/v2/galgame/sessions', { method: 'POST', body: JSON.stringify({
-        name: $('galgame-session-name-input').value.trim() || `${galgameState.character.name || '角色'} 会话`,
+        name: fieldValue('galgame-session-name-input') || `${galgameState.character.name || '角色'} 会话`,
         character_id: galgameState.character.id,
-        user_persona: $('galgame-user-persona').value.trim(),
-		greeting_index: Number($('galgame-greeting-select').value || 0),
+        user_persona: fieldValue('galgame-user-persona'),
+        greeting_index: Number($('galgame-greeting-select')?.value || 0),
       }) });
       galgameState.sessions = await api('/api/v2/galgame/sessions') || [];
       await selectGalgameSession(session.id);
+      notify('会话已创建', 'galgame-settings-msg', 'success');
     } catch (error) {
       notify(error.message, 'galgame-settings-msg', 'error');
     }
@@ -197,8 +296,8 @@
     if (!galgameState.session) return notify('请先创建会话', 'galgame-settings-msg', 'error');
     try {
       galgameState.session = await api(`/api/v2/galgame/sessions/${encodeURIComponent(galgameState.session.id)}`, { method: 'PUT', body: JSON.stringify({
-        name: $('galgame-session-name-input').value.trim(),
-        user_persona: $('galgame-user-persona').value.trim(),
+        name: fieldValue('galgame-session-name-input'),
+        user_persona: fieldValue('galgame-user-persona'),
       }) });
       galgameState.sessions = await api('/api/v2/galgame/sessions') || [];
       renderSessionForm();
@@ -211,7 +310,8 @@
 
   async function sendGalgameMessage(event) {
     event.preventDefault();
-    const input = $('galgame-user-input').value.trim();
+    if (isPlayMode()) return;
+    const input = fieldValue('galgame-user-input');
     if (!input || !galgameState.session) return;
     $('galgame-user-input').value = '';
     $('galgame-input').querySelector('button').disabled = true;
@@ -227,21 +327,44 @@
     }
   }
 
-  function showGalgameImage(url) {
+  function showGalgameImage(url, owner) {
+    if (!url || !imageOwnerAllowed(owner)) return;
     const image = $('galgame-image');
     const frame = image?.closest('.galgame-image');
+    const placeholder = $('galgame-image-placeholder');
     if (!image || !frame) return;
+    frame.classList.remove('is-waiting');
+    if (image.getAttribute('data-src') === url) {
+      image.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+      return;
+    }
     image.onload = () => {
       const width = image.naturalWidth || 1;
       const height = image.naturalHeight || 1;
       image.style.aspectRatio = `${width} / ${height}`;
       frame.dataset.orientation = width >= height ? 'landscape' : 'portrait';
       frame.style.setProperty('--galgame-image-ratio', String(width / height));
+      if (frame.classList.contains('is-waiting')) return;
       image.hidden = false;
-      $('galgame-image-placeholder').hidden = true;
+      if (placeholder) placeholder.hidden = true;
     };
-    image.onerror = () => { image.hidden = true; $('galgame-image-placeholder').hidden = false; };
+    image.onerror = () => {
+      image.hidden = true;
+      if (placeholder) placeholder.hidden = owner === 'play';
+    };
+    image.setAttribute('data-src', url);
     image.src = url;
+  }
+
+  function hideGalgameImage(owner, showPlaceholder = false) {
+    if (!imageOwnerAllowed(owner)) return;
+    const image = $('galgame-image');
+    const frame = image?.closest('.galgame-image');
+    const placeholder = $('galgame-image-placeholder');
+    if (frame) frame.classList.toggle('is-waiting', !showPlaceholder);
+    if (image) image.hidden = true;
+    if (placeholder) placeholder.hidden = !showPlaceholder;
   }
 
   async function watchGalgameImage(job, initialError = '') {
@@ -271,15 +394,33 @@
     }
   }
 
+  function handleGalgameAction(action) {
+    if (action === 'open-settings') return openGalgameSettings();
+    if (action === 'new-character') return newGalgameCharacter();
+    if (action === 'new-session') {
+      openGalgameSettings();
+      return newGalgameSession();
+    }
+  }
+
   function initGalgameUI() {
     $('galgame-dialogue')?.addEventListener('click', (event) => {
+      const action = event.target.closest('[data-galgame-action]');
+      if (action) {
+        event.preventDefault();
+        handleGalgameAction(action.dataset.galgameAction);
+        return;
+      }
       const message = event.target.closest('.galgame-message.has-image');
       if (message) selectGalgameImage(message.dataset.imageJobId);
     });
-    $('galgame-settings')?.addEventListener('click', () => { $('galgame-drawer').hidden = false; loadGalgame(); });
-    $('galgame-close-settings')?.addEventListener('click', () => { $('galgame-drawer').hidden = true; });
+    $('galgame-settings')?.addEventListener('click', openGalgameSettings);
+    $('galgame-close-settings')?.addEventListener('click', closeGalgameSettings);
+    $('galgame-drawer-backdrop')?.addEventListener('click', closeGalgameSettings);
     $('galgame-character-select')?.addEventListener('change', (event) => selectGalgameCharacter(event.target.value));
+    $('galgame-play-character-select')?.addEventListener('change', (event) => selectGalgameCharacter(event.target.value));
     $('galgame-session-select')?.addEventListener('change', (event) => selectGalgameSession(event.target.value));
+    $('galgame-new-character')?.addEventListener('click', newGalgameCharacter);
     $('galgame-save-character')?.addEventListener('click', saveGalgameCharacter);
     $('galgame-save-session')?.addEventListener('click', saveGalgameSession);
     $('galgame-new-session')?.addEventListener('click', newGalgameSession);
@@ -291,5 +432,16 @@
   }
 
   initGalgameUI();
-  window.Galgame = { load: loadGalgame };
+  window.Galgame = {
+    load: loadGalgame,
+    getState: () => galgameState,
+    showImage: showGalgameImage,
+    hideImage: hideGalgameImage,
+    renderDialogue: renderGalgameDialogue,
+    openSettings: openGalgameSettings,
+    closeSettings: closeGalgameSettings,
+    syncSettingsMode,
+    newCharacter: newGalgameCharacter,
+    selectCharacter: selectGalgameCharacter,
+  };
 })();

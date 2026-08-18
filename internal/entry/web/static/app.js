@@ -77,10 +77,10 @@ function renderState(state = {}) {
   syncWelcomeState(state);
   $('model').textContent = [state.Provider, state.ModelName, state.Style].filter(Boolean).join(' / ') || ui('modelNotConfigured');
   $('status').textContent = state.StatusLabel || ui('ready');
-  $('status').className = `status ${state.IsRunning ? 'running' : ''}`;
-  $('pause').textContent = state.IsRunning ? '暂停' : '继续';
-  $('pause').disabled = !state.IsRunning && (!state.Phase || state.Phase === 'complete');
-  const rows = [['运行状态', state.RuntimeState], ['阶段', state.Phase], ['流程', state.Flow], [ui('chapter'), state.CurrentChapter], ['完成进度', `${state.CompletedCount ?? 0}/${state.TotalChapters ?? 0}`], ['字数', state.TotalWordCount], ['上下文', `${state.ContextTokens || 0}/${state.ContextWindow || 0}`], ['费用', `$${Number(state.TotalCostUSD || 0).toFixed(4)}`]];
+  $('status').className = `status ${state.IsRunning || state.Exclusive ? 'running' : ''}`;
+  $('pause').textContent = (state.IsRunning || state.Exclusive) ? '暂停' : '继续';
+  $('pause').disabled = !state.IsRunning && !state.Exclusive && (!state.Phase || state.Phase === 'complete');
+  const rows = [['运行状态', state.RuntimeState], ['占用', state.Exclusive], ['阶段', state.Phase], ['流程', state.Flow], [ui('chapter'), state.CurrentChapter], ['完成进度', `${state.CompletedCount ?? 0}/${state.TotalChapters ?? 0}`], ['字数', state.TotalWordCount], ['上下文', `${state.ContextTokens || 0}/${state.ContextWindow || 0}`], ['费用', `$${Number(state.TotalCostUSD || 0).toFixed(4)}`]];
   $('state').innerHTML = rows.map(([key, value]) => `<dt>${esc(key)}</dt><dd>${esc(value || '-')}</dd>`).join('');
   const chapters = (state.Outline || []).map((chapter) => `<div class="chapter-row ${chapter.Chapter === state.CurrentChapter ? 'chapter-current' : ''}"><span>${ui('chapter')} ${esc(chapter.Chapter)}</span><strong>${esc(chapter.Title || ui('untitled'))}</strong><small>${esc(chapter.CoreEvent || '')}</small></div>`).join('');
   $('detail').innerHTML = `<h3>${ui('work')}</h3><p>${esc(state.NovelName || ui('untitled'))}</p><h3>${ui('agents')}</h3><p>${esc((state.Agents || []).map((a) => a.Name || a.Role).filter(Boolean).join(', ') || ui('none'))}</p><h3>${ui('outline')}</h3><div class="chapters">${chapters || `<p>${ui('none')}</p>`}</div><h3>${ui('premise')}</h3><p>${esc(state.Premise || ui('none'))}</p><h3>${ui('characters')}</h3><p>${esc((state.Characters || []).join(', ') || ui('none'))}</p>`;

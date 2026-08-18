@@ -73,6 +73,7 @@ type UISnapshot struct {
 	AdvancePermitChapter int
 	HasAdvanceHold       bool
 	AdvanceHoldReason    string
+	Exclusive            string
 	RecoveryLabel        string
 	IsRunning            bool
 	Agents               []AgentSnapshot

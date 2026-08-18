@@ -13,6 +13,12 @@ import (
 )
 
 func ImagePath(root string, job store.ImageJob) string {
+	if job.Trigger == TriggerPlay {
+		if playID := safeSessionID(job.PlayID); playID != "" && job.Ordinal > 0 {
+			return filepath.Join(root, "galgame", "plays", playID, "images", fmt.Sprintf("%03d.png", job.Ordinal))
+		}
+		return filepath.Join(root, "meta", "images", "tests", job.JobID+".png")
+	}
 	if job.Trigger == TriggerGalgame {
 		if sessionID := safeSessionID(job.SessionID); sessionID != "" {
 			return filepath.Join(root, "galgame", "sessions", sessionID, "images", job.JobID+".png")
@@ -42,6 +48,10 @@ func UnitIdempotencyKey(request imagejob.PromptRequest, workflowID, workflowHash
 
 func GalgameIdempotencyKey(sessionID string, request imagejob.PromptRequest, workflowID, workflowHash, schemaHash, promptFingerprint string) string {
 	return "galgame:" + safeSessionID(sessionID) + ":" + UnitIdempotencyKey(request, workflowID, workflowHash, schemaHash, promptFingerprint)
+}
+
+func PlayIdempotencyKey(playID string, ordinal int, request imagejob.PromptRequest, workflowID, workflowHash, schemaHash, promptFingerprint string) string {
+	return fmt.Sprintf("play:%s:%d:%s", safeSessionID(playID), ordinal, UnitIdempotencyKey(request, workflowID, workflowHash, schemaHash, promptFingerprint))
 }
 
 func hashJSON(value any) (string, error) {

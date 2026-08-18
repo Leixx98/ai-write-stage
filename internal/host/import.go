@@ -25,6 +25,9 @@ func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Eve
 	if err := h.budget.Refuse(); err != nil {
 		return nil, err
 	}
+	if err := h.playActiveError(); err != nil {
+		return nil, err
+	}
 	if err := h.acquireExclusive("导入"); err != nil {
 		return nil, err
 	}

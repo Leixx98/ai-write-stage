@@ -98,3 +98,44 @@ func TestIsUnitJobIgnoresGalgame(t *testing.T) {
 		t.Fatal("legacy job with chapter/ordinal should match")
 	}
 }
+
+func TestStartPlayBeatRejectsIdentity(t *testing.T) {
+	svc := New(Config{})
+	_, err := svc.StartPlayBeat("", 1, PromptRun{})
+	if !errors.Is(err, ErrInvalidPlayIdentity) {
+		t.Fatalf("empty play: %v", err)
+	}
+	_, err = svc.StartPlayBeat("play_1", 0, PromptRun{})
+	if !errors.Is(err, ErrInvalidPlayIdentity) {
+		t.Fatalf("ordinal: %v", err)
+	}
+	_, err = svc.StartPlayBeat("play_1", 1, PromptRun{Request: imagejob.PromptRequest{Chapter: 3}})
+	if !errors.Is(err, ErrInvalidPlayIdentity) {
+		t.Fatalf("chapter: %v", err)
+	}
+}
+
+func TestImagePathKeepsPlayOffDrafts(t *testing.T) {
+	root := t.TempDir()
+	job := store.ImageJob{JobID: "job_play", Trigger: TriggerPlay, PlayID: "rain_night", Ordinal: 2}
+	got := ImagePath(root, job)
+	want := filepath.Join(root, "galgame", "plays", "rain_night", "images", "002.png")
+	if got != want {
+		t.Fatalf("play path = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "drafts") || strings.Contains(got, "sessions") {
+		t.Fatal("play image must not use drafts or chat sessions")
+	}
+}
+
+func TestPlayIdempotencyKeyIsNamespaced(t *testing.T) {
+	req := imagejob.PromptRequest{UnitID: "beat_1", UnitText: "hello"}
+	playKey := PlayIdempotencyKey("rain_night", 1, req, "wf", "wh", "sh", "pf")
+	other := PlayIdempotencyKey("other", 1, req, "wf", "wh", "sh", "pf")
+	if !strings.HasPrefix(playKey, "play:rain_night:1:") {
+		t.Fatalf("play key = %q", playKey)
+	}
+	if playKey == other {
+		t.Fatal("play keys must include play id")
+	}
+}

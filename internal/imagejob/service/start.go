@@ -94,3 +94,29 @@ func (s *Service) StartGalgame(sessionID string, run PromptRun) (store.ImageJob,
 	s.launchPrompt(job, run)
 	return job, nil
 }
+
+func (s *Service) StartPlayBeat(playID string, ordinal int, run PromptRun) (store.ImageJob, error) {
+	playID = safeSessionID(playID)
+	if playID == "" || ordinal < 1 || run.Request.Chapter != 0 {
+		return store.ImageJob{}, ErrInvalidPlayIdentity
+	}
+	workflowHash, err := hashJSON(run.Workflow.Workflow)
+	if err != nil {
+		return store.ImageJob{}, fmt.Errorf("%w: cannot hash workflow", ErrSchema)
+	}
+	idempotencyKey := PlayIdempotencyKey(playID, ordinal, run.Request, run.Workflow.ID, workflowHash, run.Schema.SchemaHash, imagejob.PromptFingerprint(run.Request.SystemPrompt))
+	if existing, found, findErr := s.jobs.FindJobByIdempotencyKey(idempotencyKey); findErr == nil && found {
+		return existing, nil
+	}
+	job := store.ImageJob{
+		JobID: store.NewImageJobID(), UnitID: run.Request.UnitID, PlayID: playID, Ordinal: ordinal, WorkflowID: run.Workflow.ID,
+		Status: "prompting", Stage: "prompting", Attempt: 1, IdempotencyKey: idempotencyKey,
+		Trigger: TriggerPlay, SchemaHash: run.Schema.SchemaHash, WorkflowHash: workflowHash,
+		Recoverable: true, StartedAt: time.Now().UTC(),
+	}
+	if err := s.jobs.SaveJob(job); err != nil {
+		return store.ImageJob{}, fmt.Errorf("%w: %v", ErrSave, err)
+	}
+	s.launchPrompt(job, run)
+	return job, nil
+}

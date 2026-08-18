@@ -19,7 +19,9 @@ import (
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/domain"
 	"github.com/voocel/ainovel-cli/internal/flow"
+	"github.com/voocel/ainovel-cli/internal/galgame/play"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
+	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	runtimelog "github.com/voocel/ainovel-cli/internal/logger"
 	modelreg "github.com/voocel/ainovel-cli/internal/models"
 	"github.com/voocel/ainovel-cli/internal/notify"
@@ -66,6 +68,12 @@ type Host struct {
 	// 导入，而不仅是 Engine——abortWithEvent 在 Engine 未运行时取消它（预算哨兵的
 	// abort 回调与手动 Abort 共用同一停机机制）。releaseExclusive 一并清空。
 	exclusiveCancel context.CancelFunc
+	playEngine      *play.Engine
+	playDone        chan struct{}
+	playArchitect   play.ArchitectFunc
+	playPlanner     play.PlannerFunc
+	playWriter      play.WriterFunc
+	imageSvc        *imagesvc.Service
 	closeOnce       sync.Once
 	asyncWG         sync.WaitGroup
 	closing         bool
@@ -361,6 +369,16 @@ func (h *Host) StartPrepared(rawRequirement string) error {
 		return fmt.Errorf("阶段共创进行中，请先结束共创")
 	}
 	h.mu.Unlock()
+	if err := h.playActiveError(); err != nil {
+		return err
+	}
+	h.mu.Lock()
+	if h.exclusive != "" {
+		ex := h.exclusive
+		h.mu.Unlock()
+		return fmt.Errorf("%s进行中，请先完成后再开始创作", ex)
+	}
+	h.mu.Unlock()
 
 	rawRequirement = strings.TrimSpace(rawRequirement)
 	if rawRequirement == "" {
@@ -457,6 +475,10 @@ func (h *Host) startEngine(initial *flow.Instruction) bool {
 			Summary: "存在未完成的外部小说导入，请先执行 /import 恢复完成后再继续创作"})
 		return false
 	}
+	if err := h.playActiveError(); err != nil {
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn", Summary: err.Error()})
+		return false
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing {
@@ -535,6 +557,9 @@ func (h *Host) Resume() (string, error) {
 		return "", fmt.Errorf("%s进行中，请先完成后再恢复创作", ex)
 	}
 	h.mu.Unlock()
+	if err := h.playActiveError(); err != nil {
+		return "", err
+	}
 
 	label, err := resumeLabel(h.store)
 	if err != nil {
@@ -749,6 +774,9 @@ func (h *Host) Continue(text string) error {
 		return fmt.Errorf("%s进行中，请先完成后再继续创作", ex)
 	}
 	h.mu.Unlock()
+	if err := h.playActiveError(); err != nil {
+		return err
+	}
 	if err := h.budget.Refuse(); err != nil {
 		return err
 	}
@@ -803,6 +831,9 @@ func (h *Host) AdvanceOneChapter() error {
 	if ex != "" {
 		return fmt.Errorf("%s进行中，请先完成后再执行 /next", ex)
 	}
+	if err := h.playActiveError(); err != nil {
+		return err
+	}
 	meta, err := h.store.RunMeta.Load()
 	if err != nil {
 		return err
@@ -850,6 +881,15 @@ func (h *Host) AdvanceOneChapter() error {
 // Steer 提交用户干预（运行中随时可用；停机时裁定后视动作决定是否拉起引擎）。
 // TUI 通过 tea.Cmd 等待结果，因此能收到真实裁定/持久化错误而不会阻塞界面。
 func (h *Host) Steer(text string) error {
+	h.mu.Lock()
+	ex := h.exclusive
+	h.mu.Unlock()
+	if ex != "" {
+		return fmt.Errorf("%s进行中，请先完成后再提交干预", ex)
+	}
+	if err := h.playActiveError(); err != nil {
+		return err
+	}
 	err, launched := h.runAsync(func() error {
 		h.emitEvent(Event{Time: time.Now(), Category: "USER", Summary: "[用户干预] " + text, Level: "info"})
 		return h.doIntervention(text, false)
@@ -1104,6 +1144,7 @@ func (h *Host) emitClear() {
 func (h *Host) Snapshot() UISnapshot {
 	h.mu.Lock()
 	state := h.lifecycle
+	exclusive := h.exclusive
 	provider, model, _ := h.models.CurrentSelection("default")
 	modelWindow, _ := h.cfg.ResolveContextWindow(provider, model)
 	thinkingLevel := h.cfg.ResolveReasoningEffort("default")
@@ -1154,6 +1195,7 @@ func (h *Host) Snapshot() UISnapshot {
 		ThinkingLevel:          thinkingLevel,
 		Style:                  style,
 		RuntimeState:           string(state),
+		Exclusive:              exclusive,
 		IsRunning:              state == lifecycleRunning,
 		TotalInputTokens:       tokIn,
 		TotalOutputTokens:      tokOut,
@@ -1329,6 +1371,9 @@ func (h *Host) fillDetails(snap *UISnapshot, progress *domain.Progress) {
 }
 
 func deriveStatusLabel(s UISnapshot) string {
+	if s.Exclusive != "" {
+		return s.Exclusive + "中"
+	}
 	switch {
 	case s.Phase == string(domain.PhaseComplete):
 		return "COMPLETE"

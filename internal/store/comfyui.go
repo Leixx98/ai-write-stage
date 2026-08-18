@@ -31,6 +31,7 @@ type ImageJob struct {
 	JobID          string                `json:"job_id"`
 	UnitID         string                `json:"unit_id"`
 	SessionID      string                `json:"session_id,omitempty"`
+	PlayID         string                `json:"play_id,omitempty"`
 	Chapter        int                   `json:"chapter"`
 	Ordinal        int                   `json:"ordinal"`
 	WorkflowID     string                `json:"workflow_id"`
