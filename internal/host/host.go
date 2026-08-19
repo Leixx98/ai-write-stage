@@ -73,6 +73,7 @@ type Host struct {
 	playArchitect   play.ArchitectFunc
 	playPlanner     play.PlannerFunc
 	playWriter      play.WriterFunc
+	playLog         *playLogBroker // 剧场日志增量按 play id 分发给 SSE 订阅者
 	imageSvc        *imagesvc.Service
 	closeOnce       sync.Once
 	asyncWG         sync.WaitGroup
@@ -218,6 +219,10 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 	}
 	h.runCtx, h.runCancel = context.WithCancel(context.Background())
 	h.observer = newObserver(store, h.emitEvent, h.emitDelta, h.emitClear)
+	// 剧场/酒馆日志的追加经 observer 汇入内存 broker，供 SSE 端点增量推送；
+	// 文件仍是事实源，broker 只做 fan-out（满则丢，重连拉快照补齐）。
+	h.playLog = newPlayLogBroker()
+	roots.Tavern.SetLogObserver(h.playLog.observe)
 	// 宿主侧 Arbiter 与 Worker 共用同一条 ToolProgress → observer → 工作台链路。
 	h.runCtx = agentcore.WithToolProgress(h.runCtx, h.observer.workerProgress)
 	if cfg.Notify.IsEnabled() {
@@ -298,6 +303,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 	}
 
 	keepBookLease = true
+	_ = h.pauseInactivePlays()
 	return h, nil
 }
 

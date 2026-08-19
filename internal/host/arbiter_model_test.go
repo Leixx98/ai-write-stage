@@ -78,9 +78,40 @@ func TestUsageTrackedModelForwardsJSONSchemaOverride(t *testing.T) {
 	capsOnly := newUsageTrackedModel(&capableTrackedTestModel{plainTrackedTestModel: &plainTrackedTestModel{}}, "arbiter", func(string, string, agentcore.AgentMessage) {})
 	o, ok = capsOnly.(interface{ JSONSchemaOverride() *bool })
 	if !ok {
-		t.Fatal("capability wrapper should expose JSONSchemaOverride")
+		t.Fatal("usage wrapper dropped JSONSchemaOverride")
 	}
-	if v := o.JSONSchemaOverride(); v != nil {
-		t.Fatalf("inner 无覆盖时应为 nil: %v", v)
+	if o.JSONSchemaOverride() != nil {
+		t.Fatal("missing override must stay nil")
 	}
+}
+
+func TestUsageTrackedModelRecordsStreamDone(t *testing.T) {
+	inner := &streamRecordTestModel{}
+	var recorded agentcore.AgentMessage
+	wrapped := newUsageTrackedModel(inner, "galgame", func(_ string, _ string, msg agentcore.AgentMessage) {
+		recorded = msg
+	})
+	ch, err := wrapped.GenerateStream(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range ch {
+	}
+	if recorded == nil || recorded.TextContent() != "在" {
+		t.Fatalf("stream usage not recorded: %#v", recorded)
+	}
+}
+
+type streamRecordTestModel struct{ plainTrackedTestModel }
+
+func (m *streamRecordTestModel) GenerateStream(context.Context, []agentcore.Message, []agentcore.ToolSpec, ...agentcore.CallOption) (<-chan agentcore.StreamEvent, error) {
+	ch := make(chan agentcore.StreamEvent, 2)
+	ch <- agentcore.StreamEvent{Type: agentcore.StreamEventTextDelta, Delta: "在"}
+	ch <- agentcore.StreamEvent{Type: agentcore.StreamEventDone, Message: agentcore.Message{
+		Role:    agentcore.RoleAssistant,
+		Content: []agentcore.ContentBlock{agentcore.TextBlock("在")},
+		Usage:   &agentcore.Usage{Input: 10, Output: 2},
+	}}
+	close(ch)
+	return ch, nil
 }

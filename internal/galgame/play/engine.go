@@ -6,10 +6,17 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 const DefaultTextAhead = 8
+
+const (
+	StagePlanning   = "planning"
+	StageStoryboard = "storyboard"
+	StageWriting    = "writing"
+)
 
 type ArchitectFunc func(context.Context, ArchitectInput) (ArchitectOutput, error)
 type PlannerFunc func(context.Context, PlannerInput) (PlannerOutput, error)
@@ -88,12 +95,16 @@ func (e *Engine) Run(ctx context.Context) error {
 			return nil
 		}
 		if progress.GateOrdinal != 0 {
+			e.setStage("")
+			e.note(fmt.Sprintf("等待玩家选项 gate=%d play_head=%d write_head=%d", progress.GateOrdinal, progress.PlayHead, progress.WriteHead))
 			if waitErr := e.wait(ctx); waitErr != nil {
 				return waitErr
 			}
 			continue
 		}
 		if progress.WriteHead-progress.PlayHead >= e.textAhead {
+			e.setStage("")
+			e.note(fmt.Sprintf("缓冲已满，等待翻页 play_head=%d write_head=%d ahead=%d", progress.PlayHead, progress.WriteHead, e.textAhead))
 			if waitErr := e.wait(ctx); waitErr != nil {
 				return waitErr
 			}
@@ -133,7 +144,11 @@ func (e *Engine) markStarted() error {
 		meta.Status = store.PlayRunning
 	}
 	meta.LastError = ""
-	return e.store.SavePlay(meta)
+	if err := e.store.SavePlay(meta); err != nil {
+		return err
+	}
+	e.note(fmt.Sprintf("剧场引擎启动 status=%s play_head=%d write_head=%d gate=%d", meta.Status, progress.PlayHead, progress.WriteHead, progress.GateOrdinal))
+	return nil
 }
 
 func (e *Engine) persistPaused() {
@@ -145,7 +160,9 @@ func (e *Engine) persistPaused() {
 		return
 	}
 	meta.Status = store.PlayPaused
+	meta.Stage = ""
 	_ = e.store.SavePlay(meta)
+	e.note("剧场引擎已暂停")
 }
 
 func (e *Engine) fail(err error) error {
@@ -153,8 +170,10 @@ func (e *Engine) fail(err error) error {
 	if loadErr == nil {
 		meta.Status = store.PlayPaused
 		meta.LastError = err.Error()
+		meta.Stage = ""
 		_ = e.store.SavePlay(meta)
 	}
+	e.note("剧场失败: " + err.Error())
 	return err
 }
 
@@ -165,9 +184,11 @@ func (e *Engine) complete() error {
 	}
 	meta.Status = store.PlayCompleted
 	meta.LastError = ""
+	meta.Stage = ""
 	if err := e.store.SavePlay(meta); err != nil {
 		return err
 	}
+	e.note("剧场完成")
 	return nil
 }
 
@@ -201,6 +222,8 @@ func (e *Engine) planNextSegment(ctx context.Context, progress store.PlayProgres
 	if prev, loadErr := e.store.LoadOutline(e.playID); loadErr == nil {
 		lastGoal = prev.Goal
 	}
+	e.setStage(StagePlanning)
+	e.note(fmt.Sprintf("开始规划下一段 last_goal=%s choices=%d", lastGoal, len(progress.ChoiceHistory)))
 	arch, err := e.architect(ctx, ArchitectInput{
 		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona,
 		ChoiceHistory: progress.ChoiceHistory, RecentBeats: recent, LastGoal: lastGoal,
@@ -208,11 +231,12 @@ func (e *Engine) planNextSegment(ctx context.Context, progress store.PlayProgres
 	if err != nil {
 		return err
 	}
+	e.setStage(StageStoryboard)
 	location := ""
 	if len(recent) > 0 {
 		location = recent[len(recent)-1].Location
 	}
-	plan, err := e.planner(ctx, PlannerInput{Architect: arch, Character: character, Premise: meta.Premise, Location: location})
+	plan, err := e.planner(ctx, PlannerInput{Architect: arch, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Location: location})
 	if err != nil {
 		return err
 	}
@@ -227,7 +251,11 @@ func (e *Engine) planNextSegment(ctx context.Context, progress store.PlayProgres
 		return err
 	}
 	progress.SegmentID = arch.SegmentID
-	return e.store.SaveProgress(e.playID, progress)
+	if err := e.store.SaveProgress(e.playID, progress); err != nil {
+		return err
+	}
+	e.note(fmt.Sprintf("规划完成 segment=%s cards=%d complete_after=%t", arch.SegmentID, len(plan.Cards), arch.CompleteAfterSegment))
+	return nil
 }
 
 func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress, outline store.PlayOutline) error {
@@ -243,12 +271,23 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 	if err != nil {
 		return err
 	}
-	beats, err := e.store.ListBeats(e.playID)
-	if err != nil {
-		return err
+	e.setStage(StageWriting)
+	meta.Stage = StageWriting
+	e.note(fmt.Sprintf("开始写拍 card=%d kind=%s cg=%s location=%s", outline.NextCard, card.Kind, card.CG, card.Location))
+	beat := store.PlayBeat{
+		Ordinal: progress.WriteHead + 1, SegmentID: outline.SegmentID, Kind: card.Kind,
+		Speaker: card.Speaker, Location: card.Location, TimeOfDay: card.TimeOfDay,
+		CG: card.CG, CGIntent: card.CGIntent, Choices: card.Choices,
+		Text: strings.Join(card.RequiredBeats, "\n"),
+	}
+	if beat.CG == store.PlayCGNew && e.startImage != nil {
+		if err := e.startImage(ctx, e.playID, &beat); err != nil {
+			beat.ImageError = err.Error()
+			e.note(fmt.Sprintf("配图启动失败 ordinal=%d err=%s", beat.Ordinal, err.Error()))
+		}
 	}
 	written, err := e.writer(ctx, WriterInput{
-		Card: card, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, RecentBeats: tailBeats(beats, 4),
+		Card: card, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona,
 	})
 	if err != nil {
 		return err
@@ -267,19 +306,17 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 		return nil
 	}
 	card = outline.Cards[outline.NextCard]
-	beat := store.PlayBeat{
-		Ordinal: progress.WriteHead + 1, SegmentID: outline.SegmentID, Kind: card.Kind,
-		Speaker: strings.TrimSpace(written.Speaker), Text: strings.TrimSpace(written.Text),
-		Location: card.Location, TimeOfDay: card.TimeOfDay, CG: card.CG, CGIntent: card.CGIntent, Choices: card.Choices,
-	}
+	beat.Kind = card.Kind
+	beat.Location = card.Location
+	beat.TimeOfDay = card.TimeOfDay
+	beat.CG = card.CG
+	beat.CGIntent = card.CGIntent
+	beat.Choices = card.Choices
+	beat.Speaker = strings.TrimSpace(written.Speaker)
 	if beat.Speaker == "" {
 		beat.Speaker = card.Speaker
 	}
-	if beat.CG == store.PlayCGNew && e.startImage != nil {
-		if err := e.startImage(ctx, e.playID, &beat); err != nil {
-			beat.ImageError = err.Error()
-		}
-	}
+	beat.Text = strings.TrimSpace(written.Text)
 	if err := e.store.SaveBeat(e.playID, beat); err != nil {
 		return err
 	}
@@ -297,11 +334,17 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 			return err
 		}
 		meta.Status = store.PlayAwaitingChoice
-		return e.store.SavePlay(meta)
+		meta.Stage = ""
+		if err := e.store.SavePlay(meta); err != nil {
+			return err
+		}
+		e.note(fmt.Sprintf("已写拍 ordinal=%d kind=%s cg=%s 进入选项", beat.Ordinal, beat.Kind, beat.CG))
+		return nil
 	}
 	if err := e.store.SaveProgress(e.playID, progress); err != nil {
 		return err
 	}
+	e.note(fmt.Sprintf("已写拍 ordinal=%d kind=%s cg=%s", beat.Ordinal, beat.Kind, beat.CG))
 	if outline.NextCard >= len(outline.Cards) && outline.CompleteAfterSegment {
 		return e.complete()
 	}
@@ -346,6 +389,7 @@ func (e *Engine) Advance() (store.PlayProgress, error) {
 		return progress, err
 	}
 	e.Wake()
+	e.note(fmt.Sprintf("翻页 play_head=%d write_head=%d", progress.PlayHead, progress.WriteHead))
 	return progress, nil
 }
 
@@ -403,5 +447,34 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 		}
 	}
 	e.Wake()
+	e.note(fmt.Sprintf("玩家选择 choice=%s label=%s gate=%d", selected.ID, selected.Label, beat.Ordinal))
 	return progress, nil
+}
+
+func (e *Engine) note(message string) {
+	if e == nil || e.store == nil {
+		return
+	}
+	runlog.Note(e.store, runlog.Record{
+		Mode:      runlog.ModePlay,
+		Step:      "engine",
+		PlayID:    e.playID,
+		Streaming: false,
+		Message:   message,
+	})
+}
+
+func (e *Engine) setStage(stage string) {
+	if e == nil || e.store == nil {
+		return
+	}
+	meta, err := e.store.LoadPlay(e.playID)
+	if err != nil {
+		return
+	}
+	if meta.Stage == stage {
+		return
+	}
+	meta.Stage = stage
+	_ = e.store.SavePlay(meta)
 }

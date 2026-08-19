@@ -266,6 +266,26 @@ type executionModel struct {
 	config    agentcore.CallConfig
 }
 
+func (m *executionModel) GenerateStream(ctx context.Context, messages []agentcore.Message, tools []agentcore.ToolSpec, opts ...agentcore.CallOption) (<-chan agentcore.StreamEvent, error) {
+	resp, err := m.Generate(ctx, messages, tools, opts...)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan agentcore.StreamEvent, 2)
+	text := ""
+	if resp != nil {
+		text = resp.Message.TextContent()
+	}
+	ch <- agentcore.StreamEvent{Type: agentcore.StreamEventTextDelta, Delta: text}
+	if resp != nil {
+		ch <- agentcore.StreamEvent{Type: agentcore.StreamEventDone, Message: resp.Message, StopReason: resp.Message.StopReason}
+	} else {
+		ch <- agentcore.StreamEvent{Type: agentcore.StreamEventDone}
+	}
+	close(ch)
+	return ch, nil
+}
+
 func (m *executionModel) Generate(_ context.Context, messages []agentcore.Message, _ []agentcore.ToolSpec, opts ...agentcore.CallOption) (*agentcore.LLMResponse, error) {
 	m.messages = messages
 	m.config = agentcore.ResolveCallConfig(opts)
@@ -339,5 +359,131 @@ func TestExecuteExposesModelErrorStopReason(t *testing.T) {
 	}
 	if model.calls != 1 {
 		t.Fatalf("错误终止不应作为 JSON 错误重问，calls=%d", model.calls)
+	}
+}
+
+func TestExecuteResponseHookSeesRawMessage(t *testing.T) {
+	model := &executionModel{responses: []string{`{"action":"a","reason":"ok"}`}}
+	var seen string
+	type output struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	out, err := Execute(t.Context(), model, Request[output]{
+		Contract: testContract(), SystemPrompt: "判断。", Payload: "输入",
+		Hooks: Hooks{Response: func(resp *agentcore.LLMResponse) {
+			if resp != nil {
+				seen = resp.Message.TextContent()
+			}
+		}},
+	})
+	if err != nil || out.Action != "a" {
+		t.Fatalf("execute = %+v %v", out, err)
+	}
+	if !strings.Contains(seen, `"action":"a"`) {
+		t.Fatalf("response hook missed raw message: %q", seen)
+	}
+}
+
+func TestExecutePromptModeRepairsTrailingCommaWithoutRetry(t *testing.T) {
+	model := &executionModel{responses: []string{`{"action":"a","reason":"ok",}`}}
+	type output struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	var repaired []string
+	out, err := Execute(t.Context(), model, Request[output]{
+		Contract: testContract(), SystemPrompt: "判断。", Payload: "输入", Agent: "test",
+		Hooks: Hooks{Repair: func(item Repair) { repaired = item.Rules }},
+	})
+	if err != nil || out.Action != "a" || out.Reason != "ok" {
+		t.Fatalf("repair execute = %+v %v", out, err)
+	}
+	if model.calls != 1 {
+		t.Fatalf("trailing comma should not retry, calls=%d", model.calls)
+	}
+	if !hasRule(repaired, repairTrailingComma) {
+		t.Fatalf("repair rules=%v", repaired)
+	}
+}
+
+func TestExecuteStreamPromptModeSelfHealsSchemaViolation(t *testing.T) {
+	model := &executionModel{responses: []string{
+		`{}`,
+		`{"action":"a","reason":"fixed"}`,
+	}}
+	type output struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	var streamed bool
+	out, err := ExecuteStream(t.Context(), model, Request[output]{
+		Contract: testContract(), SystemPrompt: "判断。", Payload: "输入", Agent: "test",
+		Hooks: Hooks{Stream: func(ev agentcore.StreamEvent) {
+			if ev.Type == agentcore.StreamEventTextDelta {
+				streamed = true
+			}
+		}},
+	})
+	if err != nil || out.Reason != "fixed" {
+		t.Fatalf("stream self-heal failed: %+v %v", out, err)
+	}
+	if model.calls != 2 {
+		t.Fatalf("应在第二次成功，calls=%d", model.calls)
+	}
+	if !streamed {
+		t.Fatal("stream hook missed text delta")
+	}
+}
+
+func TestExecuteMarksCacheBreakpoints(t *testing.T) {
+	model := &executionModel{responses: []string{`{"action":"a","reason":"ok"}`}}
+	type output struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	if _, err := Execute(t.Context(), model, Request[output]{
+		Contract: testContract(), SystemPrompt: "判断。", Payload: "输入", Agent: "test", CacheLastMessage: "ephemeral",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(model.messages) < 2 {
+		t.Fatalf("messages = %#v", model.messages)
+	}
+	if model.messages[0].Metadata["cache_control"] != "ephemeral" {
+		t.Fatalf("system cache = %#v", model.messages[0].Metadata)
+	}
+	if model.messages[1].Metadata["cache_control"] != "ephemeral" {
+		t.Fatalf("user cache = %#v", model.messages[1].Metadata)
+	}
+}
+
+func TestExecuteInsertsHistoryBeforePayload(t *testing.T) {
+	model := &executionModel{responses: []string{`{"action":"a","reason":"ok"}`}}
+	type output struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	if _, err := Execute(t.Context(), model, Request[output]{
+		Contract: testContract(), SystemPrompt: "判断。", Payload: `{"card":"now"}`, Agent: "test",
+		History: []agentcore.Message{
+			agentcore.UserMsg(`{"card":"old"}`),
+			{Role: agentcore.RoleAssistant, Content: []agentcore.ContentBlock{agentcore.TextBlock(`{"text":"prev"}`)}},
+		},
+		CacheLastMessage: "ephemeral",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(model.messages) != 4 {
+		t.Fatalf("messages = %#v", model.messages)
+	}
+	if model.messages[0].Role != agentcore.RoleSystem || !strings.Contains(model.messages[1].TextContent(), "old") {
+		t.Fatalf("history not after system: %#v", model.messages)
+	}
+	if model.messages[3].TextContent() != `{"card":"now"}` {
+		t.Fatalf("payload = %s", model.messages[3].TextContent())
+	}
+	if model.messages[0].Metadata["cache_control"] != "ephemeral" || model.messages[3].Metadata["cache_control"] != "ephemeral" {
+		t.Fatalf("cache = %#v %#v", model.messages[0].Metadata, model.messages[3].Metadata)
 	}
 }

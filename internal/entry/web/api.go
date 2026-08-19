@@ -62,7 +62,7 @@ type v2Controller struct {
 	media  *store.ComfyUIStore
 	tavern *store.GalgameStore
 	svc    *imagesvc.Service
-	chat   galgame.GenerateFunc
+	chat   galgame.StreamFunc
 	mu     sync.Mutex
 }
 

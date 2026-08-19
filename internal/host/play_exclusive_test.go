@@ -64,9 +64,44 @@ func attachFakePlay(h *Host) {
 
 func TestPlayActiveErrorBlocksContinue(t *testing.T) {
 	h := newPlayHost(t)
-	seedPlay(t, h, store.PlayRunning)
-	if err := h.Continue("继续写"); err == nil || !strings.Contains(err.Error(), "剧场进行中") {
-		t.Fatalf("got %v", err)
+	id := seedPlay(t, h, store.PlayIdle)
+	attachFakePlay(h)
+	if err := h.StartPlay(id); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.PausePlay() })
+	if err := h.playActiveError(); err == nil || !strings.Contains(err.Error(), "剧场进行中") {
+		t.Fatalf("live play should block novel: %v", err)
+	}
+}
+
+func TestStaleActivePlayDoesNotBlockNovel(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayAwaitingChoice)
+	if err := h.playActiveError(); err != nil {
+		t.Fatalf("stale disk status should not block: %v", err)
+	}
+	meta, err := h.roots.Tavern.LoadPlay(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Status != store.PlayPaused {
+		t.Fatalf("stale active play should be paused, got %s", meta.Status)
+	}
+}
+
+func TestPausePlayPersistsWhenEngineNotRunning(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayRunning)
+	if err := h.PausePlay(); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := h.roots.Tavern.LoadPlay(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Status != store.PlayPaused {
+		t.Fatalf("pause without engine should persist paused, got %s", meta.Status)
 	}
 }
 
@@ -102,29 +137,36 @@ func TestEngineRunningBlocksStartPlay(t *testing.T) {
 	}
 }
 
-func TestStartEngineRefusesActivePlayOnDisk(t *testing.T) {
+func TestStartEngineAllowsStalePlayOnDisk(t *testing.T) {
 	h := newPlayHost(t)
 	seedPlay(t, h, store.PlayAwaitingChoice)
-	if h.startEngine(nil) {
-		t.Fatal("startEngine should refuse active play")
+	if err := h.playActiveError(); err != nil {
+		t.Fatalf("stale awaiting_choice should not block: %v", err)
 	}
 }
 
 func TestPausedPlayDoesNotBlockNovel(t *testing.T) {
 	h := newPlayHost(t)
-	id := seedPlay(t, h, store.PlayAwaitingChoice)
-	if err := h.playActiveError(); err == nil {
-		t.Fatal("awaiting_choice should block novel")
+	seedPlay(t, h, store.PlayPaused)
+	if err := h.playActiveError(); err != nil {
+		t.Fatalf("paused play should not block novel: %v", err)
 	}
-	meta, err := h.roots.Tavern.LoadPlay(id)
+}
+
+func TestPlayLogReturnsRuntimeAndStream(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayIdle)
+	if err := h.roots.Tavern.AppendText("galgame/plays/"+id+"/runtime.log", "START play"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.roots.Tavern.AppendRaw("galgame/plays/"+id+"/stream.log", "[thinking]\n先想"); err != nil {
+		t.Fatal(err)
+	}
+	log, err := h.PlayLog(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	meta.Status = store.PlayPaused
-	if err := h.roots.Tavern.SavePlay(meta); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.playActiveError(); err != nil {
-		t.Fatalf("paused play should not block novel: %v", err)
+	if !strings.Contains(log.Events, "START play") || !strings.Contains(log.Stream, "先想") {
+		t.Fatalf("log = %+v", log)
 	}
 }

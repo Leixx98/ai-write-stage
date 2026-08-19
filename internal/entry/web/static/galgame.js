@@ -199,7 +199,8 @@
       const jobId = message.image_job_id || '';
       const hasImage = message.role === 'assistant' && Boolean(jobId);
       const selected = hasImage && jobId === galgameState.selectedImageJobId ? ' selected' : '';
-      return `<article class="galgame-message ${message.role === 'assistant' ? 'character' : 'user'}${hasImage ? ' has-image' : ''}${selected}"${hasImage ? ` data-image-job-id="${esc(jobId)}"` : ''}><strong>${esc(message.name || (message.role === 'assistant' ? galgameState.character?.name || '角色' : '你'))}</strong><p>${esc(message.content)}</p></article>`;
+      const thinking = message.streaming && !message.content ? '<p class="galgame-thinking">生成中…</p>' : '';
+      return `<article class="galgame-message ${message.role === 'assistant' ? 'character' : 'user'}${hasImage ? ' has-image' : ''}${selected}${message.streaming ? ' streaming' : ''}"${hasImage ? ` data-image-job-id="${esc(jobId)}"` : ''}><strong>${esc(message.name || (message.role === 'assistant' ? galgameState.character?.name || '角色' : '你'))}</strong>${thinking}<p class="galgame-content">${esc(message.content)}</p></article>`;
     }).join('');
     host.scrollTop = host.scrollHeight;
   }
@@ -315,16 +316,88 @@
     if (!input || !galgameState.session) return;
     $('galgame-user-input').value = '';
     $('galgame-input').querySelector('button').disabled = true;
+    const userMessage = { role: 'user', content: input };
+    const assistant = { role: 'assistant', name: galgameState.character?.name || '角色', content: '', thinking: '', streaming: true };
+    galgameState.session.messages = [...(galgameState.session.messages || []), userMessage, assistant];
+    renderGalgameDialogue();
     try {
-      const result = await api(`/api/v2/galgame/sessions/${encodeURIComponent(galgameState.session.id)}/generate`, { method: 'POST', body: JSON.stringify({ user_input: input }) });
-      galgameState.session = result.session;
+      const response = await fetch(`/api/v2/galgame/sessions/${encodeURIComponent(galgameState.session.id)}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ user_input: input }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.msg || payload.error || `HTTP ${response.status}`);
+      }
+      let done = null;
+      await readGalgameSSE(response, (event) => {
+        if (event.type === 'thinking') {
+          assistant.thinking = (assistant.thinking || '') + (event.delta || '');
+          updateStreamingReply(assistant, '思考中…');
+        } else if (event.type === 'text') {
+          assistant.content += event.delta || '';
+          updateStreamingReply(assistant, '');
+        } else if (event.type === 'done') {
+          done = event;
+        } else if (event.type === 'error') {
+          throw new Error(event.error || '生成失败');
+        }
+      });
+      if (!done) throw new Error('生成中断');
+      galgameState.session = done.session;
       renderGalgameDialogue();
-      await watchGalgameImage(result.image_job, result.image_error);
+      await watchGalgameImage(done.image_job, done.image_error);
     } catch (error) {
       notify(error.message, 'galgame-settings-msg', 'error');
+      if (galgameState.session?.messages?.length) {
+        galgameState.session.messages = galgameState.session.messages.filter((message) => message !== assistant && message !== userMessage);
+        renderGalgameDialogue();
+      }
     } finally {
       $('galgame-input').querySelector('button').disabled = false;
     }
+  }
+
+  async function readGalgameSSE(response, onEvent) {
+    if (!response.body) throw new Error('浏览器不支持流式读取');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.split('\n').find((item) => item.startsWith('data: '));
+        if (!line) continue;
+        onEvent(JSON.parse(line.slice(6)));
+      }
+    }
+  }
+
+  function updateStreamingReply(message, thinkingLabel) {
+    const host = $('galgame-dialogue');
+    if (!host) return;
+    const articles = host.querySelectorAll('.galgame-message.character');
+    const last = articles[articles.length - 1];
+    if (!last) return;
+    let thinking = last.querySelector('.galgame-thinking');
+    const content = last.querySelector('.galgame-content');
+    if (thinkingLabel) {
+      if (!thinking) {
+        thinking = document.createElement('p');
+        thinking.className = 'galgame-thinking';
+        last.insertBefore(thinking, content);
+      }
+      thinking.textContent = thinkingLabel;
+    } else if (thinking) {
+      thinking.remove();
+    }
+    if (content) content.textContent = message.content || '';
+    host.scrollTop = host.scrollHeight;
   }
 
   function showGalgameImage(url, owner) {

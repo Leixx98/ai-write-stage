@@ -43,6 +43,7 @@ type GalgameSession struct {
 	CharacterID     string           `json:"character_id"`
 	UserPersona     string           `json:"user_persona,omitempty"`
 	Messages        []GalgameMessage `json:"messages"`
+	HistoryCutoff   int              `json:"history_cutoff,omitempty"`
 	ImageWorkflowID string           `json:"image_workflow_id,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
@@ -51,6 +52,12 @@ type GalgameSession struct {
 type GalgameStore struct {
 	io *IO
 	mu sync.Mutex
+
+	// logMu 串行化酒馆/剧场日志的追加、轮转与尾读：大小/代际记账、SSE 快照与
+	// 增量去重都依赖它提供的原子性。与 io.mu 分层（先 logMu 后 io.mu，无反向）。
+	logMu       sync.Mutex
+	logState    map[string]*tavernLogState
+	logObserver TavernLogObserver
 }
 
 func NewGalgameStore(io *IO) *GalgameStore { return &GalgameStore{io: io} }

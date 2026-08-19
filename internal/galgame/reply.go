@@ -3,6 +3,8 @@ package galgame
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -18,19 +20,43 @@ const defaultMainPrompt = "Write {{char}}'s next reply in a fictional conversati
 
 type GenerateFunc func(ctx context.Context, msgs []agentcore.Message) (string, error)
 
+type Delta struct {
+	Kind string
+	Text string
+}
+
+type StreamFunc func(ctx context.Context, msgs []agentcore.Message, emit func(Delta)) (string, error)
+
 type ReplyOptions struct {
 	ContextWindow int
 }
 
-func Reply(ctx context.Context, generate GenerateFunc, character store.GalgameCharacter, session store.GalgameSession, userInput string, options ReplyOptions) (string, error) {
+func Reply(ctx context.Context, generate GenerateFunc, character store.GalgameCharacter, session *store.GalgameSession, userInput string, options ReplyOptions) (string, error) {
 	if generate == nil {
 		return "", fmt.Errorf("galgame model is unavailable")
+	}
+	return ReplyStream(ctx, func(ctx context.Context, msgs []agentcore.Message, _ func(Delta)) (string, error) {
+		return generate(ctx, msgs)
+	}, character, session, userInput, options, nil)
+}
+
+func ReplyStream(ctx context.Context, stream StreamFunc, character store.GalgameCharacter, session *store.GalgameSession, userInput string, options ReplyOptions, emit func(Delta)) (string, error) {
+	if stream == nil {
+		return "", fmt.Errorf("galgame model is unavailable")
+	}
+	if session == nil {
+		return "", fmt.Errorf("galgame session is unavailable")
 	}
 	userInput = strings.TrimSpace(userInput)
 	if userInput == "" {
 		return "", fmt.Errorf("user input is empty")
 	}
-	response, err := generate(ctx, composeMessages(character, session, userInput, options))
+	if emit == nil {
+		emit = func(Delta) {}
+	}
+	messages, cutoff := composeMessages(character, *session, userInput, options)
+	session.HistoryCutoff = cutoff
+	response, err := stream(ctx, messages, emit)
 	if err != nil {
 		return "", fmt.Errorf("galgame generate: %w", err)
 	}
@@ -41,7 +67,7 @@ func Reply(ctx context.Context, generate GenerateFunc, character store.GalgameCh
 	return text, nil
 }
 
-func composeMessages(character store.GalgameCharacter, session store.GalgameSession, userInput string, options ReplyOptions) []agentcore.Message {
+func composeMessages(character store.GalgameCharacter, session store.GalgameSession, userInput string, options ReplyOptions) ([]agentcore.Message, int) {
 	userName := strings.TrimSpace(session.UserPersona)
 	if userName == "" {
 		userName = "User"
@@ -50,7 +76,6 @@ func composeMessages(character store.GalgameCharacter, session store.GalgameSess
 	if charName == "" {
 		charName = "Character"
 	}
-
 	mainPrompt := defaultMainPrompt
 	if override := strings.TrimSpace(character.SystemPrompt); override != "" {
 		if strings.Contains(strings.ToLower(override), "{{original}}") {
@@ -69,40 +94,37 @@ func composeMessages(character store.GalgameCharacter, session store.GalgameSess
 	for index := range sections {
 		sections[index].content = ExpandMacros(sections[index].content, charName, userName, defaultMainPrompt)
 	}
-
-	currentUser := ExpandMacros(userInput, charName, userName, defaultMainPrompt)
-	postHistory := ExpandMacros(character.PostHistoryInstructions, charName, userName, defaultMainPrompt)
 	budget := inputTokenBudget(options.ContextWindow)
-	currentUser = truncateTokens(currentUser, max(512, budget/3))
-	postHistory = truncateTokens(postHistory, max(256, budget/6))
-	reserved := estimateTokens(currentUser) + estimateTokens(postHistory) + 96
-	systemBudget := max(256, budget-reserved)
-	system := buildSystemPrompt(sections, systemBudget)
-	used := estimateTokens(system) + estimateTokens(currentUser) + estimateTokens(postHistory) + 48
-
-	remaining := max(0, budget-used)
-	exampleBudget := remaining / 4
-	examples := truncateTokens(ExpandMacros(character.ExampleDialogue, charName, userName, defaultMainPrompt), exampleBudget)
-	remaining -= estimateTokens(examples)
-
-	history := selectRecentHistory(session.Messages, remaining, charName, userName)
-	messageCapacity := 2 + len(history)
-	if examples != "" {
-		messageCapacity++
-	}
-	if postHistory != "" {
-		messageCapacity++
-	}
-	messages := make([]agentcore.Message, 0, messageCapacity)
+	staticBudget := max(256, budget/2)
+	userReserve := max(512, budget/6)
+	currentUser := truncateTokens(ExpandMacros(userInput, charName, userName, defaultMainPrompt), userReserve)
+	postHistory := truncateTokens(ExpandMacros(character.PostHistoryInstructions, charName, userName, defaultMainPrompt), max(256, staticBudget/6))
+	examples := truncateTokens(ExpandMacros(character.ExampleDialogue, charName, userName, defaultMainPrompt), max(256, staticBudget/4))
+	sectionBudget := max(256, staticBudget-estimateTokens(postHistory)-estimateTokens(examples))
+	system := buildFrozenSystem(sections, examples, postHistory, sectionBudget)
+	historyBudget := max(0, budget-estimateTokens(system)-userReserve-48)
+	history, cutoff := selectCommittedHistory(session.Messages, session.HistoryCutoff, historyBudget, charName, userName)
+	messages := make([]agentcore.Message, 0, 2+len(history))
 	messages = append(messages, agentcore.SystemMsg(system))
-	if examples != "" {
-		messages = append(messages, agentcore.SystemMsg("Dialogue examples:\n"+examples))
-	}
 	messages = append(messages, history...)
-	if postHistory != "" {
-		messages = append(messages, agentcore.SystemMsg(postHistory))
+	return append(messages, agentcore.UserMsg(currentUser)), cutoff
+}
+
+func buildFrozenSystem(sections []promptSection, examples, postHistory string, sectionBudget int) string {
+	system := buildSystemPrompt(sections, sectionBudget)
+	if examples != "" {
+		if system != "" {
+			system += "\n\n"
+		}
+		system += "Dialogue examples:\n" + examples
 	}
-	return append(messages, agentcore.UserMsg(currentUser))
+	if postHistory != "" {
+		if system != "" {
+			system += "\n\n"
+		}
+		system += "Post-history instructions:\n" + postHistory
+	}
+	return system
 }
 
 type promptSection struct {
@@ -137,16 +159,84 @@ func buildSystemPrompt(sections []promptSection, budget int) string {
 	return builder.String()
 }
 
-func selectRecentHistory(history []store.GalgameMessage, budget int, charName, userName string) []agentcore.Message {
-	selected := make([]agentcore.Message, 0, len(history))
+func selectCommittedHistory(history []store.GalgameMessage, cutoff, budget int, charName, userName string) ([]agentcore.Message, int) {
+	cutoff = clampCutoff(cutoff, len(history))
+	if historyFits(history, cutoff, budget, charName, userName) {
+		return collectHistory(history, cutoff, budget, charName, userName), cutoff
+	}
+	keepBudget := budget * 3 / 4
+	if keepBudget < 1 {
+		keepBudget = budget
+	}
+	cutoff = nextCommittedCutoff(history, keepBudget, charName, userName)
+	return collectHistory(history, cutoff, budget, charName, userName), cutoff
+}
+
+func clampCutoff(cutoff, length int) int {
+	if cutoff < 0 {
+		return 0
+	}
+	if cutoff > length {
+		return length
+	}
+	return cutoff
+}
+
+func historyContent(message store.GalgameMessage, charName, userName string) (string, bool) {
+	content := strings.TrimSpace(message.Content)
+	if content == "" {
+		return "", false
+	}
+	return ExpandMacros(content, charName, userName, defaultMainPrompt), true
+}
+
+func historyCost(content string) int {
+	return estimateTokens(content) + 12
+}
+
+func historyFits(history []store.GalgameMessage, cutoff, budget int, charName, userName string) bool {
 	used := 0
-	for index := len(history) - 1; index >= 0; index-- {
-		content := strings.TrimSpace(history[index].Content)
-		if content == "" {
+	for index := cutoff; index < len(history); index++ {
+		content, ok := historyContent(history[index], charName, userName)
+		if !ok {
 			continue
 		}
-		content = ExpandMacros(content, charName, userName, defaultMainPrompt)
-		cost := estimateTokens(content) + 12
+		cost := historyCost(content)
+		if used+cost > budget {
+			return false
+		}
+		used += cost
+	}
+	return true
+}
+
+func nextCommittedCutoff(history []store.GalgameMessage, keepBudget int, charName, userName string) int {
+	used := 0
+	cutoff := len(history)
+	for index := len(history) - 1; index >= 0; index-- {
+		content, ok := historyContent(history[index], charName, userName)
+		if !ok {
+			continue
+		}
+		cost := historyCost(content)
+		if used+cost > keepBudget {
+			break
+		}
+		cutoff = index
+		used += cost
+	}
+	return cutoff
+}
+
+func collectHistory(history []store.GalgameMessage, cutoff, budget int, charName, userName string) []agentcore.Message {
+	selected := make([]agentcore.Message, 0, max(0, len(history)-cutoff))
+	used := 0
+	for index := cutoff; index < len(history); index++ {
+		content, ok := historyContent(history[index], charName, userName)
+		if !ok {
+			continue
+		}
+		cost := historyCost(content)
 		if used+cost > budget {
 			break
 		}
@@ -154,14 +244,34 @@ func selectRecentHistory(history []store.GalgameMessage, budget int, charName, u
 		if strings.EqualFold(history[index].Role, "assistant") {
 			role = agentcore.RoleAssistant
 		}
-		message := agentcore.Message{Role: role, Content: []agentcore.ContentBlock{agentcore.TextBlock(content)}}
-		selected = append(selected, message)
+		selected = append(selected, agentcore.Message{Role: role, Content: []agentcore.ContentBlock{agentcore.TextBlock(content)}})
 		used += cost
 	}
-	for left, right := 0, len(selected)-1; left < right; left, right = left+1, right-1 {
-		selected[left], selected[right] = selected[right], selected[left]
-	}
 	return selected
+}
+
+func ChatCacheKey(sessionID string) string {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return ""
+	}
+	return "gal-" + sessionID
+}
+
+func PinPromptCache(messages []agentcore.Message) []agentcore.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+	out := slices.Clone(messages)
+	if out[0].Role == agentcore.RoleSystem {
+		md := maps.Clone(out[0].Metadata)
+		if md == nil {
+			md = map[string]any{}
+		}
+		md["cache_control"] = "ephemeral"
+		out[0].Metadata = md
+	}
+	return agentcore.MarkLastMessageForCache(out, "ephemeral")
 }
 
 func inputTokenBudget(contextWindow int) int {

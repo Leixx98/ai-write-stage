@@ -79,13 +79,12 @@
 
   <main id="galgame" class="view galgame-view">
     <section class="galgame-stage">
-      <header class="galgame-header"><div><strong id="galgame-character-name">选择角色</strong><small id="galgame-session-name">Galgame 会话</small><small id="galgame-play-status" class="galgame-play-status" hidden>未开局</small></div><div class="galgame-header-actions"><div class="galgame-mode" role="tablist"><button id="galgame-mode-chat" class="small active" type="button">对话</button><button id="galgame-mode-play" class="small" type="button">剧场</button></div><button id="galgame-settings" class="small" type="button" title="设置">⚙ 设置</button></div></header>
+      <header class="galgame-header"><div class="galgame-header-left"><div class="galgame-mode" role="tablist"><button id="galgame-mode-chat" class="small active" type="button">对话</button><button id="galgame-mode-play" class="small" type="button">剧场</button></div></div><div class="galgame-header-center"><strong id="galgame-character-name">选择角色</strong><small id="galgame-session-name">Galgame 会话</small><button id="galgame-play-status" class="galgame-play-status" type="button" hidden aria-pressed="false" title="打开运行日志">未开局</button></div><div class="galgame-header-actions"><button id="galgame-settings" class="small" type="button" title="设置">⚙ 设置</button></div></header>
       <div class="galgame-image"><img id="galgame-image" alt="当前场景" hidden><span id="galgame-image-placeholder">等待场景图片</span><span id="galgame-image-status" class="galgame-image-status"></span></div>
-      <div id="galgame-dialogue" class="galgame-dialogue"><div class="muted">选择角色并开始对话。</div></div>
+      <div class="galgame-dialogue-slot"><div id="galgame-dialogue" class="galgame-dialogue"><div class="muted">选择角色并开始对话。</div></div><nav id="galgame-play-nav" class="galgame-play-nav" hidden><span id="galgame-play-hint" class="galgame-play-hint"></span><div class="galgame-play-nav-buttons"><button id="galgame-play-prev" type="button" title="上一拍" aria-label="上一拍">‹</button><button id="galgame-play-next" type="button" title="下一拍" aria-label="下一拍">›</button></div></nav></div>
       <form id="galgame-input" class="galgame-input"><textarea id="galgame-user-input" rows="2" placeholder="输入你的回复..."></textarea><button type="submit">发送</button></form>
-    </section>
-    <div id="galgame-drawer-backdrop" class="galgame-drawer-backdrop" hidden></div>
-    <aside id="galgame-drawer" class="galgame-drawer" hidden>
+      <div id="galgame-drawer-backdrop" class="galgame-drawer-backdrop" hidden></div>
+      <aside id="galgame-drawer" class="galgame-drawer" hidden>
       <div class="section-heading"><div><h2 id="galgame-settings-title">对话设置</h2></div><button id="galgame-close-settings" class="small" type="button">关闭</button></div>
       <div id="galgame-settings-msg" class="notice"></div>
       <div id="galgame-chat-settings" class="galgame-settings-panel">
@@ -122,6 +121,12 @@
           <div class="button-row"><button id="galgame-new-play" type="button">新建剧场</button><button id="galgame-start-play" type="button">开始写作</button><button id="galgame-pause-play" type="button">暂停</button></div>
         </div>
       </div>
+    </aside>
+    </section>
+    <aside id="galgame-runlog" class="galgame-runlog" hidden>
+      <header class="galgame-runlog-head"><h2>运行日志</h2><button id="galgame-runlog-close" class="small" type="button" title="关闭">×</button></header>
+      <section class="galgame-runlog-pane"><h3>事件</h3><div id="galgame-runlog-events" class="scroll"></div></section>
+      <section class="galgame-runlog-pane galgame-runlog-stream"><h3>模型回复</h3><pre id="galgame-runlog-stream" class="scroll"></pre></section>
     </aside>
   </main>
 

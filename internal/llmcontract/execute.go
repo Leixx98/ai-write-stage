@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/voocel/agentcore"
 	"github.com/voocel/ainovel-cli/internal/llmretry"
@@ -59,18 +61,23 @@ type Hooks struct {
 	Resolved     func(Resolution)
 	RequestRetry func(llmretry.Event)
 	Correction   func(Correction)
+	Repair       func(Repair)
+	Response     func(*agentcore.LLMResponse)
+	Stream       func(agentcore.StreamEvent)
 }
 
 // Request 定义一次直接结构化返回。Contract 是结构的单一来源，Validate 只处理
 // JSON Schema 无法表达的业务约束。
 type Request[T any] struct {
-	Contract     Contract
-	SystemPrompt string
-	Payload      string
-	Options      []agentcore.CallOption
-	Validate     func(*T) error
-	Agent        string
-	Hooks        Hooks
+	Contract         Contract
+	SystemPrompt     string
+	Payload          string
+	History          []agentcore.Message
+	Options          []agentcore.CallOption
+	CacheLastMessage string
+	Validate         func(*T) error
+	Agent            string
+	Hooks            Hooks
 }
 
 const promptCorrection = "上面的输出不符合 JSON Schema。请根据错误修正，并只输出完整 JSON 对象，不要解释或 Markdown 围栏。"
@@ -80,11 +87,31 @@ const semanticCorrection = "上面的 JSON 结构合法但字段取值未通过�
 // 解码和业务反馈自愈。prompt 模式的格式/Schema 错误以及两种模式的业务错误会
 // 持续反馈给模型，直到成功或 context 结束；原生契约违约会立即暴露。
 func Execute[T any](ctx context.Context, model llmretry.Generator, req Request[T]) (T, error) {
+	return executeLoop(ctx, model, req, func(ctx context.Context, messages []agentcore.Message, options []agentcore.CallOption) (*agentcore.LLMResponse, error) {
+		return llmretry.Generate(ctx, model, llmretry.Config{
+			Agent:   req.Agent,
+			OnRetry: req.Hooks.RequestRetry,
+		}, messages, options...)
+	})
+}
+
+// ExecuteStream 与 Execute 语义相同，但底层走 GenerateStream 攒全文后再解码。
+// 纠偏轮次同样走流式；不解析半截 JSON。
+func ExecuteStream[T any](ctx context.Context, model llmretry.StreamGenerator, req Request[T]) (T, error) {
+	return executeLoop(ctx, model, req, func(ctx context.Context, messages []agentcore.Message, options []agentcore.CallOption) (*agentcore.LLMResponse, error) {
+		return llmretry.GenerateStream(ctx, model, llmretry.Config{
+			Agent:    req.Agent,
+			OnRetry:  req.Hooks.RequestRetry,
+			OnStream: req.Hooks.Stream,
+		}, messages, options...)
+	})
+}
+
+func executeLoop[T any](ctx context.Context, model any, req Request[T], generate func(context.Context, []agentcore.Message, []agentcore.CallOption) (*agentcore.LLMResponse, error)) (T, error) {
 	var zero T
 	if model == nil {
 		return zero, &Failure{Kind: FailureProtocol, Contract: req.Contract.Name, Err: errors.New("模型未配置")}
 	}
-
 	schemaOptions, resolution := Plan(model, req.Contract)
 	systemPrompt, err := PreparePrompt(req.SystemPrompt, req.Contract, resolution)
 	if err != nil {
@@ -93,22 +120,26 @@ func Execute[T any](ctx context.Context, model llmretry.Generator, req Request[T
 	if req.Hooks.Resolved != nil {
 		req.Hooks.Resolved(resolution)
 	}
-
-	messages := []agentcore.Message{
-		agentcore.SystemMsg(systemPrompt),
-		agentcore.UserMsg(req.Payload),
+	messages := make([]agentcore.Message, 0, 2+len(req.History))
+	messages = append(messages, agentcore.SystemMsg(systemPrompt))
+	messages = append(messages, req.History...)
+	messages = append(messages, agentcore.UserMsg(req.Payload))
+	if req.CacheLastMessage != "" {
+		md := maps.Clone(messages[0].Metadata)
+		if md == nil {
+			md = map[string]any{}
+		}
+		md["cache_control"] = req.CacheLastMessage
+		messages[0].Metadata = md
+		messages = agentcore.MarkLastMessageForCache(messages, req.CacheLastMessage)
 	}
 	options := append(schemaOptions, req.Options...)
 	native := resolution.Mode == ModeNativeJSONSchema
-
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return zero, err
 		}
-		resp, err := llmretry.Generate(ctx, model, llmretry.Config{
-			Agent:   req.Agent,
-			OnRetry: req.Hooks.RequestRetry,
-		}, messages, options...)
+		resp, err := generate(ctx, messages, options)
 		if err != nil {
 			if ctx.Err() != nil {
 				return zero, ctx.Err()
@@ -117,6 +148,9 @@ func Execute[T any](ctx context.Context, model llmretry.Generator, req Request[T
 		}
 		if resp == nil {
 			return zero, &Failure{Kind: FailureProtocol, Contract: req.Contract.Name, Err: errors.New("模型返回空响应")}
+		}
+		if req.Hooks.Response != nil {
+			req.Hooks.Response(resp)
 		}
 
 		raw := resp.Message.TextContent()
@@ -139,7 +173,11 @@ func Execute[T any](ctx context.Context, model llmretry.Generator, req Request[T
 				return zero, &Failure{Kind: FailureContract, Contract: req.Contract.Name, Raw: raw, Err: errors.New("原生 schema 返回空内容")}
 			}
 		} else {
-			body = ExtractJSONObject(raw)
+			repaired, rules := RepairJSON(raw)
+			body = repaired
+			if len(rules) > 0 && body != "" && req.Hooks.Repair != nil {
+				req.Hooks.Repair(Repair{Rules: rules, RawChars: utf8.RuneCountInString(raw), BodyChars: utf8.RuneCountInString(body)})
+			}
 		}
 
 		layer := "schema"

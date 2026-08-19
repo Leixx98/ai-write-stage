@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/voocel/ainovel-cli/internal/galgame"
+	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
@@ -217,6 +218,10 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("route not found"))
 		return
 	}
+	c.generateGalgameReply(w, r, id)
+}
+
+func (c *v2Controller) generateGalgameReply(w http.ResponseWriter, r *http.Request, id string) {
 	var req struct {
 		UserInput string `json:"user_input"`
 	}
@@ -239,20 +244,36 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		envelopeErr(w, 422, codeInvalidRequest, fmt.Errorf("user_input is required"))
 		return
 	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		envelopeErr(w, 500, codeConflict, fmt.Errorf("streaming unsupported"))
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 	contextWindow := 0
 	if c.rt != nil {
 		contextWindow = c.rt.GalgameContextWindow()
 	}
-	reply, err := galgame.Reply(r.Context(), c.chat, character, session, input, galgame.ReplyOptions{ContextWindow: contextWindow})
+	reply, err := galgame.ReplyStream(runlog.WithChat(r.Context(), session.ID, session.CharacterID), c.chat, character, &session, input, galgame.ReplyOptions{ContextWindow: contextWindow}, func(delta galgame.Delta) {
+		_ = writeChatSSE(w, flusher, map[string]any{"type": delta.Kind, "delta": delta.Text})
+	})
 	if err != nil {
-		envelopeErr(w, 502, codeConflict, err)
+		_ = writeChatSSE(w, flusher, map[string]any{"type": "error", "error": err.Error()})
 		return
 	}
 	now := time.Now().UTC()
 	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "user", Content: input, CreatedAt: now})
-	session.Messages = append(session.Messages, store.GalgameMessage{ID: galgameID("msg"), Role: "assistant", Name: character.Name, Content: reply, CreatedAt: time.Now().UTC()})
+	assistant := store.GalgameMessage{ID: galgameID("msg"), Role: "assistant", Name: character.Name, Content: reply, CreatedAt: time.Now().UTC()}
+	if assistant.ID == session.Messages[len(session.Messages)-1].ID {
+		assistant.ID += "_a"
+	}
+	session.Messages = append(session.Messages, assistant)
 	if err := c.tavern.SaveSession(session); err != nil {
-		envelopeErr(w, 500, codeConflict, err)
+		_ = writeChatSSE(w, flusher, map[string]any{"type": "error", "error": err.Error()})
 		return
 	}
 	imageJob, imageErr := c.startGalgameImage(session, character, reply)
@@ -260,14 +281,22 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		session.Messages[len(session.Messages)-1].ImageJobID = imageJob.JobID
 		_ = c.tavern.SaveSession(session)
 	}
-	data := map[string]any{"session": session, "reply": reply}
+	done := map[string]any{"type": "done", "session": session, "reply": reply}
 	if imageJob.JobID != "" {
-		data["image_job"] = imageJob
+		done["image_job"] = imageJob
 	}
 	if imageErr != nil {
-		data["image_error"] = imageErr.Error()
+		done["image_error"] = imageErr.Error()
 	}
-	envelope(w, 200, 0, data, "")
+	_ = writeChatSSE(w, flusher, done)
+}
+
+func writeChatSSE(w http.ResponseWriter, flusher http.Flusher, payload any) bool {
+	if !writeSSE(w, payload) {
+		return false
+	}
+	flusher.Flush()
+	return true
 }
 
 // startGalgameImage adapts conversation context to the same PromptRequest and

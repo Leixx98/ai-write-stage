@@ -48,6 +48,10 @@ func decide[T any](ctx context.Context, model agentcore.ChatModel, contract llmc
 				slog.Warn("裁定输出自愈", "module", "arbiter", "attempt", ev.Attempt,
 					"layer", ev.Layer, "structured_mode", ev.Mode, "err", ev.Err)
 			},
+			Repair: func(ev llmcontract.Repair) {
+				slog.Info("裁定 JSON 已句法修复", "module", "arbiter", "rules", ev.Rules,
+					"raw_chars", ev.RawChars, "body_chars", ev.BodyChars)
+			},
 		},
 	})
 	if err != nil {

@@ -2,11 +2,15 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/voocel/agentcore"
+	"github.com/voocel/ainovel-cli/internal/galgame"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
@@ -47,5 +51,44 @@ func TestCreateGalgameSessionInitializesSelectedGreeting(t *testing.T) {
 	}
 	if sessions[0].Messages[0].Content != "备用" || sessions[0].Messages[0].ID == "" {
 		t.Fatalf("greeting = %#v", sessions[0].Messages[0])
+	}
+}
+
+func TestGenerateGalgameReplyStreamsTextThenDone(t *testing.T) {
+	roots := store.Open(t.TempDir(), t.TempDir())
+	character := store.GalgameCharacter{ID: "char", Name: "林晚", Description: "情报员"}
+	if err := roots.Tavern.SaveCharacter(character); err != nil {
+		t.Fatal(err)
+	}
+	session := store.GalgameSession{ID: "sess_1", Name: "测试", CharacterID: character.ID}
+	if err := roots.Tavern.SaveSession(session); err != nil {
+		t.Fatal(err)
+	}
+	controller := &v2Controller{
+		tavern: roots.Tavern,
+		media:  roots.Media,
+		chat: func(_ context.Context, _ []agentcore.Message, emit func(galgame.Delta)) (string, error) {
+			emit(galgame.Delta{Kind: "thinking", Text: "想"})
+			emit(galgame.Delta{Kind: "text", Text: "在"})
+			return "在", nil
+		},
+	}
+	body, _ := json.Marshal(map[string]string{"user_input": "看那边"})
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/galgame/sessions/sess_1/generate", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+	controller.generateGalgameReply(recorder, request, "sess_1")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if ct := recorder.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content-type = %q", ct)
+	}
+	raw := recorder.Body.String()
+	if !strings.Contains(raw, `"type":"thinking"`) || !strings.Contains(raw, `"type":"text"`) || !strings.Contains(raw, `"type":"done"`) {
+		t.Fatalf("sse = %s", raw)
+	}
+	saved, err := roots.Tavern.LoadSession("sess_1")
+	if err != nil || len(saved.Messages) != 2 || saved.Messages[1].Content != "在" {
+		t.Fatalf("saved = %#v %v", saved, err)
 	}
 }

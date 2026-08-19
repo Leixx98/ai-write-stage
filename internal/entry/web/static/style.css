@@ -44,34 +44,60 @@ button:hover { filter:brightness(1.1); } button:disabled { opacity:.5; cursor:no
 .tabs { display:flex; align-self:stretch; gap:2px; overflow:auto; } .tab { border:0; border-bottom:2px solid transparent; border-radius:0; padding:0 12px; color:var(--muted); background:transparent; white-space:nowrap; } .tab:hover { color:var(--text); filter:none; } .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 .status { margin-left:auto; color:var(--good); font-weight:700; letter-spacing:.08em; white-space:nowrap; } .status.running { color:var(--accent); }
 .galgame-view { position:relative; min-height:calc(100vh - 58px); background:#090b0d; }
-.galgame-stage { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"header header" "image dialogue" "image input"; width:min(1440px,100%); height:calc(100vh - 58px); min-height:560px; margin:auto; background:#111419; }
-.galgame-header { display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid var(--line); background:#15181b; }
-.galgame-header-actions { display:flex; align-items:center; gap:8px; }
+.galgame-stage { position:relative; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"header header" "image dialogue" "image input"; width:min(1440px,100%); height:calc(100vh - 58px); min-height:560px; margin:auto; background:#111419; }
+.galgame-header { grid-area:header; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:6px 12px; border-bottom:1px solid var(--line); background:#15181b; }
+.galgame-stage.is-play .galgame-header { padding:2px 12px; gap:8px; }
+.galgame-header-left,.galgame-header-actions { display:flex; align-items:center; gap:8px; }
+.galgame-header-center { min-width:0; text-align:center; }
 .galgame-mode { display:flex; gap:4px; }
+.galgame-header .galgame-mode .small { padding:3px 8px; }
 .galgame-stage.is-play { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"header" "image" "dialogue"; }
 .galgame-stage.is-play .galgame-image { border-right:0; border-bottom:1px solid var(--line); min-height:0; }
 .galgame-stage.is-play .galgame-input { display:none !important; pointer-events:none !important; grid-area:unset; }
-.galgame-stage.is-play .galgame-dialogue { position:relative; z-index:1; max-height:42vh; overflow:auto; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; cursor:pointer; }
-.galgame-play-status { display:block; margin-top:4px; font-size:12px; line-height:1.4; color:var(--muted); font-weight:400; }
+.galgame-stage.is-play .galgame-dialogue-slot { max-height:42vh; }
+.galgame-stage.is-play .galgame-dialogue { position:relative; z-index:1; max-height:none; flex:1; overflow:auto; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; cursor:pointer; padding:8px 16px; }
+.galgame-play-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 12px 6px; border-top:1px solid var(--line); background:#15181b; }
+.galgame-play-nav[hidden] { display:none; }
+.galgame-play-nav-buttons { display:flex; gap:6px; flex:none; }
+.galgame-play-nav button { width:32px; height:28px; padding:0; border:1px solid var(--line); background:#171b20; color:var(--text); font-size:18px; line-height:1; }
+.galgame-choices button.is-selected { border-color:var(--accent); }
+.galgame-play-status { display:block; width:100%; margin-top:1px; padding:0; border:0; background:transparent; color:var(--muted); font-size:11px; font-weight:400; line-height:1.4; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.galgame-play-status:hover { color:var(--accent); filter:none; }
+#galgame.is-log-open .galgame-play-status { color:var(--accent); }
 .galgame-play-status[hidden] { display:none; }
-.galgame-beat { width:100%; max-width:100%; align-self:stretch; box-sizing:border-box; padding:8px 4px 16px; }
-.galgame-beat strong { display:block; color:var(--accent); font-size:13px; margin-bottom:8px; }
-.galgame-beat p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.75; font-size:16px; }
-.galgame-choices { display:flex; flex-direction:column; gap:8px; width:100%; margin-top:16px; }
-.galgame-choices button { display:block; width:100%; box-sizing:border-box; position:relative; z-index:1; text-align:left; padding:12px 14px; pointer-events:auto; cursor:pointer; }
-.galgame-play-hint { color:var(--muted); font-size:12px; margin-top:10px; }
+.galgame-beat { width:100%; max-width:100%; align-self:stretch; box-sizing:border-box; padding:2px 2px 8px; }
+.galgame-beat strong { display:block; color:var(--accent); font-size:13px; margin:0 0 4px; }
+.galgame-beat p { margin:0; overflow-wrap:anywhere; line-height:1.55; font-size:16px; }
+.galgame-beat p + p { margin-top:6px; }
+.galgame-choices { display:flex; flex-wrap:wrap; gap:6px 8px; width:100%; margin-top:8px; }
+.galgame-choices button { display:inline-block; width:auto; max-width:100%; box-sizing:border-box; position:relative; z-index:1; flex:0 1 auto; text-align:center; padding:7px 12px; pointer-events:auto; cursor:pointer; }
+.galgame-play-hint { min-width:0; color:var(--muted); font-size:12px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .galgame-loading { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:28px 8px 36px; color:var(--muted); cursor:default; }
 .galgame-loading p { margin:0; }
 .galgame-loading-spinner { width:28px; height:28px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:galgame-spin .8s linear infinite; }
 @keyframes galgame-spin { to { transform:rotate(360deg); } }
-.galgame-header strong,.galgame-header small { display:block; }.galgame-header strong { color:var(--accent); font-size:17px; }.galgame-header small { margin-top:3px; color:var(--muted); }
+.galgame-header strong,.galgame-header small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.galgame-header strong { color:var(--accent); font-size:14px; }.galgame-header small { margin-top:1px; color:var(--muted); font-size:11px; }
 .galgame-image { grid-area:image; position:relative; display:flex; align-items:center; justify-content:center; min-width:0; min-height:0; overflow:hidden; padding:12px; background:#07090b; border-right:1px solid var(--line); color:var(--muted); }.galgame-image img { display:block; width:auto; height:auto; max-width:100%; max-height:100%; object-fit:contain; object-position:center; flex:none; }.galgame-image img[hidden], .galgame-image.is-waiting img { display:none !important; }.galgame-image.is-waiting { background:#050607; }.galgame-image-status { position:absolute; right:12px; bottom:10px; padding:4px 8px; color:#e6e1d8; background:#0009; font-size:12px; }
-.galgame-dialogue { grid-area:dialogue; min-width:0; min-height:0; overflow:auto; padding:18px 22px; background:linear-gradient(#171a1f,#111419); }.galgame-message { max-width:84%; margin:0 0 14px; padding:10px 13px; border-left:3px solid var(--line); background:#191d22; }.galgame-message.character { border-left-color:var(--accent); }.galgame-message.user { margin-left:auto; border-left:0; border-right:3px solid #637d91; background:#182028; }.galgame-message.has-image { cursor:pointer; }.galgame-message.has-image.selected { background:#1f2a32; }.galgame-message strong { color:var(--accent); font-size:12px; }.galgame-message.user strong { color:#9ec4df; }.galgame-message p { margin:5px 0 0; white-space:pre-wrap; line-height:1.65; }
+.galgame-dialogue-slot { grid-area:dialogue; position:relative; min-width:0; min-height:0; display:flex; flex-direction:column; }
+.galgame-dialogue { min-width:0; min-height:0; overflow:auto; padding:18px 22px; background:linear-gradient(#171a1f,#111419); }.galgame-message { max-width:84%; margin:0 0 14px; padding:10px 13px; border-left:3px solid var(--line); background:#191d22; }.galgame-message.character { border-left-color:var(--accent); }.galgame-message.user { margin-left:auto; border-left:0; border-right:3px solid #637d91; background:#182028; }.galgame-message.has-image { cursor:pointer; }.galgame-message.has-image.selected { background:#1f2a32; }.galgame-message strong { color:var(--accent); font-size:12px; }.galgame-message.user strong { color:#9ec4df; }.galgame-message p { margin:5px 0 0; white-space:pre-wrap; line-height:1.65; }.galgame-thinking { color:#8a93a0; font-size:12px; font-style:italic; }
 .galgame-input { grid-area:input; display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); background:#15181b; }.galgame-input textarea { flex:1; resize:none; }.galgame-input button { min-width:76px; }
 .galgame-drawer-backdrop { position:absolute; inset:0; z-index:4; background:#0007; }.galgame-drawer-backdrop[hidden] { display:none; }
 .galgame-drawer { position:absolute; z-index:5; top:12px; right:12px; width:min(420px,calc(100% - 24px)); max-height:calc(100% - 24px); overflow:auto; padding:18px; border:1px solid var(--line); background:#171b20; box-shadow:0 18px 50px #000b; }.galgame-drawer[hidden] { display:none; }.galgame-drawer .section-heading { margin-bottom:12px; }.galgame-drawer h2 { margin:0; font-size:18px; }.galgame-form-section { grid-column:1/-1; margin:6px 0 -2px; padding-bottom:7px; border-bottom:1px solid var(--line); font-size:14px; color:var(--text); }.galgame-drawer #galgame-extensions { font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }.galgame-drawer .form-grid .button-row,.galgame-drawer .form-grid .field-help { grid-column:1/-1; }.galgame-drawer #galgame-settings-msg { margin:0 0 12px; }.galgame-settings-panel[hidden] { display:none; }.galgame-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:8px 0; cursor:default; }.galgame-empty p { margin:0; }.galgame-empty .button-row { flex-wrap:wrap; }.galgame-stage.is-play .galgame-empty { cursor:default; }
-@media (max-width:800px) { .galgame-stage { height:auto; min-height:calc(100vh - 96px); grid-template-columns:1fr; grid-template-rows:auto minmax(240px,38vh) minmax(260px,1fr) auto; grid-template-areas:"header" "image" "dialogue" "input"; }.galgame-stage.is-play { grid-template-rows:auto minmax(200px,1fr) auto; grid-template-areas:"header" "image" "dialogue"; }.galgame-image { border-right:0; border-bottom:1px solid var(--line); }.galgame-message { max-width:94%; }.galgame-input { flex-wrap:wrap; }.galgame-input textarea { flex-basis:100%; }.galgame-input button { width:100%; } }
+.galgame-runlog { display:none; min-width:0; min-height:0; height:calc(100vh - 58px); overflow:hidden; border-left:1px solid var(--line); background:#15181b; }
+.galgame-runlog-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 12px; border-bottom:1px solid var(--line); }
+.galgame-runlog-head h2 { margin:0; color:var(--muted); font-size:12px; letter-spacing:.12em; text-transform:uppercase; }
+.galgame-runlog-head .small { padding:2px 8px; color:var(--muted); background:transparent; border-color:var(--line); }
+.galgame-runlog-pane { display:grid; grid-template-rows:auto minmax(0,1fr); min-height:0; padding:8px 12px 10px; }
+.galgame-runlog-pane h3 { margin:0 0 6px; color:var(--muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+#galgame-runlog-events { min-height:0; overflow:auto; white-space:pre-wrap; word-break:break-word; font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; color:#c8cdd2; }
+#galgame-runlog-stream { min-height:0; margin:0; overflow:auto; white-space:pre-wrap; word-break:break-word; font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; color:#dce0e4; }
+.galgame-runlog .scroll { height:100%; min-height:0; }
+@media (max-width:800px) { .galgame-stage { height:auto; min-height:calc(100vh - 96px); grid-template-columns:1fr; grid-template-rows:auto minmax(240px,38vh) minmax(260px,1fr) auto; grid-template-areas:"header" "image" "dialogue" "input"; }.galgame-stage.is-play { grid-template-rows:auto minmax(200px,1fr) auto; grid-template-areas:"header" "image" "dialogue"; }.galgame-image { border-right:0; border-bottom:1px solid var(--line); }.galgame-message { max-width:94%; }.galgame-input { flex-wrap:wrap; }.galgame-input textarea { flex-basis:100%; }.galgame-input button { width:100%; } #galgame.active-view.is-log-open { grid-template-columns:1fr; grid-template-rows:minmax(0,1fr) minmax(220px,38vh); } .galgame-runlog { height:auto; border-left:0; border-top:1px solid var(--line); } }
 .view { display:none; } .active-view { display:block; }
+#galgame.active-view { display:flex; justify-content:center; align-items:stretch; }
+#galgame.active-view.is-log-open { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,38vw); }
+#galgame.active-view.is-log-open .galgame-stage { width:min(1440px,100%); margin:0 auto; }
+#galgame.active-view.is-log-open .galgame-runlog { display:grid; grid-template-rows:auto minmax(0,2fr) minmax(0,3fr); }
 .workspace { display:grid; grid-template-columns:23% minmax(0,1fr) 27%; grid-template-rows:minmax(0,1fr); gap:1px; height:calc(100vh - 118px); min-height:0; background:var(--line); }
 .center { display:grid; grid-template-rows:minmax(0,40fr) minmax(0,60fr); gap:1px; min-width:0; min-height:0; overflow:hidden; }
 .panel, .settings-panel { background:var(--panel); padding:14px 16px; min-width:0; min-height:0; overflow:hidden; } .panel h2, .subpanel h2 { margin:0 0 10px; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.12em; }

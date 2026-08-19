@@ -113,6 +113,22 @@ func (io *IO) AppendLine(rel string, data []byte) error {
 }
 
 func (io *IO) AppendLineUnlocked(rel string, data []byte) error {
+	if err := io.appendBytesUnlocked(rel, data); err != nil {
+		return err
+	}
+	return io.syncFileUnlocked(rel)
+}
+
+func (io *IO) AppendBytes(rel string, data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	io.mu.Lock()
+	defer io.mu.Unlock()
+	return io.appendBytesUnlocked(rel, data)
+}
+
+func (io *IO) appendBytesUnlocked(rel string, data []byte) error {
 	p := io.path(rel)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
@@ -122,10 +138,8 @@ func (io *IO) AppendLineUnlocked(rel string, data []byte) error {
 		return err
 	}
 	defer func() { _ = f.Close() }()
-	if _, err = f.Write(data); err != nil {
-		return err
-	}
-	return f.Sync()
+	_, err = f.Write(data)
+	return err
 }
 
 // syncFileUnlocked 在幂等重放时确认已存在的追加记录已持久化。

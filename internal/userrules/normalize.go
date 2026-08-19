@@ -93,6 +93,10 @@ func (n *Normalizer) Normalize(ctx context.Context, source, text string) (rules.
 				slog.Warn("规则归一化输出自愈", "module", "rules", "source", source,
 					"attempt", ev.Attempt, "layer", ev.Layer, "structured_mode", ev.Mode, "err", ev.Err)
 			},
+			Repair: func(ev llmcontract.Repair) {
+				slog.Info("规则归一化 JSON 已句法修复", "module", "rules", "source", source,
+					"rules", ev.Rules, "raw_chars", ev.RawChars, "body_chars", ev.BodyChars)
+			},
 		},
 	})
 	if err != nil {

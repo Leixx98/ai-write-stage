@@ -172,6 +172,10 @@ func callStructured[T any](ctx context.Context, m callModel, contract llmcontrac
 				prof.logger().Warn("imp 结构化输出自愈", "attempt", ev.Attempt,
 					"layer", ev.Layer, "structured_mode", ev.Mode, "err", ev.Err)
 			},
+			Repair: func(ev llmcontract.Repair) {
+				prof.logger().Info("imp JSON 已句法修复", "rules", ev.Rules,
+					"raw_chars", ev.RawChars, "body_chars", ev.BodyChars)
+			},
 		},
 	})
 	if err == nil {

@@ -66,3 +66,50 @@ func TestNewGalgameIDsAvoidCollisions(t *testing.T) {
 		t.Fatalf("unsafe id %q", second)
 	}
 }
+
+func TestAppendTavernLogRejectsEscapeAndWritesJSONL(t *testing.T) {
+	dir := t.TempDir()
+	tavern := Open(dir, dir).Tavern
+	if err := tavern.AppendText("../escape.log", "nope"); err == nil {
+		t.Fatal("path escape should fail")
+	}
+	if err := tavern.AppendJSONL("galgame/sessions/sess_1/calls.jsonl", map[string]any{"event": "start"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tavern.AppendText("galgame/runtime.log", "index line"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "galgame", "sessions", "sess_1", "calls.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"event":"start"`) {
+		t.Fatalf("jsonl = %s", raw)
+	}
+	index, err := os.ReadFile(filepath.Join(dir, "galgame", "runtime.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(index), "index line") {
+		t.Fatalf("index = %s", index)
+	}
+}
+
+func TestReadTextMissingAndAppendRaw(t *testing.T) {
+	dir := t.TempDir()
+	tavern := Open(dir, dir).Tavern
+	got, err := tavern.ReadText("galgame/plays/rain/stream.log")
+	if err != nil || got != "" {
+		t.Fatalf("missing = %q %v", got, err)
+	}
+	if err := tavern.AppendRaw("galgame/plays/rain/stream.log", "[thinking]\n先"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tavern.AppendRaw("galgame/plays/rain/stream.log", "想"); err != nil {
+		t.Fatal(err)
+	}
+	got, err = tavern.ReadText("galgame/plays/rain/stream.log")
+	if err != nil || got != "[thinking]\n先想" {
+		t.Fatalf("raw = %q %v", got, err)
+	}
+}

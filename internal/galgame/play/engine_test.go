@@ -3,6 +3,9 @@ package play
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,7 +44,7 @@ func waitUntil(ctx context.Context, cond func() bool) error {
 	}
 }
 
-func newTestPlay(t *testing.T, ahead int) (*store.GalgameStore, *Engine, string) {
+func newTestPlay(t *testing.T, ahead int) (string, *store.GalgameStore, *Engine, string) {
 	t.Helper()
 	dir := t.TempDir()
 	tavern := store.Open(dir, dir).Tavern
@@ -91,11 +94,11 @@ func newTestPlay(t *testing.T, ahead int) (*store.GalgameStore, *Engine, string)
 			return WriterOutput{Speaker: in.Card.Speaker, Text: text}, nil
 		},
 	})
-	return tavern, engine, playID
+	return dir, tavern, engine, playID
 }
 
 func TestEngineStopsAtChoiceThenContinuesAfterChoose(t *testing.T) {
-	tavern, engine, playID := newTestPlay(t, 8)
+	_, tavern, engine, playID := newTestPlay(t, 8)
 	runEngine(t, engine)
 	if err := waitUntil(context.Background(), func() bool {
 		progress, _ := tavern.LoadProgress(playID)
@@ -134,7 +137,7 @@ func TestEngineStopsAtChoiceThenContinuesAfterChoose(t *testing.T) {
 }
 
 func TestEngineStopsWhenBufferIsFull(t *testing.T) {
-	tavern, engine, playID := newTestPlay(t, 2)
+	_, tavern, engine, playID := newTestPlay(t, 2)
 	runEngine(t, engine)
 	if err := waitUntil(context.Background(), func() bool {
 		progress, _ := tavern.LoadProgress(playID)
@@ -162,7 +165,7 @@ func TestEngineStopsWhenBufferIsFull(t *testing.T) {
 }
 
 func TestEngineCGKeepDoesNotStartImage(t *testing.T) {
-	tavern, engine, playID := newTestPlay(t, 8)
+	_, tavern, engine, playID := newTestPlay(t, 8)
 	var started []int
 	engine.startImage = func(_ context.Context, _ string, beat *store.PlayBeat) error {
 		started = append(started, beat.Ordinal)
@@ -189,8 +192,45 @@ func TestEngineCGKeepDoesNotStartImage(t *testing.T) {
 	}
 }
 
+func TestEngineStartsImageBeforeWriterWithRequiredBeats(t *testing.T) {
+	_, tavern, engine, playID := newTestPlay(t, 8)
+	var imageText string
+	imageStarted := false
+	writerSawImage := false
+	engine.startImage = func(_ context.Context, _ string, beat *store.PlayBeat) error {
+		imageStarted = true
+		imageText = beat.Text
+		beat.ImageJobID = "job_intent"
+		return nil
+	}
+	engine.writer = func(_ context.Context, in WriterInput) (WriterOutput, error) {
+		writerSawImage = imageStarted
+		return WriterOutput{Speaker: in.Card.Speaker, Text: "台词正文"}, nil
+	}
+	runEngine(t, engine)
+	if err := waitUntil(context.Background(), func() bool {
+		progress, _ := tavern.LoadProgress(playID)
+		return progress.WriteHead >= 1
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !writerSawImage {
+		t.Fatal("image should start before writer")
+	}
+	if imageText != "见面" {
+		t.Fatalf("image text should be required beats, got %q", imageText)
+	}
+	beat, err := tavern.LoadBeat(playID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if beat.Text != "台词正文" || beat.ImageJobID != "job_intent" {
+		t.Fatalf("saved beat = %+v", beat)
+	}
+}
+
 func TestEngineImageStartFailureDoesNotStopWriting(t *testing.T) {
-	tavern, engine, playID := newTestPlay(t, 8)
+	_, tavern, engine, playID := newTestPlay(t, 8)
 	engine.startImage = func(_ context.Context, _ string, _ *store.PlayBeat) error {
 		return fmt.Errorf("comfy down")
 	}
@@ -211,5 +251,37 @@ func TestEngineImageStartFailureDoesNotStopWriting(t *testing.T) {
 	meta, _ := tavern.LoadPlay(playID)
 	if meta.LastError != "" || meta.Status != store.PlayAwaitingChoice {
 		t.Fatalf("writing should continue after image failure, meta = %+v", meta)
+	}
+}
+
+func TestEngineWritesPlayRuntimeLog(t *testing.T) {
+	dir, tavern, engine, playID := newTestPlay(t, 8)
+	runEngine(t, engine)
+	if err := waitUntil(context.Background(), func() bool {
+		progress, _ := tavern.LoadProgress(playID)
+		if progress.GateOrdinal != 4 {
+			return false
+		}
+		body, readErr := os.ReadFile(filepath.Join(dir, "galgame", "plays", playID, "runtime.log"))
+		return readErr == nil && strings.Contains(string(body), "等待玩家选项")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "galgame", "plays", playID, "runtime.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{"剧场引擎启动", "开始规划下一段", "规划完成", "开始写拍", "已写拍", "等待玩家选项"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("runtime.log missing %q:\n%s", want, text)
+		}
+	}
+	index, err := os.ReadFile(filepath.Join(dir, "galgame", "runtime.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(index), "play="+playID) {
+		t.Fatalf("galgame/runtime.log missing play index:\n%s", index)
 	}
 }

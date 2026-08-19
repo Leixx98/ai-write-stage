@@ -89,6 +89,30 @@ func TestActivePlayAndDelete(t *testing.T) {
 	}
 }
 
+func TestWriterSessionRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	tavern := Open(dir, dir).Tavern
+	id := "rain_night"
+	if err := tavern.SavePlay(PlayMeta{ID: id, Name: "雨夜", CharacterID: "c", Premise: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	empty, err := tavern.LoadWriterSession(id)
+	if err != nil || len(empty.Turns) != 0 {
+		t.Fatalf("missing session = %+v %v", empty, err)
+	}
+	session := PlayWriterSession{Turns: []PlayWriterTurn{{
+		Card:    PlayBeatCard{Kind: BeatDialogue, Speaker: "林晚", Location: "码头"},
+		Speaker: "林晚", Text: "在。",
+	}}}
+	if err := tavern.SaveWriterSession(id, session); err != nil {
+		t.Fatal(err)
+	}
+	got, err := tavern.LoadWriterSession(id)
+	if err != nil || len(got.Turns) != 1 || got.Turns[0].Text != "在。" {
+		t.Fatalf("loaded = %+v %v", got, err)
+	}
+}
+
 func TestDisplayImageJobIDWalksKeepBeats(t *testing.T) {
 	beats := []PlayBeat{
 		{Ordinal: 1, CG: PlayCGNew, ImageJobID: "job_a"},

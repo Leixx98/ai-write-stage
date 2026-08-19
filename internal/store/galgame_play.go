@@ -61,6 +61,7 @@ type PlayMeta struct {
 	ImageWorkflowID string     `json:"image_workflow_id,omitempty"`
 	Status          PlayStatus `json:"status"`
 	LastError       string     `json:"last_error,omitempty"`
+	Stage           string     `json:"stage,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
@@ -108,6 +109,16 @@ type PlayBeat struct {
 	Choices    []PlayChoice `json:"choices,omitempty"`
 }
 
+type PlayWriterTurn struct {
+	Card    PlayBeatCard `json:"card"`
+	Speaker string       `json:"speaker,omitempty"`
+	Text    string       `json:"text"`
+}
+
+type PlayWriterSession struct {
+	Turns []PlayWriterTurn `json:"turns"`
+}
+
 func (s *GalgameStore) NewPlayID(characterName, playName string, createdAt time.Time) string {
 	return s.uniqueFileID(s.playMetaPath, joinGalgameID(createdAt, sanitizeGalgameName(characterName, "character"), sanitizeGalgameName(playName, "play")))
 }
@@ -126,6 +137,9 @@ func (s *GalgameStore) playOutlinePath(id string) string {
 }
 func (s *GalgameStore) playBeatPath(id string, ordinal int) string {
 	return filepath.ToSlash(filepath.Join("galgame/plays", id, "beats", fmt.Sprintf("%03d.json", ordinal)))
+}
+func (s *GalgameStore) playWriterSessionPath(id string) string {
+	return filepath.ToSlash(filepath.Join("galgame/plays", id, "writer_session.json"))
 }
 
 func (s *GalgameStore) SavePlay(meta PlayMeta) error {
@@ -349,6 +363,36 @@ func (s *GalgameStore) ListBeatsFrom(id string, from int) ([]PlayBeat, error) {
 		}
 	}
 	return out, nil
+}
+
+func (s *GalgameStore) SaveWriterSession(id string, session PlayWriterSession) error {
+	if !safeGalgameID(id) {
+		return fmt.Errorf("invalid play id")
+	}
+	if session.Turns == nil {
+		session.Turns = []PlayWriterTurn{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.io.WriteJSON(s.playWriterSessionPath(id), session)
+}
+
+func (s *GalgameStore) LoadWriterSession(id string) (PlayWriterSession, error) {
+	if !safeGalgameID(id) {
+		return PlayWriterSession{}, fmt.Errorf("invalid play id")
+	}
+	var session PlayWriterSession
+	err := s.io.ReadJSON(s.playWriterSessionPath(id), &session)
+	if os.IsNotExist(err) {
+		return PlayWriterSession{}, nil
+	}
+	if err != nil {
+		return PlayWriterSession{}, err
+	}
+	if session.Turns == nil {
+		session.Turns = []PlayWriterTurn{}
+	}
+	return session, nil
 }
 
 type BoundPlayImage struct {

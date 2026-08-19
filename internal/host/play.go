@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/voocel/agentcore"
 	"github.com/voocel/ainovel-cli/internal/galgame/play"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
@@ -17,21 +18,52 @@ func (h *Host) playActiveError() error {
 	return h.playActiveErrorExcept("")
 }
 
+func (h *Host) playLive() (engineID string, occupied bool) {
+	if h == nil {
+		return "", false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.playEngine != nil {
+		engineID = h.playEngine.PlayID()
+	}
+	return engineID, h.exclusive == "剧场" || engineID != ""
+}
+
 func (h *Host) playActiveErrorExcept(id string) error {
+	engineID, occupied := h.playLive()
+	if occupied {
+		if id != "" && engineID == id {
+			return nil
+		}
+		return fmt.Errorf("剧场进行中，请先在酒馆暂停")
+	}
+	_ = h.pauseInactivePlays()
+	return nil
+}
+
+func (h *Host) pauseInactivePlays() error {
 	if h == nil || h.roots == nil || h.roots.Tavern == nil {
 		return nil
 	}
-	item, ok, err := h.roots.Tavern.ActivePlay()
+	engineID, occupied := h.playLive()
+	plays, err := h.roots.Tavern.ListPlays()
 	if err != nil {
-		return fmt.Errorf("读取剧场状态失败: %w", err)
+		return err
 	}
-	if !ok {
-		return nil
+	for _, item := range plays {
+		if !item.Status.Active() {
+			continue
+		}
+		if occupied && item.ID == engineID {
+			continue
+		}
+		item.Status = storepkg.PlayPaused
+		if err := h.roots.Tavern.SavePlay(item); err != nil {
+			return err
+		}
 	}
-	if id != "" && item.ID == id {
-		return nil
-	}
-	return fmt.Errorf("剧场进行中，请先在酒馆暂停")
+	return nil
 }
 
 func (h *Host) CreatePlay(meta storepkg.PlayMeta) (storepkg.PlayMeta, error) {
@@ -169,24 +201,17 @@ func (h *Host) StartPlay(id string) error {
 
 func (h *Host) PausePlay() error {
 	h.mu.Lock()
-	if h.exclusive != "剧场" {
-		done := h.playDone
-		h.mu.Unlock()
-		if done != nil {
-			<-done
-		}
-		return nil
-	}
+	exclusive := h.exclusive
 	cancel := h.exclusiveCancel
 	done := h.playDone
 	h.mu.Unlock()
-	if cancel != nil {
+	if exclusive == "剧场" && cancel != nil {
 		cancel()
 	}
 	if done != nil {
 		<-done
 	}
-	return nil
+	return h.pauseInactivePlays()
 }
 
 func (h *Host) finishPlay(id string) {
@@ -242,14 +267,31 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 		cfg.Architect, cfg.Planner, cfg.Writer = h.playArchitect, h.playPlanner, h.playWriter
 		return play.New(cfg)
 	}
-	record := h.usage.Record
+	h.mu.Lock()
+	var record func(string, string, agentcore.AgentMessage)
+	if h.usage != nil {
+		record = h.usage.Record
+	}
+	archThink := h.resolveThinkingForRoleLocked("architect")
+	planThink := h.resolveThinkingForRoleLocked("chapter_planner")
+	writeThink := h.resolveThinkingForRoleLocked("writer")
+	h.mu.Unlock()
+	writerProvider, writerModel, _ := h.models.CurrentSelection("writer")
+	writerWindow, _ := h.models.ResolveContextWindow(writerProvider, writerModel)
 	gen := play.Generator{
-		ArchitectModel:  newUsageTrackedModel(h.models.ForRole("architect"), "galplay", record),
-		PlannerModel:    newUsageTrackedModel(h.models.ForRole("chapter_planner"), "galplay", record),
-		WriterModel:     newUsageTrackedModel(h.models.ForRole("writer"), "galplay", record),
-		ArchitectPrompt: h.bundle.Prompts.PlayArchitect,
-		PlannerPrompt:   h.bundle.Prompts.PlayPlanner,
-		WriterPrompt:    h.bundle.Prompts.PlayWriter,
+		ArchitectModel:    newUsageTrackedModel(h.models.ForRole("architect"), "galplay", record),
+		PlannerModel:      newUsageTrackedModel(h.models.ForRole("chapter_planner"), "galplay", record),
+		WriterModel:       newUsageTrackedModel(h.models.ForRole("writer"), "galplay", record),
+		ArchitectPrompt:   h.bundle.Prompts.PlayArchitect,
+		PlannerPrompt:     h.bundle.Prompts.PlayPlanner,
+		WriterPrompt:      h.bundle.Prompts.PlayWriter,
+		ArchitectThinking: archThink,
+		PlannerThinking:   planThink,
+		WriterThinking:    writeThink,
+		PlayID:            id,
+		Store:             h.roots.Tavern,
+		ContextWindow:     writerWindow,
+		Sink:              h.roots.Tavern,
 	}
 	cfg.Architect, cfg.Planner, cfg.Writer = gen.Architect, gen.Planner, gen.Writer
 	return play.New(cfg)

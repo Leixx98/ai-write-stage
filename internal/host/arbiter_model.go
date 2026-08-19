@@ -69,8 +69,21 @@ func (m *usageTrackedModel) Generate(ctx context.Context, msgs []agentcore.Messa
 }
 
 func (m *usageTrackedModel) GenerateStream(ctx context.Context, msgs []agentcore.Message, tools []agentcore.ToolSpec, opts ...agentcore.CallOption) (<-chan agentcore.StreamEvent, error) {
-	// Arbiter 只走 Generate;流式路径透传(若未来走流,usage 由消费端补记)。
-	return m.inner.GenerateStream(ctx, msgs, tools, opts...)
+	inner, err := m.inner.GenerateStream(ctx, msgs, tools, opts...)
+	if err != nil {
+		return nil, err
+	}
+	out := make(chan agentcore.StreamEvent, 16)
+	go func() {
+		defer close(out)
+		for ev := range inner {
+			if ev.Type == agentcore.StreamEventDone {
+				m.record(m.agentName, "", ev.Message)
+			}
+			out <- ev
+		}
+	}()
+	return out, nil
 }
 
 func (m *usageTrackedModel) SupportsTools() bool { return m.inner.SupportsTools() }

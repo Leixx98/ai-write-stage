@@ -139,6 +139,10 @@ func generateStructured[T any](ctx context.Context, model LLMChat, contract llmc
 				slog.Warn("仿写画像输出自愈", "contract", contract.Name, "attempt", ev.Attempt,
 					"layer", ev.Layer, "structured_mode", ev.Mode, "err", ev.Err)
 			},
+			Repair: func(ev llmcontract.Repair) {
+				slog.Info("仿写画像 JSON 已句法修复", "contract", contract.Name, "rules", ev.Rules,
+					"raw_chars", ev.RawChars, "body_chars", ev.BodyChars)
+			},
 		},
 	})
 	if err != nil {
