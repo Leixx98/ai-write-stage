@@ -19,7 +19,6 @@ import (
 	"github.com/voocel/ainovel-cli/internal/host"
 	"github.com/voocel/ainovel-cli/internal/host/exp"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
@@ -57,25 +56,22 @@ func envelopeErr(w http.ResponseWriter, status, code int, err error) {
 }
 
 type v2Controller struct {
-	rt     *host.Host
-	st     *store.Store
-	media  *store.ComfyUIStore
-	tavern *store.GalgameStore
-	svc    *imagesvc.Service
-	chat   galgame.StreamFunc
-	mu     sync.Mutex
+	rt          *host.Host
+	st          *store.Store
+	images      *store.ImageStore
+	imageConfig *store.ImageConfigStore
+	comfy       *store.ComfyUIStore
+	tavern      *store.GalgameStore
+	svc         *imagesvc.Service
+	chat        galgame.StreamFunc
+	mu          sync.Mutex
 }
 
 func newV2Controller(rt *host.Host) *v2Controller {
 	roots := rt.Roots()
 	st := roots.Facts
-	c := &v2Controller{rt: rt, st: st, media: roots.Media, tavern: roots.Tavern, chat: rt.NewGalgameGenerate()}
-	c.svc = imagesvc.New(imagesvc.Config{
-		Root:           rt.Dir(),
-		Store:          roots.Media,
-		Prompter:       imagejob.PrompterFunc(rt.GenerateImagePrompt),
-		LoadUnitPrompt: c.unitPromptRequest,
-	})
+	c := &v2Controller{rt: rt, st: st, images: roots.Images, imageConfig: roots.ImageConfig, comfy: roots.ComfyUI, tavern: roots.Tavern, chat: rt.NewGalgameGenerate()}
+	c.svc = rt.ImageService()
 	go c.watchCompletedUnits()
 	return c
 }
@@ -92,7 +88,17 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.readerChapters(w, r)
 	case strings.HasPrefix(p, "chapters/"):
 		c.readerChapter(w, r, strings.TrimPrefix(p, "chapters/"))
-	case p == "comfyui/config":
+	case p == "image-generation/settings":
+		c.imageGenerationSettings(w, r)
+	case p == "image-generation/profiles":
+		c.imageProfiles(w, r, "")
+	case strings.HasPrefix(p, "image-generation/profiles/"):
+		c.imageProfiles(w, r, strings.TrimPrefix(p, "image-generation/profiles/"))
+	case p == "image-generation/providers":
+		c.imageProviders(w, r, "")
+	case strings.HasPrefix(p, "image-generation/providers/") && !strings.HasPrefix(p, "image-generation/providers/comfyui/"):
+		c.imageProviders(w, r, strings.TrimPrefix(p, "image-generation/providers/"))
+	case p == "image-generation/providers/comfyui/config":
 		c.config(w, r)
 	case p == "galgame/characters":
 		c.galgameCharacters(w, r)
@@ -108,36 +114,32 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.galgameSessions(w, r)
 	case strings.HasPrefix(p, "galgame/sessions/"):
 		c.galgameSession(w, r, strings.TrimPrefix(p, "galgame/sessions/"))
-	case p == "comfyui/test-connection":
+	case p == "image-generation/providers/comfyui/test-connection":
 		c.testConnection(w, r)
-	case p == "comfyui/bridge":
-		c.bridgeConfig(w, r)
-	case p == "comfyui/prompter-presets":
+	case p == "image-generation/providers/comfyui/prompter-presets":
 		c.prompterPresets(w, r)
-	case p == "comfyui/prompter/parse" && r.Method == http.MethodPost:
+	case p == "image-generation/providers/comfyui/prompter/parse" && r.Method == http.MethodPost:
 		c.parsePrompterJSON(w, r)
-	case p == "comfyui/instances" && r.Method == http.MethodGet:
+	case p == "image-generation/providers/comfyui/instances" && r.Method == http.MethodGet:
 		c.instances(w, r)
-	case p == "comfyui/instances" && r.Method == http.MethodPut:
+	case p == "image-generation/providers/comfyui/instances" && r.Method == http.MethodPut:
 		c.saveInstances(w, r)
-	case strings.HasPrefix(p, "comfyui/instances/") && strings.HasSuffix(p, "/test"):
-		c.testInstance(w, r, strings.TrimSuffix(strings.TrimPrefix(p, "comfyui/instances/"), "/test"))
-	case p == "comfyui/media/upload" && r.Method == http.MethodPost:
+	case strings.HasPrefix(p, "image-generation/providers/comfyui/instances/") && strings.HasSuffix(p, "/test"):
+		c.testInstance(w, r, strings.TrimSuffix(strings.TrimPrefix(p, "image-generation/providers/comfyui/instances/"), "/test"))
+	case p == "image-generation/providers/comfyui/media/upload" && r.Method == http.MethodPost:
 		c.uploadMedia(w, r)
-	case strings.HasPrefix(p, "comfyui/media/"):
-		c.getMedia(w, r, strings.TrimPrefix(p, "comfyui/media/"))
-	case p == "comfyui/workflows" && r.Method == http.MethodGet:
+	case strings.HasPrefix(p, "image-generation/providers/comfyui/media/"):
+		c.getMedia(w, r, strings.TrimPrefix(p, "image-generation/providers/comfyui/media/"))
+	case p == "image-generation/providers/comfyui/workflows" && r.Method == http.MethodGet:
 		c.listWorkflows(w, r)
-	case p == "comfyui/workflows/import" && r.Method == http.MethodPost:
+	case p == "image-generation/providers/comfyui/workflows/import" && r.Method == http.MethodPost:
 		c.importWorkflow(w, r)
-	case strings.HasPrefix(p, "comfyui/workflows/"):
-		c.workflow(w, r, strings.TrimPrefix(p, "comfyui/workflows/"))
-	case p == "comfyui/jobs/test" && r.Method == http.MethodPost:
-		c.testJob(w, r)
-	case strings.Contains(p, "/outputs/"):
-		c.jobOutput(w, r, strings.TrimPrefix(strings.TrimPrefix(p, "comfyui/jobs/"), ""))
-	case strings.HasPrefix(p, "comfyui/jobs/"):
-		c.job(w, r, strings.TrimPrefix(p, "comfyui/jobs/"))
+	case strings.HasPrefix(p, "image-generation/providers/comfyui/workflows/"):
+		c.workflow(w, r, strings.TrimPrefix(p, "image-generation/providers/comfyui/workflows/"))
+	case p == "image-jobs":
+		c.imageJobs(w, r)
+	case strings.HasPrefix(p, "image-jobs/"):
+		c.job(w, r, strings.TrimPrefix(p, "image-jobs/"))
 	case strings.HasPrefix(p, "units/"):
 		c.unit(w, r, strings.TrimPrefix(p, "units/"))
 	case p == "state" && r.Method == http.MethodGet:

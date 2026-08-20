@@ -1,13 +1,9 @@
 package imagejob
 
-import (
-	"testing"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-)
+import "testing"
 
 func testPromptSchema() PromptSchema {
-	return PromptSchema{SchemaHash: "sha256:test", Fields: []comfyui.CanvasField{
+	return PromptSchema{SchemaHash: "sha256:test", Fields: []PromptField{
 		{ID: "positive_prompt", ValueType: "string", Exposed: true, Source: "prompter"},
 		{ID: "steps", ValueType: "integer", Exposed: true, Source: "prompter", Default: 20, Min: 1, Max: 50},
 	}}

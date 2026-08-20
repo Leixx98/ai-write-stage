@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
 )
 
 const SchemaVersion = 1
@@ -19,22 +17,38 @@ var fieldIDPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`)
 
 // PromptSchema is the deterministic contract sent to the image prompt model.
 type PromptSchema struct {
-	WorkflowID      string                `json:"workflow_id"`
-	SchemaVersion   int                   `json:"schema_version"`
-	SchemaHash      string                `json:"schema_hash"`
-	Schema          map[string]any        `json:"schema"`
-	Fields          []comfyui.CanvasField `json:"fields"`
-	Template        string                `json:"template"`
-	DefaultTemplate string                `json:"default_template"`
-	Preset          string                `json:"preset"`
-	Presets         []PrompterPreset      `json:"presets"`
-	FieldJSON       map[string]any        `json:"field_json"`
-	Composed        string                `json:"composed"`
+	SchemaID        string           `json:"schema_id"`
+	SchemaVersion   int              `json:"schema_version"`
+	SchemaHash      string           `json:"schema_hash"`
+	Schema          map[string]any   `json:"schema"`
+	Fields          []PromptField    `json:"fields"`
+	Template        string           `json:"template"`
+	DefaultTemplate string           `json:"default_template"`
+	Preset          string           `json:"preset"`
+	Presets         []PrompterPreset `json:"presets"`
+	FieldJSON       map[string]any   `json:"field_json"`
+	Composed        string           `json:"composed"`
+}
+
+// PromptField is the Provider-neutral field contract used to validate prompt
+// model output. Adapters project their native workflow fields into this type.
+type PromptField struct {
+	ID        string `json:"id"`
+	Name      string `json:"name,omitempty"`
+	Note      string `json:"note,omitempty"`
+	Control   string `json:"control,omitempty"`
+	Source    string `json:"source,omitempty"`
+	ValueType string `json:"value_type,omitempty"`
+	Options   []any  `json:"options,omitempty"`
+	Default   any    `json:"default,omitempty"`
+	Min       any    `json:"min,omitempty"`
+	Max       any    `json:"max,omitempty"`
+	Exposed   bool   `json:"exposed"`
 }
 
 // NormalizeFieldSource preserves legacy canvas data while making the runtime
 // source decision explicit and deterministic.
-func NormalizeFieldSource(field comfyui.CanvasField) string {
+func NormalizeFieldSource(field PromptField) string {
 	source := strings.ToLower(strings.TrimSpace(field.Source))
 	switch source {
 	case "prompter", "default", "runtime":
@@ -51,10 +65,10 @@ func NormalizeFieldSource(field comfyui.CanvasField) string {
 }
 
 // BuildPromptSchema projects every exposed configured field into JSON Schema.
-func BuildPromptSchema(workflowID string, canvas comfyui.CanvasDocument) (PromptSchema, error) {
-	fields := make([]comfyui.CanvasField, 0, len(canvas.Fields))
-	seen := make(map[string]struct{}, len(canvas.Fields))
-	for _, field := range canvas.Fields {
+func BuildPromptSchema(schemaID string, input []PromptField, presetID, templateOverride string) (PromptSchema, error) {
+	fields := make([]PromptField, 0, len(input))
+	seen := make(map[string]struct{}, len(input))
+	for _, field := range input {
 		if !field.Exposed {
 			continue
 		}
@@ -99,7 +113,7 @@ func BuildPromptSchema(workflowID string, canvas comfyui.CanvasDocument) (Prompt
 	}
 	schema := map[string]any{
 		"$schema":              "https://json-schema.org/draft/2020-12/schema",
-		"$id":                  fmt.Sprintf("ainovel://comfyui/workflows/%s/image-prompt/v1", workflowID),
+		"$id":                  fmt.Sprintf("ainovel://image-generation/schemas/%s/v1", schemaID),
 		"type":                 "object",
 		"additionalProperties": false,
 		"properties":           properties,
@@ -110,10 +124,10 @@ func BuildPromptSchema(workflowID string, canvas comfyui.CanvasDocument) (Prompt
 		return PromptSchema{}, fmt.Errorf("marshal prompt schema: %w", err)
 	}
 	sum := sha256.Sum256(canonical)
-	template := ResolvePrompterTemplate(canvas.PrompterPreset, canvas.PrompterTemplate)
-	preset := NormalizePrompterPreset(canvas.PrompterPreset)
+	template := ResolvePrompterTemplate(presetID, templateOverride)
+	preset := NormalizePrompterPreset(presetID)
 	return PromptSchema{
-		WorkflowID: workflowID, SchemaVersion: SchemaVersion,
+		SchemaID: schemaID, SchemaVersion: SchemaVersion,
 		SchemaHash: "sha256:" + hex.EncodeToString(sum[:]), Schema: schema, Fields: fields,
 		Template: template, DefaultTemplate: DefaultPrompterTemplate,
 		Preset: preset, Presets: PrompterPresets(),

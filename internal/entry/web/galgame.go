@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"github.com/voocel/ainovel-cli/internal/galgame"
 	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
-	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
@@ -185,9 +183,9 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 				return
 			}
 			var update struct {
-				Name            string `json:"name"`
-				UserPersona     string `json:"user_persona"`
-				ImageWorkflowID string `json:"image_workflow_id"`
+				Name           string `json:"name"`
+				UserPersona    string `json:"user_persona"`
+				ImageProfileID string `json:"image_profile_id"`
 			}
 			if err := decodeBody(r, &update); err != nil {
 				envelopeErr(w, 400, codeInvalidRequest, err)
@@ -197,7 +195,7 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 				item.Name = strings.TrimSpace(update.Name)
 			}
 			item.UserPersona = strings.TrimSpace(update.UserPersona)
-			item.ImageWorkflowID = strings.TrimSpace(update.ImageWorkflowID)
+			item.ImageProfileID = strings.TrimSpace(update.ImageProfileID)
 			if err := c.tavern.SaveSession(item); err != nil {
 				envelopeErr(w, 500, codeConflict, err)
 				return
@@ -214,11 +212,59 @@ func (c *v2Controller) galgameSession(w http.ResponseWriter, r *http.Request, pa
 		}
 		return
 	}
+	if strings.HasPrefix(parts[1], "messages/") && strings.HasSuffix(parts[1], "/image") && r.Method == http.MethodPost {
+		messageID := strings.TrimSuffix(strings.TrimPrefix(parts[1], "messages/"), "/image")
+		c.manualGalgameImage(w, r, id, messageID)
+		return
+	}
 	if parts[1] != "generate" || r.Method != http.MethodPost {
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("route not found"))
 		return
 	}
 	c.generateGalgameReply(w, r, id)
+}
+
+func (c *v2Controller) manualGalgameImage(w http.ResponseWriter, r *http.Request, sessionID, messageID string) {
+	session, err := c.tavern.LoadSession(sessionID)
+	if err != nil {
+		envelopeErr(w, http.StatusNotFound, codeNotFound, err)
+		return
+	}
+	character, err := c.tavern.LoadCharacter(session.CharacterID)
+	if err != nil {
+		envelopeErr(w, http.StatusUnprocessableEntity, codeInvalidRequest, err)
+		return
+	}
+	messageIndex := -1
+	for index, message := range session.Messages {
+		if message.ID == messageID && message.Role == "assistant" {
+			messageIndex = index
+			break
+		}
+	}
+	if messageIndex < 0 {
+		envelopeErr(w, http.StatusNotFound, codeNotFound, fmt.Errorf("assistant message not found"))
+		return
+	}
+	session.Messages = append([]store.GalgameMessage(nil), session.Messages[:messageIndex+1]...)
+	job, err := c.startGalgameImageRequest(session, character, session.Messages[messageIndex].Content, true)
+	if err != nil {
+		c.writeImageServiceErr(w, err)
+		return
+	}
+	if job.JobID != "" {
+		full, loadErr := c.tavern.LoadSession(sessionID)
+		if loadErr == nil {
+			for index := range full.Messages {
+				if full.Messages[index].ID == messageID {
+					full.Messages[index].ImageJobID = job.JobID
+					break
+				}
+			}
+			_ = c.tavern.SaveSession(full)
+		}
+	}
+	envelope(w, http.StatusAccepted, 0, job, "")
 }
 
 func (c *v2Controller) generateGalgameReply(w http.ResponseWriter, r *http.Request, id string) {
@@ -302,47 +348,16 @@ func writeChatSSE(w http.ResponseWriter, flusher http.Flusher, payload any) bool
 // startGalgameImage adapts conversation context to the same PromptRequest and
 // ImageJob pipeline used by novel writing units.
 func (c *v2Controller) startGalgameImage(session store.GalgameSession, character store.GalgameCharacter, reply string) (store.ImageJob, error) {
-	bridge, err := c.media.LoadBridgeConfig()
-	if err != nil {
-		return store.ImageJob{}, fmt.Errorf("图片生成桥接配置无法读取")
+	return c.startGalgameImageRequest(session, character, reply, false)
+}
+
+func (c *v2Controller) startGalgameImageRequest(session store.GalgameSession, character store.GalgameCharacter, reply string, manual bool) (store.ImageJob, error) {
+	assistantIndex := 0
+	for _, message := range session.Messages {
+		if message.Role == "assistant" {
+			assistantIndex++
+		}
 	}
-	if !bridge.Enabled {
-		return store.ImageJob{}, fmt.Errorf("图片生成桥接尚未启用")
-	}
-	workflowID := strings.TrimSpace(session.ImageWorkflowID)
-	if workflowID == "" {
-		workflowID = bridge.WorkflowID
-	}
-	workflow, err := c.media.LoadWorkflow(workflowID)
-	if err != nil {
-		return store.ImageJob{}, fmt.Errorf("图片工作流不存在")
-	}
-	canvas, err := c.media.LoadOrCreateWorkflowCanvas(workflow.ID)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	promptSchema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	if len(promptSchema.Fields) == 0 {
-		return store.ImageJob{}, fmt.Errorf("请先在画布中勾选要发给提示词模型的字段")
-	}
-	schemaJSON, err := json.Marshal(promptSchema.Schema)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	var planParts []string
-	if value := strings.TrimSpace(character.Description); value != "" {
-		planParts = append(planParts, "角色描述：\n"+value)
-	}
-	if value := strings.TrimSpace(character.Personality); value != "" {
-		planParts = append(planParts, "角色性格：\n"+value)
-	}
-	if value := strings.TrimSpace(character.Scenario); value != "" {
-		planParts = append(planParts, "场景：\n"+value)
-	}
-	plan := strings.Join(planParts, "\n\n")
 	var history strings.Builder
 	end := len(session.Messages) - 1
 	start := end - 6
@@ -350,14 +365,19 @@ func (c *v2Controller) startGalgameImage(session store.GalgameSession, character
 		start = 0
 	}
 	for _, message := range session.Messages[start:end] {
-		fmt.Fprintf(&history, "%s：%s\n", message.Role, message.Content)
+		fmt.Fprintf(&history, "%s: %s\n", message.Role, message.Content)
 	}
-	request := imagejob.PromptRequest{
-		UnitID: session.Messages[len(session.Messages)-1].ID, ChapterTitle: character.Name, UnitPlan: plan,
-		UnitText: reply, PreviousTail: tailText(history.String(), bridge.PreviousTailChars),
-		Schema: schemaJSON, SchemaHash: promptSchema.SchemaHash, SystemPrompt: promptSchema.Composed,
+	request := imagejob.SceneImageRequest{
+		Scene: imagejob.SceneChat, SceneID: session.ID, UnitID: session.Messages[len(session.Messages)-1].ID,
+		AssistantIndex: assistantIndex, Title: character.Name, Dialogue: reply,
+		PreviousText: tailText(history.String(), 2000),
+		VisualIntent: strings.TrimSpace(strings.Join([]string{character.Personality, character.Scenario}, "\n")),
+		Characters:   []imagejob.CharacterContext{{Name: character.Name, Description: character.Description}},
+		ProfileID:    session.ImageProfileID, Manual: manual,
 	}
-	return c.svc.StartGalgame(session.ID, imagesvc.PromptRun{
-		Request: request, Workflow: workflow, Canvas: canvas, Bridge: bridge, Schema: promptSchema,
-	})
+	job, skipped, err := c.svc.Start(request)
+	if skipped {
+		return store.ImageJob{}, nil
+	}
+	return job, err
 }

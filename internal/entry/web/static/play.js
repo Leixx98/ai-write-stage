@@ -57,6 +57,7 @@
       setField('galgame-play-name', play.name || '');
       setField('galgame-play-premise', play.premise || '');
       setField('galgame-play-persona', play.user_persona || '');
+      setField('galgame-play-image-profile', play.image_profile_id || '');
     }
     if (isPlayMode()) $('galgame-session-name').textContent = play?.name || '剧场';
     renderPlayBuffer();
@@ -71,7 +72,13 @@
     const buffer = view.buffer || {};
     const status = view.play?.status || '';
     const stage = playStageLabel(view);
-    const parts = [stage || statusLabel(status) || '未开局', `已缓存 ${buffer.text_ahead || 0} 屏`, `配图中 ${buffer.images_pending || 0} 张`];
+    const parts = [stage || statusLabel(status) || '未开局', `已缓存 ${buffer.text_ahead || 0} 屏`];
+    if (buffer.image_generating) {
+      const progress = Number(buffer.image_progress || 0);
+      parts.push(progress > 0 ? `采样中 ${progress}%` : '配图中');
+    } else if (buffer.image_error) {
+      parts.push(`生成失败: ${buffer.image_error}`);
+    }
     if (view.play?.last_error) parts.push(view.play.last_error);
     el.textContent = parts.join(' · ');
     el.title = '打开运行日志';
@@ -405,7 +412,7 @@
     if (liveImage && ((bound.image_job_id && liveImage.job_id === bound.image_job_id) || liveImage.ordinal === bound.ordinal)) return liveImage;
     if (bound.image_error && !bound.image_job_id) return { status: 'failed', ordinal: bound.ordinal };
     if (!bound.image_job_id) return { status: 'pending', ordinal: bound.ordinal };
-    return { status: 'completed', url: `/api/v2/comfyui/jobs/${encodeURIComponent(bound.image_job_id)}/outputs/0`, ordinal: bound.ordinal, job_id: bound.image_job_id };
+    return { status: 'completed', url: `/api/v2/image-jobs/${encodeURIComponent(bound.image_job_id)}/outputs/0`, ordinal: bound.ordinal, job_id: bound.image_job_id };
   }
 
   function hidePlayNav() {
@@ -476,6 +483,7 @@
     setField('galgame-play-name', '');
     setField('galgame-play-premise', '');
     setField('galgame-play-persona', '');
+    setField('galgame-play-image-profile', '');
     const select = $('galgame-play-select');
     if (select) select.value = '';
     renderPlayForm();
@@ -517,6 +525,7 @@
         character_id: character().id,
         premise,
         user_persona: fieldValue('galgame-play-persona'),
+        image_profile_id: fieldValue('galgame-play-image-profile'),
       }) });
       playState.plays = (await api('/api/v2/galgame/plays') || []).filter((item) => item.character_id === character().id);
       await selectPlay(created.id);
@@ -526,6 +535,25 @@
         select.value = created.id;
       }
       notify('剧场已创建，可以开始写作', 'galgame-settings-msg', 'success');
+    } catch (error) {
+      notify(error.message, 'galgame-settings-msg', 'error');
+    }
+  }
+
+  async function savePlay() {
+    if (!playState.play) return notify('请先新建剧场局', 'galgame-settings-msg', 'error');
+    try {
+      const updated = await api(`/api/v2/galgame/plays/${encodeURIComponent(playState.play.id)}`, { method: 'PUT', body: JSON.stringify({
+        name: fieldValue('galgame-play-name'),
+        premise: fieldValue('galgame-play-premise'),
+        user_persona: fieldValue('galgame-play-persona'),
+        image_profile_id: fieldValue('galgame-play-image-profile'),
+      }) });
+      playState.play = updated;
+      if (playState.view) playState.view.play = updated;
+      playState.plays = (await api('/api/v2/galgame/plays') || []).filter((item) => item.character_id === character()?.id);
+      renderPlayForm();
+      notify('剧场设置已保存', 'galgame-settings-msg', 'success');
     } catch (error) {
       notify(error.message, 'galgame-settings-msg', 'error');
     }
@@ -660,6 +688,7 @@
     $('galgame-runlog-close')?.addEventListener('click', () => setLogOpen(false));
     $('galgame-play-select')?.addEventListener('change', (event) => selectPlay(event.target.value));
     $('galgame-new-play')?.addEventListener('click', createPlay);
+    $('galgame-save-play')?.addEventListener('click', savePlay);
     $('galgame-start-play')?.addEventListener('click', startPlay);
     $('galgame-pause-play')?.addEventListener('click', pausePlay);
     $('galgame-play-prev')?.addEventListener('click', (event) => {
@@ -695,6 +724,7 @@
 
   initPlayUI();
   window.GalgamePlay = {
+    isPlayMode,
     setMode: setPlayMode,
     load: loadPlays,
     onCharacterChange() {

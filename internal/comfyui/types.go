@@ -19,7 +19,6 @@ type Config struct {
 	PollIntervalMS   int    `json:"poll_interval_ms"`
 	Strict           bool   `json:"strict"`
 	MaxResponseBytes int64  `json:"max_response_bytes"`
-	WorkflowID       string `json:"workflow_id"`
 }
 
 // DefaultConfig is the canonical local ComfyUI configuration. It is returned
@@ -115,17 +114,6 @@ type DownloadedImage struct {
 	ContentType string
 	Ref         OutputRef
 }
-type MediaOutput struct {
-	Kind        string `json:"kind"`
-	NodeID      string `json:"node_id"`
-	OutputKey   string `json:"output_key"`
-	ClassType   string `json:"class_type"`
-	MIME        string `json:"mime"`
-	Previewable bool   `json:"previewable"`
-	URL         string `json:"url,omitempty"`
-	StorageKey  string `json:"storage_key,omitempty"`
-	Size        int64  `json:"size,omitempty"`
-}
 
 type History struct {
 	PromptID string
@@ -166,6 +154,8 @@ type Client interface {
 	TestConnection(context.Context) error
 	Submit(context.Context, map[string]any, string) (string, error)
 	Wait(context.Context, string, time.Duration) (History, error)
+	CheckHistory(context.Context, string) (History, bool, error)
+	OpenProgress(context.Context, string) (<-chan ProgressEvent, error)
 	Download(context.Context, OutputRef, int64) (DownloadedImage, error)
 	Interrupt(context.Context) error
 }

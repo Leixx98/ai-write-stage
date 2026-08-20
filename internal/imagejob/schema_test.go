@@ -1,22 +1,18 @@
 package imagejob
 
-import (
-	"testing"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-)
+import "testing"
 
 func TestBuildPromptSchemaAndHashAreDeterministic(t *testing.T) {
-	canvas := comfyui.CanvasDocument{Fields: []comfyui.CanvasField{
-		{ID: "negative_prompt", NodeID: "7", Input: "text", ValueType: "string", Control: "textarea", Exposed: true, Source: "canvas"},
-		{ID: "positive_prompt", NodeID: "6", Input: "text", ValueType: "string", Control: "textarea", Exposed: true, Source: "prompter"},
-		{ID: "seed", NodeID: "3", Input: "seed", ValueType: "integer", Control: "number", Exposed: true, Source: "default"},
-	}}
-	first, err := BuildPromptSchema("wf", canvas)
+	fields := []PromptField{
+		{ID: "negative_prompt", ValueType: "string", Control: "textarea", Exposed: true, Source: "canvas"},
+		{ID: "positive_prompt", ValueType: "string", Control: "textarea", Exposed: true, Source: "prompter"},
+		{ID: "seed", ValueType: "integer", Control: "number", Exposed: true, Source: "default"},
+	}
+	first, err := BuildPromptSchema("wf", fields, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := BuildPromptSchema("wf", canvas)
+	second, err := BuildPromptSchema("wf", fields, "", "")
 	if err != nil || first.SchemaHash != second.SchemaHash {
 		t.Fatalf("schema hash is not deterministic: %v %v", first.SchemaHash, second.SchemaHash)
 	}
@@ -26,9 +22,9 @@ func TestBuildPromptSchemaAndHashAreDeterministic(t *testing.T) {
 }
 
 func TestBuildPromptSchemaRejectsInvalidID(t *testing.T) {
-	_, err := BuildPromptSchema("wf", comfyui.CanvasDocument{Fields: []comfyui.CanvasField{{
-		ID: "7::text", NodeID: "7", Input: "text", ValueType: "string", Control: "textarea", Exposed: true, Source: "prompter",
-	}}})
+	_, err := BuildPromptSchema("wf", []PromptField{{
+		ID: "7::text", ValueType: "string", Control: "textarea", Exposed: true, Source: "prompter",
+	}}, "", "")
 	if err == nil {
 		t.Fatal("expected invalid field id")
 	}

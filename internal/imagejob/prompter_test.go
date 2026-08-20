@@ -3,12 +3,10 @@ package imagejob
 import (
 	"strings"
 	"testing"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
 )
 
 func TestComposeSystemPromptIncludesFieldsAndNotes(t *testing.T) {
-	fields := []comfyui.CanvasField{
+	fields := []PromptField{
 		{ID: "text", ValueType: "string", Note: "正向画面描述"},
 		{ID: "seed", ValueType: "integer"},
 	}
@@ -39,12 +37,9 @@ func TestResolvePrompterTemplateUsesPresetWhenCustomEmpty(t *testing.T) {
 }
 
 func TestBuildPromptSchemaIncludesPresetsAndConfiguredFields(t *testing.T) {
-	schema, err := BuildPromptSchema("wf", comfyui.CanvasDocument{
-		PrompterPreset: PresetDanbooru,
-		Fields: []comfyui.CanvasField{
-			{ID: "text", NodeID: "2", Input: "text", ValueType: "string", Control: "textarea", Exposed: true, Source: "default"},
-		},
-	})
+	schema, err := BuildPromptSchema("wf", []PromptField{
+		{ID: "text", ValueType: "string", Control: "textarea", Exposed: true, Source: "default"},
+	}, PresetDanbooru, "")
 	if err != nil {
 		t.Fatal(err)
 	}

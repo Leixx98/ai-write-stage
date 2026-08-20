@@ -2,14 +2,15 @@ package host
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/voocel/agentcore"
 	"github.com/voocel/ainovel-cli/internal/galgame/play"
+	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/voocel/ainovel-cli/internal/imagejob/comfyadapter"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	storepkg "github.com/voocel/ainovel-cli/internal/store"
 )
@@ -103,6 +104,28 @@ func (h *Host) ListPlays() ([]storepkg.PlayMeta, error) {
 	return h.roots.Tavern.ListPlays()
 }
 
+func (h *Host) UpdatePlay(id string, update storepkg.PlayMeta) (storepkg.PlayMeta, error) {
+	if h == nil || h.roots == nil || h.roots.Tavern == nil {
+		return storepkg.PlayMeta{}, fmt.Errorf("tavern store is unavailable")
+	}
+	meta, err := h.roots.Tavern.LoadPlay(id)
+	if err != nil {
+		return storepkg.PlayMeta{}, err
+	}
+	if name := strings.TrimSpace(update.Name); name != "" {
+		meta.Name = name
+	}
+	if premise := strings.TrimSpace(update.Premise); premise != "" {
+		meta.Premise = premise
+	}
+	meta.UserPersona = strings.TrimSpace(update.UserPersona)
+	meta.ImageProfileID = strings.TrimSpace(update.ImageProfileID)
+	if err := h.roots.Tavern.SavePlay(meta); err != nil {
+		return storepkg.PlayMeta{}, err
+	}
+	return meta, nil
+}
+
 func (h *Host) PlayView(id string) (play.View, error) {
 	if h == nil || h.roots == nil || h.roots.Tavern == nil {
 		return play.View{}, fmt.Errorf("tavern store is unavailable")
@@ -120,36 +143,82 @@ func (h *Host) PlayView(id string) (play.View, error) {
 		return play.View{}, err
 	}
 	view := play.BuildView(meta, progress, beats)
-	if view.Image.JobID != "" && h.roots.Media != nil {
-		job, jobErr := h.roots.Media.LoadJob(view.Image.JobID)
+	if view.Image.JobID != "" && h.roots.Images != nil {
+		job, jobErr := h.roots.Images.LoadJob(view.Image.JobID)
 		url := ""
 		status := ""
 		if jobErr == nil {
 			status = job.Status
 			if status == play.ImageCompleted {
-				url = fmt.Sprintf("/api/v2/comfyui/jobs/%s/outputs/0", job.JobID)
+				url = fmt.Sprintf("/api/v2/image-jobs/%s/outputs/0", job.JobID)
 			}
 		}
 		view.ApplyImageJob(status, url, jobErr)
 	} else {
 		view.ApplyImageJob("", "", nil)
 	}
-	view.Buffer.ImagesPending = play.CountUnfinishedImages(beats, progress.WriteHead, func(jobID string) bool {
-		if h.roots.Media == nil {
-			return false
+	if h.roots.Images != nil {
+		view.Buffer = summarizePlayImageBuffer(view.Buffer, beats, progress.WriteHead, h.roots.Images.LoadJob)
+	}
+	return view, nil
+}
+
+// summarizePlayImageBuffer reports current image activity. Historical failures
+// remain in the run log, but only the latest new-image outcome can occupy the
+// play status after all active jobs have settled.
+func summarizePlayImageBuffer(buffer play.BufferInfo, beats []storepkg.PlayBeat, writeHead int, loadJob func(string) (storepkg.ImageJob, error)) play.BufferInfo {
+	buffer.ImageGenerating = false
+	buffer.ImageProgress = 0
+	buffer.ImageProgressNode = ""
+	buffer.ImageError = ""
+	latestOutcomeCaptured := false
+	for i := len(beats) - 1; i >= 0; i-- {
+		beat := beats[i]
+		if beat.CG != storepkg.PlayCGNew || beat.Ordinal > writeHead || beat.Ordinal < 1 {
+			continue
 		}
-		job, err := h.roots.Media.LoadJob(jobID)
+		jobID := strings.TrimSpace(beat.ImageJobID)
+		if jobID == "" {
+			if !latestOutcomeCaptured {
+				latestOutcomeCaptured = true
+				buffer.ImageError = strings.TrimSpace(beat.ImageError)
+			}
+			continue
+		}
+		job, err := loadJob(jobID)
 		if err != nil {
-			return false
+			if !latestOutcomeCaptured {
+				latestOutcomeCaptured = true
+			}
+			continue
 		}
 		switch job.Status {
-		case play.ImageCompleted, play.ImageFailed, "timeout", "cancelled":
-			return true
+		case "completed":
+			if !latestOutcomeCaptured {
+				latestOutcomeCaptured = true
+			}
+		case "failed", "timeout", "cancelled":
+			if !latestOutcomeCaptured {
+				latestOutcomeCaptured = true
+				buffer.ImageError = strings.TrimSpace(job.Error)
+			}
 		default:
-			return false
+			buffer.ImageGenerating = true
+			if job.ProgressTotal > 0 {
+				pct := job.ProgressCurrent * 100 / job.ProgressTotal
+				if pct < 0 {
+					pct = 0
+				} else if pct > 100 {
+					pct = 100
+				}
+				buffer.ImageProgress = pct
+				buffer.ImageProgressNode = job.ProgressNode
+			}
+			buffer.ImageError = ""
+			return buffer
 		}
-	})
-	return view, nil
+	}
+	return buffer
 }
 
 func (h *Host) ListPlayBeats(id string, from int) ([]storepkg.PlayBeat, error) {
@@ -298,14 +367,7 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 }
 
 func (h *Host) startPlayImage(_ context.Context, playID string, beat *storepkg.PlayBeat) error {
-	if beat == nil || beat.CG != storepkg.PlayCGNew || h.roots == nil || h.roots.Media == nil {
-		return nil
-	}
-	bridge, err := h.roots.Media.LoadBridgeConfig()
-	if err != nil {
-		return err
-	}
-	if !bridge.Enabled {
+	if beat == nil || beat.CG != storepkg.PlayCGNew || h.roots == nil || h.roots.Images == nil {
 		return nil
 	}
 	meta, err := h.roots.Tavern.LoadPlay(playID)
@@ -316,43 +378,26 @@ func (h *Host) startPlayImage(_ context.Context, playID string, beat *storepkg.P
 	if err != nil {
 		return err
 	}
-	workflowID := strings.TrimSpace(meta.ImageWorkflowID)
-	if workflowID == "" {
-		workflowID = bridge.WorkflowID
-	}
-	workflow, err := h.roots.Media.LoadWorkflow(workflowID)
-	if err != nil {
-		return err
-	}
-	canvas, err := h.roots.Media.LoadOrCreateWorkflowCanvas(workflow.ID)
-	if err != nil {
-		return err
-	}
-	promptSchema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
-	if err != nil {
-		return err
-	}
-	if len(promptSchema.Fields) == 0 {
-		return fmt.Errorf("play image schema is empty")
-	}
-	schemaJSON, err := json.Marshal(promptSchema.Schema)
-	if err != nil {
-		return err
-	}
 	svc := h.ensureImageService()
-	run := imagesvc.PromptRun{
-		Request: imagejob.PromptRequest{
-			UnitID: fmt.Sprintf("%s/%d", meta.ID, beat.Ordinal), ChapterTitle: character.Name,
-			UnitPlan: strings.TrimSpace(strings.Join([]string{beat.Location, beat.TimeOfDay, beat.CGIntent, character.Description}, "\n")),
-			UnitText: beat.Text, Schema: schemaJSON, SchemaHash: promptSchema.SchemaHash, SystemPrompt: promptSchema.Composed,
-		},
-		Workflow: workflow, Canvas: canvas, Bridge: bridge, Schema: promptSchema,
+	request := imagejob.SceneImageRequest{
+		Scene: imagejob.ScenePlay, SceneID: meta.ID, UnitID: fmt.Sprintf("%s/%d", meta.ID, beat.Ordinal),
+		Ordinal: beat.Ordinal, Title: character.Name, Text: beat.Text,
+		VisualIntent: strings.TrimSpace(strings.Join([]string{beat.Location, beat.TimeOfDay, beat.CGIntent}, "\n")),
+		Characters:   []imagejob.CharacterContext{{Name: character.Name, Description: character.Description}},
+		ProfileID:    meta.ImageProfileID,
 	}
-	job, err := svc.StartPlayBeat(meta.ID, beat.Ordinal, run)
+	job, skipped, err := svc.Start(request)
 	if err != nil {
 		return err
+	}
+	if skipped {
+		h.playLogNote(playID, "play_image",
+			fmt.Sprintf("跳过配图 ordinal=%d status=skipped reason=scene_disabled_or_auto_disabled", beat.Ordinal))
+		return nil
 	}
 	beat.ImageJobID = job.JobID
+	h.playLogNote(playID, "play_image",
+		fmt.Sprintf("开始配图 ordinal=%d job=%s status=prompting", beat.Ordinal, job.JobID))
 	return nil
 }
 
@@ -360,11 +405,41 @@ func (h *Host) ensureImageService() *imagesvc.Service {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.imageSvc == nil {
+		adapter := comfyadapter.New(h.roots.ComfyUI, h.roots.ImageConfig, imagejob.PrompterFunc(h.GenerateImagePrompt))
 		h.imageSvc = imagesvc.New(imagesvc.Config{
-			Root:     h.Dir(),
-			Store:    h.roots.Media,
-			Prompter: imagejob.PrompterFunc(h.GenerateImagePrompt),
+			Root:          h.Dir(),
+			Jobs:          h.roots.Images,
+			Configuration: h.roots.ImageConfig,
+			Providers:     imagesvc.NewRegistry(adapter),
+			StageObserver: func(job storepkg.ImageJob, prevStatus, prevStage string) {
+				h.emitEvent(Event{ID: job.JobID, Time: time.Now(), Category: "image.job." + job.Status, Summary: job.Stage, Detail: job.JobID, Failed: job.Status == "failed" || job.Status == "timeout", Level: "info"})
+				msg := fmt.Sprintf("配图进度 job=%s trigger=%s status=%s→%s stage=%s→%s",
+					job.JobID, job.Trigger, prevStatus, job.Status, prevStage, job.Stage)
+				if job.Error != "" {
+					msg += " err=" + job.Error
+				}
+				if job.PlayID != "" {
+					h.playLogNote(job.PlayID, "play_image",
+						fmt.Sprintf("配图进度 ordinal=%d %s", job.Ordinal, msg))
+				}
+			},
 		})
 	}
 	return h.imageSvc
+}
+
+func (h *Host) ImageService() *imagesvc.Service { return h.ensureImageService() }
+
+// playLogNote 向剧场的运行时日志写入一条 NOTE 记录。
+func (h *Host) playLogNote(playID, step, message string) {
+	if h == nil || h.roots == nil || h.roots.Tavern == nil || playID == "" {
+		return
+	}
+	runlog.Note(h.roots.Tavern, runlog.Record{
+		Mode:      runlog.ModePlay,
+		Step:      step,
+		PlayID:    playID,
+		Streaming: false,
+		Message:   message,
+	})
 }

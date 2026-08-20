@@ -26,9 +26,10 @@ import (
 // 检查推进 → 循环;语义场景按需咨询 Arbiter。它执行决定,不参与文学判断
 // (docs/history/engine-rfc.md)。单 goroutine 串行,控制状态只在循环边界变更。
 type engine struct {
-	store   *storepkg.Store
-	media   *storepkg.ComfyUIStore
-	workers *subagent.Runner
+	store       *storepkg.Store
+	images      *storepkg.ImageStore
+	imageConfig *storepkg.ImageConfigStore
+	workers     *subagent.Runner
 
 	arbiterModel    agentcore.ChatModel
 	failurePrompt   string
@@ -362,18 +363,18 @@ func (e *engine) waitForChapterImages(ctx context.Context, chapter, totalUnits i
 }
 
 func (e *engine) loadChapterImageProgress(chapter, totalUnits int) (chapterImageProgress, error) {
-	if e.media == nil {
+	if e.images == nil || e.imageConfig == nil {
 		return chapterImageProgress{}, nil
 	}
-	bridge, err := e.media.LoadBridgeConfig()
+	settings, err := e.imageConfig.LoadSettings()
 	if err != nil {
 		return chapterImageProgress{}, err
 	}
-	progress := chapterImageProgress{required: bridge.Enabled && bridge.AutoGenerate, total: totalUnits}
+	progress := chapterImageProgress{required: settings.Novel.Enabled && settings.Novel.AutoGenerate, total: totalUnits}
 	if !progress.required {
 		return progress, nil
 	}
-	jobs, err := e.media.ListJobs()
+	jobs, err := e.images.ListJobs()
 	if err != nil {
 		return chapterImageProgress{}, err
 	}

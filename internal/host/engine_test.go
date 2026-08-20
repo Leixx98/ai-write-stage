@@ -94,16 +94,16 @@ func TestIsNonSemanticWorkerFailure(t *testing.T) {
 }
 
 func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
+	t.Setenv("AINOVEL_HOME", t.TempDir())
 	roots := storepkg.Open(t.TempDir(), "")
 	st := roots.Facts
-	media := roots.Media
+	images := roots.Images
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := media.SaveBridgeConfig(imagejob.BridgeConfig{
-		Enabled: true, AutoGenerate: true, WorkflowID: "wf", Strict: true,
-		PrompterTimeoutMS: 120000, PreviousTailChars: 1200,
-	}); err != nil {
+	settings := imagejob.DefaultSettings()
+	settings.Novel = imagejob.SceneConfig{Enabled: true, AutoGenerate: true}
+	if err := roots.ImageConfig.SaveSettings(settings); err != nil {
 		t.Fatal(err)
 	}
 	imageDir := filepath.Join(st.Dir(), "drafts", "01.units")
@@ -113,19 +113,19 @@ func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(imageDir, "001.png"), []byte("image-one"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := media.SaveJob(storepkg.ImageJob{
+	if err := images.SaveJob(storepkg.ImageJob{
 		JobID: "completed-1", Chapter: 1, Ordinal: 1, Status: "completed",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := media.SaveJob(storepkg.ImageJob{
+	if err := images.SaveJob(storepkg.ImageJob{
 		JobID: "failed-2", Chapter: 1, Ordinal: 2, Status: "failed",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	var events []Event
-	e := &engine{store: st, media: media, emitEvent: func(event Event) { events = append(events, event) }}
+	e := &engine{store: st, images: images, imageConfig: roots.ImageConfig, emitEvent: func(event Event) { events = append(events, event) }}
 	progress, err := e.loadChapterImageProgress(1, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestChapterImageProgressTreatsFailuresAsSettled(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(imageDir, "002.png"), []byte("image-two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := media.SaveJob(storepkg.ImageJob{
+	if err := images.SaveJob(storepkg.ImageJob{
 		JobID: "completed-2", Chapter: 1, Ordinal: 2, Status: "completed", StartedAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)

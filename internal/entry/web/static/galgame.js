@@ -95,6 +95,7 @@
     if (!isPlayMode()) $('galgame-session-name').textContent = session.name || 'Galgame 会话';
     setField('galgame-session-name-input', session.name || '');
     setField('galgame-user-persona', session.user_persona || '');
+    setField('galgame-image-profile', session.image_profile_id || '');
   }
 
   async function selectGalgameCharacter(id) {
@@ -154,7 +155,7 @@
     return '';
   }
 
-  function galgameImageUrl(jobId) { return jobId ? `/api/v2/comfyui/jobs/${encodeURIComponent(jobId)}/outputs/0` : ''; }
+  function galgameImageUrl(jobId) { return jobId ? `/api/v2/image-jobs/${encodeURIComponent(jobId)}/outputs/0` : ''; }
 
   function imageOwnerAllowed(owner) {
     if (isPlayMode()) return owner === 'play';
@@ -198,9 +199,11 @@
     host.innerHTML = messages.map((message) => {
       const jobId = message.image_job_id || '';
       const hasImage = message.role === 'assistant' && Boolean(jobId);
+      const canGenerate = message.role === 'assistant' && Boolean(message.id) && !hasImage;
       const selected = hasImage && jobId === galgameState.selectedImageJobId ? ' selected' : '';
       const thinking = message.streaming && !message.content ? '<p class="galgame-thinking">生成中…</p>' : '';
-      return `<article class="galgame-message ${message.role === 'assistant' ? 'character' : 'user'}${hasImage ? ' has-image' : ''}${selected}${message.streaming ? ' streaming' : ''}"${hasImage ? ` data-image-job-id="${esc(jobId)}"` : ''}><strong>${esc(message.name || (message.role === 'assistant' ? galgameState.character?.name || '角色' : '你'))}</strong>${thinking}<p class="galgame-content">${esc(message.content)}</p></article>`;
+      const generate = canGenerate ? `<button type="button" class="small galgame-generate-image" data-galgame-action="generate-image" data-message-id="${esc(message.id)}"${window.ImageGeneration?.enabled('chat') ? '' : ' hidden'}>生成图片</button>` : '';
+      return `<article class="galgame-message ${message.role === 'assistant' ? 'character' : 'user'}${hasImage ? ' has-image' : ''}${selected}${message.streaming ? ' streaming' : ''}"${message.id ? ` data-message-id="${esc(message.id)}"` : ''}${hasImage ? ` data-image-job-id="${esc(jobId)}"` : ''}><strong>${esc(message.name || (message.role === 'assistant' ? galgameState.character?.name || '角色' : '你'))}</strong>${generate}${thinking}<p class="galgame-content">${esc(message.content)}</p></article>`;
     }).join('');
     host.scrollTop = host.scrollHeight;
   }
@@ -283,6 +286,7 @@
         name: fieldValue('galgame-session-name-input') || `${galgameState.character.name || '角色'} 会话`,
         character_id: galgameState.character.id,
         user_persona: fieldValue('galgame-user-persona'),
+        image_profile_id: fieldValue('galgame-image-profile'),
         greeting_index: Number($('galgame-greeting-select')?.value || 0),
       }) });
       galgameState.sessions = await api('/api/v2/galgame/sessions') || [];
@@ -299,6 +303,7 @@
       galgameState.session = await api(`/api/v2/galgame/sessions/${encodeURIComponent(galgameState.session.id)}`, { method: 'PUT', body: JSON.stringify({
         name: fieldValue('galgame-session-name-input'),
         user_persona: fieldValue('galgame-user-persona'),
+        image_profile_id: fieldValue('galgame-image-profile'),
       }) });
       galgameState.sessions = await api('/api/v2/galgame/sessions') || [];
       renderSessionForm();
@@ -442,7 +447,7 @@
 
   async function watchGalgameImage(job, initialError = '') {
     const status = $('galgame-image-status');
-    if (!job?.job_id) { status.textContent = initialError || '图片任务未创建'; return; }
+    if (!job?.job_id) { if (status) status.textContent = initialError || ''; return; }
     try {
       galgameState.selectedImageJobId = job.job_id;
       markSelectedGalgameMessage();
@@ -450,10 +455,10 @@
       let current = job;
       for (let index = 0; index < 600 && !['completed', 'failed', 'timeout', 'cancelled'].includes(current.status); index++) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        current = await api(`/api/v2/comfyui/jobs/${encodeURIComponent(current.job_id)}`);
+        current = await api(`/api/v2/image-jobs/${encodeURIComponent(current.job_id)}`);
       }
       const output = current.outputs?.[0] || current.output;
-      const url = output?.url || (current.job_id ? `/api/v2/comfyui/jobs/${encodeURIComponent(current.job_id)}/outputs/0` : '');
+      const url = output?.url || (current.job_id ? `/api/v2/image-jobs/${encodeURIComponent(current.job_id)}/outputs/0` : '');
       if (current.status === 'completed' && url) {
         galgameState.selectedImageJobId = current.job_id;
         showGalgameImage(url);
@@ -464,6 +469,23 @@
       status.textContent = current.error || `图片任务${current.status || '未完成'}`;
     } catch (error) {
       status.textContent = `生图失败：${error.message}`;
+    }
+  }
+
+  async function generateGalgameMessageImage(messageId, button) {
+    if (!galgameState.session || !messageId || !window.ImageGeneration?.enabled('chat')) return;
+    if (button) button.disabled = true;
+    try {
+      const job = await api(`/api/v2/galgame/sessions/${encodeURIComponent(galgameState.session.id)}/messages/${encodeURIComponent(messageId)}/image`, { method: 'POST', body: '{}' });
+      const message = (galgameState.session.messages || []).find((item) => item.id === messageId);
+      if (message && job?.job_id) message.image_job_id = job.job_id;
+      renderGalgameDialogue();
+      await watchGalgameImage(job);
+    } catch (error) {
+      const status = $('galgame-image-status');
+      if (status) status.textContent = `生图失败：${error.message}`;
+    } finally {
+      if (button?.isConnected) button.disabled = false;
     }
   }
 
@@ -481,6 +503,10 @@
       const action = event.target.closest('[data-galgame-action]');
       if (action) {
         event.preventDefault();
+        if (action.dataset.galgameAction === 'generate-image') {
+          generateGalgameMessageImage(action.dataset.messageId, action);
+          return;
+        }
         handleGalgameAction(action.dataset.galgameAction);
         return;
       }

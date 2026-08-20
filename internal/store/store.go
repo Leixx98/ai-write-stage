@@ -13,7 +13,7 @@ import (
 )
 
 // Store is the novel-facts composition root. Image jobs and tavern sessions
-// live on Roots.Media / Roots.Tavern, not on this type.
+// live on the process-wide Roots, not on this type.
 type Store struct {
 	dir string
 
@@ -40,9 +40,11 @@ type Store struct {
 // Roots is the process-wide workspace: novel facts, image media, and tavern.
 // All three point at the existing on-disk layout; Open does not move files.
 type Roots struct {
-	Facts  *Store
-	Media  *ComfyUIStore
-	Tavern *GalgameStore
+	Facts       *Store
+	Images      *ImageStore
+	ImageConfig *ImageConfigStore
+	ComfyUI     *ComfyUIStore
+	Tavern      *GalgameStore
 }
 
 // NewStore 创建状态管理器，dir 为小说输出根目录。
@@ -50,8 +52,8 @@ func NewStore(dir string) *Store {
 	return Open(dir, "").Facts
 }
 
-// NewStoreForProject creates novel facts for a workspace. ComfyUI definitions
-// are shared via Open(dir, projectDir).Media, not via this Store.
+// NewStoreForProject creates novel facts for a workspace. Image-generation
+// configuration is machine-global and is not stored in the project.
 func NewStoreForProject(dir, projectDir string) *Store {
 	return Open(dir, projectDir).Facts
 }
@@ -59,10 +61,7 @@ func NewStoreForProject(dir, projectDir string) *Store {
 // Open builds the three composition roots for one book directory.
 func Open(dir, projectDir string) *Roots {
 	io := newIO(dir)
-	projectIO := io
-	if projectDir != "" {
-		projectIO = newIO(filepath.Join(projectDir, ".ainovel"))
-	}
+	configIO := newIO(imageGenerationConfigDir())
 	outline := NewOutlineStore(io)
 	facts := &Store{
 		dir:         dir,
@@ -84,10 +83,23 @@ func Open(dir, projectDir string) *Roots {
 		Decisions:   NewDecisionStore(newIO(dir)),
 	}
 	return &Roots{
-		Facts:  facts,
-		Media:  NewComfyUIStoreWithProject(io, projectIO),
-		Tavern: NewGalgameStore(io),
+		Facts:       facts,
+		Images:      NewImageStore(io),
+		ImageConfig: NewImageConfigStore(configIO),
+		ComfyUI:     NewComfyUIStore(configIO),
+		Tavern:      NewGalgameStore(io),
 	}
+}
+
+func imageGenerationConfigDir() string {
+	if root := os.Getenv("AINOVEL_HOME"); root != "" {
+		return filepath.Join(root, "image-generation")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = "."
+	}
+	return filepath.Join(home, ".ainovel", "image-generation")
 }
 
 // Dir 返回输出根目录。

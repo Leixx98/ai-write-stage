@@ -42,7 +42,7 @@ func TestV2ControllerUsesHostStore(t *testing.T) {
 	}
 	defer rt.Close()
 	controller := newV2Controller(rt)
-	if controller.st != rt.Store() || controller.media != rt.Roots().Media || controller.tavern != rt.Roots().Tavern {
+	if controller.st != rt.Store() || controller.images != rt.Roots().Images || controller.comfy != rt.Roots().ComfyUI || controller.tavern != rt.Roots().Tavern {
 		t.Fatal("web controller must reuse the Host workspace roots")
 	}
 }
@@ -160,26 +160,48 @@ func TestWebWorkspaceIDIsStableAndScopedToOutputDirectory(t *testing.T) {
 	}
 }
 
+func TestOldComfyUIJobRouteIsNotRegistered(t *testing.T) {
+	controller := &v2Controller{}
+	recorder := httptest.NewRecorder()
+	controller.dispatch(recorder, httptest.NewRequest(http.MethodGet, "/api/v2/comfyui/jobs/job-1", nil))
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("old route returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestImageGenerationSettingsRejectInvalidEveryN(t *testing.T) {
+	t.Setenv("AINOVEL_HOME", t.TempDir())
+	roots := store.Open(t.TempDir(), "")
+	controller := &v2Controller{imageConfig: roots.ImageConfig}
+	body := bytes.NewBufferString(`{"version":1,"novel":{},"chat":{"enabled":true,"auto_generate":true,"chat_policy":"every_n","every_n":1},"play":{}}`)
+	recorder := httptest.NewRecorder()
+	controller.imageGenerationSettings(recorder, httptest.NewRequest(http.MethodPut, "/api/v2/image-generation/settings", body))
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("settings returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestSavePrompterPresetPersistsPresetAndWorkflowTemplate(t *testing.T) {
+	t.Setenv("AINOVEL_HOME", t.TempDir())
 	roots := store.Open(t.TempDir(), "")
 	st := roots.Facts
-	media := roots.Media
+	media := roots.ComfyUI
 	wf := comfyui.Workflow{ID: "wf", Name: "test", Workflow: map[string]any{}}
 	if err := media.SaveWorkflow(wf); err != nil {
 		t.Fatal(err)
 	}
-	controller := &v2Controller{st: st, media: media}
+	controller := &v2Controller{st: st, comfy: media, imageConfig: roots.ImageConfig}
 	body, _ := json.Marshal(map[string]any{
 		"action": "save_as", "name": "双人构图", "workflow_id": "wf",
 		"template": "return exact json for two characters", "overwrite": false,
 	})
-	req := httptest.NewRequest(http.MethodPut, "/api/v2/comfyui/prompter-presets", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v2/image-generation/providers/comfyui/prompter-presets", bytes.NewReader(body))
 	recorder := httptest.NewRecorder()
 	controller.prompterPresets(recorder, req)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("save preset returned %d: %s", recorder.Code, recorder.Body.String())
 	}
-	doc, err := media.LoadPrompterPresets()
+	doc, err := roots.ImageConfig.LoadPrompterPresets()
 	if err != nil || doc.Presets["双人构图"].Template != "return exact json for two characters" {
 		t.Fatalf("preset was not persisted: %#v, %v", doc, err)
 	}

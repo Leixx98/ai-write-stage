@@ -44,16 +44,29 @@ func (c *v2Controller) galgamePlay(w http.ResponseWriter, r *http.Request, path 
 		return
 	}
 	if len(parts) == 1 {
-		if r.Method != http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
+			view, err := c.rt.PlayView(id)
+			if err != nil {
+				envelopeErr(w, 404, codeNotFound, err)
+				return
+			}
+			envelope(w, 200, 0, view, "")
+		case http.MethodPut:
+			var update store.PlayMeta
+			if err := decodeBody(r, &update); err != nil {
+				envelopeErr(w, 400, codeInvalidRequest, err)
+				return
+			}
+			item, err := c.rt.UpdatePlay(id, update)
+			if err != nil {
+				envelopeErr(w, 422, codeInvalidRequest, err)
+				return
+			}
+			envelope(w, 200, 0, item, "")
+		default:
 			envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
-			return
 		}
-		view, err := c.rt.PlayView(id)
-		if err != nil {
-			envelopeErr(w, 404, codeNotFound, err)
-			return
-		}
-		envelope(w, 200, 0, view, "")
 		return
 	}
 	switch parts[1] {

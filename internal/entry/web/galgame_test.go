@@ -11,6 +11,7 @@ import (
 
 	"github.com/voocel/agentcore"
 	"github.com/voocel/ainovel-cli/internal/galgame"
+	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
@@ -55,6 +56,7 @@ func TestCreateGalgameSessionInitializesSelectedGreeting(t *testing.T) {
 }
 
 func TestGenerateGalgameReplyStreamsTextThenDone(t *testing.T) {
+	t.Setenv("AINOVEL_HOME", t.TempDir())
 	roots := store.Open(t.TempDir(), t.TempDir())
 	character := store.GalgameCharacter{ID: "char", Name: "林晚", Description: "情报员"}
 	if err := roots.Tavern.SaveCharacter(character); err != nil {
@@ -65,8 +67,10 @@ func TestGenerateGalgameReplyStreamsTextThenDone(t *testing.T) {
 		t.Fatal(err)
 	}
 	controller := &v2Controller{
-		tavern: roots.Tavern,
-		media:  roots.Media,
+		tavern:      roots.Tavern,
+		images:      roots.Images,
+		imageConfig: roots.ImageConfig,
+		svc:         imagesvc.New(imagesvc.Config{Root: t.TempDir(), Jobs: roots.Images, Configuration: roots.ImageConfig, Providers: imagesvc.NewRegistry()}),
 		chat: func(_ context.Context, _ []agentcore.Message, emit func(galgame.Delta)) (string, error) {
 			emit(galgame.Delta{Kind: "thinking", Text: "想"})
 			emit(galgame.Delta{Kind: "text", Text: "在"})
@@ -90,5 +94,36 @@ func TestGenerateGalgameReplyStreamsTextThenDone(t *testing.T) {
 	saved, err := roots.Tavern.LoadSession("sess_1")
 	if err != nil || len(saved.Messages) != 2 || saved.Messages[1].Content != "在" {
 		t.Fatalf("saved = %#v %v", saved, err)
+	}
+}
+
+func TestManualGalgameImageSkipsSilentlyWhenChatImagesDisabled(t *testing.T) {
+	t.Setenv("AINOVEL_HOME", t.TempDir())
+	roots := store.Open(t.TempDir(), t.TempDir())
+	character := store.GalgameCharacter{ID: "char", Name: "林晚", Description: "情报员"}
+	if err := roots.Tavern.SaveCharacter(character); err != nil {
+		t.Fatal(err)
+	}
+	session := store.GalgameSession{ID: "sess_1", Name: "测试", CharacterID: character.ID, Messages: []store.GalgameMessage{{ID: "msg_1", Role: "assistant", Content: "雨停了。"}}}
+	if err := roots.Tavern.SaveSession(session); err != nil {
+		t.Fatal(err)
+	}
+	controller := &v2Controller{
+		tavern: roots.Tavern, images: roots.Images, imageConfig: roots.ImageConfig,
+		svc: imagesvc.New(imagesvc.Config{Root: t.TempDir(), Jobs: roots.Images, Configuration: roots.ImageConfig, Providers: imagesvc.NewRegistry()}),
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/galgame/sessions/sess_1/messages/msg_1/image", bytes.NewReader([]byte(`{}`)))
+	controller.manualGalgameImage(recorder, request, "sess_1", "msg_1")
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	jobs, err := roots.Images.ListJobs()
+	if err != nil || len(jobs) != 0 {
+		t.Fatalf("disabled scene created jobs: %#v, %v", jobs, err)
+	}
+	stored, err := roots.Tavern.LoadSession(session.ID)
+	if err != nil || stored.Messages[0].ImageJobID != "" {
+		t.Fatalf("disabled scene changed message: %#v, %v", stored.Messages[0], err)
 	}
 }

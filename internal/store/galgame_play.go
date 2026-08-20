@@ -53,17 +53,17 @@ type PlayChoiceRecord struct {
 }
 
 type PlayMeta struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	CharacterID     string     `json:"character_id"`
-	Premise         string     `json:"premise"`
-	UserPersona     string     `json:"user_persona,omitempty"`
-	ImageWorkflowID string     `json:"image_workflow_id,omitempty"`
-	Status          PlayStatus `json:"status"`
-	LastError       string     `json:"last_error,omitempty"`
-	Stage           string     `json:"stage,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	CharacterID    string     `json:"character_id"`
+	Premise        string     `json:"premise"`
+	UserPersona    string     `json:"user_persona,omitempty"`
+	ImageProfileID string     `json:"image_profile_id,omitempty"`
+	Status         PlayStatus `json:"status"`
+	LastError      string     `json:"last_error,omitempty"`
+	Stage          string     `json:"stage,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type PlayProgress struct {

@@ -40,6 +40,24 @@ func seedPlay(t *testing.T, h *Host, status store.PlayStatus) string {
 	return id
 }
 
+func TestUpdatePlayPersistsImageProfileWithoutResettingRuntimeState(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayPaused)
+	updated, err := h.UpdatePlay(id, store.PlayMeta{
+		Name: "雨夜重逢", Premise: "在站台再次见面", UserPersona: "旅人", ImageProfileID: "cinematic",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ImageProfileID != "cinematic" || updated.Status != store.PlayPaused || updated.CharacterID != "linwan" {
+		t.Fatalf("updated play = %#v", updated)
+	}
+	stored, err := h.roots.Tavern.LoadPlay(id)
+	if err != nil || stored.Name != "雨夜重逢" || stored.Premise != "在站台再次见面" || stored.UserPersona != "旅人" {
+		t.Fatalf("stored play = %#v, %v", stored, err)
+	}
+}
+
 func attachFakePlay(h *Host) {
 	h.playArchitect = func(context.Context, play.ArchitectInput) (play.ArchitectOutput, error) {
 		return play.ArchitectOutput{SegmentID: "meet", Goal: "见面"}, nil

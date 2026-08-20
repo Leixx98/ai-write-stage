@@ -38,15 +38,15 @@ type GalgameMessage struct {
 }
 
 type GalgameSession struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	CharacterID     string           `json:"character_id"`
-	UserPersona     string           `json:"user_persona,omitempty"`
-	Messages        []GalgameMessage `json:"messages"`
-	HistoryCutoff   int              `json:"history_cutoff,omitempty"`
-	ImageWorkflowID string           `json:"image_workflow_id,omitempty"`
-	CreatedAt       time.Time        `json:"created_at"`
-	UpdatedAt       time.Time        `json:"updated_at"`
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	CharacterID    string           `json:"character_id"`
+	UserPersona    string           `json:"user_persona,omitempty"`
+	Messages       []GalgameMessage `json:"messages"`
+	HistoryCutoff  int              `json:"history_cutoff,omitempty"`
+	ImageProfileID string           `json:"image_profile_id,omitempty"`
+	CreatedAt      time.Time        `json:"created_at"`
+	UpdatedAt      time.Time        `json:"updated_at"`
 }
 
 type GalgameStore struct {

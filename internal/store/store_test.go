@@ -23,35 +23,34 @@ func TestFoundationMissingReturnsReadError(t *testing.T) {
 	}
 }
 
-func TestProjectComfyUIDefinitionsAreSharedAcrossWorkspaces(t *testing.T) {
-	project := t.TempDir()
-	workspaceA := filepath.Join(t.TempDir(), "novel-a")
-	workspaceB := filepath.Join(t.TempDir(), "novel-b")
-	a := Open(workspaceA, project)
-	b := Open(workspaceB, project)
-	wf := comfyui.Workflow{ID: "shared", Name: "共享工作流", Workflow: map[string]any{"1": map[string]any{"class_type": "SaveImage"}}}
-	if err := a.Media.SaveWorkflow(wf); err != nil {
+func TestImageGenerationConfigurationIsMachineGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AINOVEL_HOME", home)
+	a := Open(filepath.Join(t.TempDir(), "novel-a"), "")
+	b := Open(filepath.Join(t.TempDir(), "novel-b"), "")
+	wf := comfyui.Workflow{ID: "shared", Name: "shared workflow", Workflow: map[string]any{"1": map[string]any{"class_type": "SaveImage"}}}
+	if err := a.ComfyUI.SaveWorkflow(wf); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Media.SaveBridgeConfig(imagejob.BridgeConfig{WorkflowID: "shared"}); err != nil {
+	if err := a.ImageConfig.SaveProfile(imagejob.Profile{ID: "shared", Name: "Shared", Provider: "comfyui", ImageCount: 1, TimeoutMS: 600000, ProviderOptions: map[string]any{"workflow_id": "shared"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Media.SavePrompterPresets(imagejob.PrompterPresetDocument{Version: 1, Presets: map[string]imagejob.PrompterPreset{
-		"shared": {ID: "shared", Label: "共享", Template: "custom template"},
-	}}); err != nil {
+	settings := imagejob.DefaultSettings()
+	settings.Novel = imagejob.SceneConfig{Enabled: true, AutoGenerate: true, DefaultProfileID: "shared"}
+	if err := a.ImageConfig.SaveSettings(settings); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := b.Media.LoadWorkflow("shared"); err != nil || got.Name != wf.Name {
-		t.Fatalf("workflow was not shared: %#v, %v", got, err)
+	if got, err := b.ComfyUI.LoadWorkflow("shared"); err != nil || got.Name != wf.Name {
+		t.Fatalf("workflow=%#v err=%v", got, err)
 	}
-	if got, err := b.Media.LoadBridgeConfig(); err != nil || got.WorkflowID != "shared" {
-		t.Fatalf("bridge config was not shared: %#v, %v", got, err)
+	if got, err := b.ImageConfig.LoadProfile("shared"); err != nil || got.Provider != "comfyui" {
+		t.Fatalf("profile=%#v err=%v", got, err)
 	}
-	if got, err := b.Media.LoadPrompterPresets(); err != nil || got.Presets["shared"].Template != "custom template" {
-		t.Fatalf("prompter presets were not shared: %#v, %v", got, err)
+	if got, err := b.ImageConfig.LoadSettings(); err != nil || got.Novel.DefaultProfileID != "shared" {
+		t.Fatalf("settings=%#v err=%v", got, err)
 	}
-	if _, err := os.Stat(filepath.Join(project, ".ainovel", "comfyui", "workflows", "shared.json")); err != nil {
-		t.Fatalf("shared workflow was not written to project directory: %v", err)
+	if _, err := os.Stat(filepath.Join(home, "image-generation", "providers", "comfyui", "workflows", "shared.json")); err != nil {
+		t.Fatalf("global workflow path: %v", err)
 	}
 }
 

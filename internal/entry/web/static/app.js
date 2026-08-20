@@ -199,7 +199,7 @@ function connectEvents() {
     try {
       const payload = JSON.parse(event.data);
       appendEvent(payload);
-      if ((payload.type || payload.Type || payload.Category || '').toString().startsWith('comfyui.job')) {
+      if ((payload.type || payload.Type || payload.Category || '').toString().startsWith('image.job')) {
         window.ComfyUI?.onJobEvent(payload.data || payload.Payload || payload);
       }
     } catch (_) { /* Ignore malformed events and keep the stream alive. */ }
@@ -310,7 +310,7 @@ function showView(name) {
   if (name === 'api-settings') window.ModelSettings?.load();
   if (name === 'app-settings') window.Settings?.load();
   if (name === 'prompts') window.Prompts?.load();
-  if (name === 'comfyui') window.ComfyUI?.load();
+  if (name === 'image-generation') window.ImageGeneration?.load();
 }
 document.querySelectorAll('.tab').forEach((tab) => { tab.onclick = () => showView(tab.dataset.view); });
 

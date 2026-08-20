@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
 )
 
 const DefaultPrompterTemplate = `你是小说插图提示词生成器。根据当前 writing unit 的计划与正文，为 ComfyUI 工作流填写图片参数。
@@ -58,7 +56,7 @@ func UserPrompt(request PromptRequest) (string, error) {
 	return "请根据以下 writing unit 填写图片字段。只返回 JSON object：\n" + strings.TrimSpace(string(data)), nil
 }
 
-func FieldJSONObject(fields []comfyui.CanvasField) map[string]any {
+func FieldJSONObject(fields []PromptField) map[string]any {
 	out := make(map[string]any, len(fields))
 	for _, field := range fields {
 		switch normalizedValueType(field.ValueType) {
@@ -73,7 +71,7 @@ func FieldJSONObject(fields []comfyui.CanvasField) map[string]any {
 	return out
 }
 
-func ComposeSystemPrompt(template string, fields []comfyui.CanvasField) string {
+func ComposeSystemPrompt(template string, fields []PromptField) string {
 	if strings.TrimSpace(template) == "" {
 		template = DefaultPrompterTemplate
 	}

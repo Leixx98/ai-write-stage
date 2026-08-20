@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/voocel/ainovel-cli/internal/comfyui"
 	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/voocel/ainovel-cli/internal/imagejob/comfyadapter"
 )
 
 func comfyBaseURL(raw string) string {
@@ -34,73 +34,16 @@ func comfyError(w http.ResponseWriter, status, code int, msg string, cfg comfyui
 	envelope(w, status, code, comfyErrorData(cfg, phase, retryable), msg)
 }
 
-func (c *v2Controller) bridgeConfig(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		config, err := c.media.LoadBridgeConfig()
-		if err != nil {
-			envelopeErr(w, 500, codeConfigInvalid, fmt.Errorf("图片生成桥接配置无法读取"))
-			return
-		}
-		envelope(w, 200, 0, config, "")
-	case http.MethodPut:
-		var config imagejob.BridgeConfig
-		if err := decodeBody(r, &config); err != nil {
-			envelopeErr(w, 400, codeInvalidRequest, err)
-			return
-		}
-		config = imagejob.NormalizeBridgeConfig(config)
-		if err := imagejob.ValidateBridgeConfig(config); err != nil {
-			envelopeErr(w, 422, codePromptSchema, err)
-			return
-		}
-		if !config.Enabled {
-			if err := c.media.SaveBridgeConfig(config); err != nil {
-				envelopeErr(w, 500, codeConfigInvalid, err)
-				return
-			}
-			envelope(w, 200, 0, config, "")
-			return
-		}
-		workflow, err := c.media.LoadWorkflow(config.WorkflowID)
-		if err != nil {
-			envelopeErr(w, 422, codePromptSchema, fmt.Errorf("workflow_id must reference a saved workflow"))
-			return
-		}
-		canvas, err := c.media.LoadOrCreateWorkflowCanvas(workflow.ID)
-		if err != nil {
-			envelopeErr(w, 422, codePromptSchema, err)
-			return
-		}
-		schema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
-		if err != nil {
-			envelope(w, 422, codePromptSchema, map[string]any{"valid": false}, err.Error())
-			return
-		}
-		if len(schema.Fields) == 0 {
-			envelope(w, 422, codePromptSchema, map[string]any{"valid": false}, "请先在画布中勾选要发给提示词模型的字段")
-			return
-		}
-		if err := c.media.SaveBridgeConfig(config); err != nil {
-			envelopeErr(w, 500, codeConfigInvalid, fmt.Errorf("图片生成桥接配置无法保存"))
-			return
-		}
-		envelope(w, 200, 0, config, "")
-	default:
-		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
-	}
-}
-
 func (c *v2Controller) loadPromptSchema(workflowID string) (imagejob.PromptSchema, error) {
-	workflow, err := c.media.LoadWorkflow(workflowID)
+	workflow, err := c.comfy.LoadWorkflow(workflowID)
 	if err != nil {
 		return imagejob.PromptSchema{}, err
 	}
-	canvas, err := c.media.LoadOrCreateWorkflowCanvas(workflow.ID)
+	canvas, err := c.comfy.LoadOrCreateWorkflowCanvas(workflow.ID)
 	if err != nil {
 		return imagejob.PromptSchema{}, err
 	}
-	schema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
+	schema, err := comfyadapter.BuildPromptSchema(workflow.ID, canvas)
 	if err != nil {
 		return imagejob.PromptSchema{}, err
 	}
@@ -116,7 +59,7 @@ func (c *v2Controller) loadPromptSchema(workflowID string) (imagejob.PromptSchem
 }
 
 func (c *v2Controller) mergedPrompterPresets() ([]imagejob.PrompterPreset, error) {
-	doc, err := c.media.LoadPrompterPresets()
+	doc, err := c.imageConfig.LoadPrompterPresets()
 	if err != nil {
 		return nil, err
 	}
@@ -199,11 +142,11 @@ func (c *v2Controller) prompterPresets(w http.ResponseWriter, r *http.Request) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, err := c.media.LoadWorkflow(req.WorkflowID); err != nil {
+	if _, err := c.comfy.LoadWorkflow(req.WorkflowID); err != nil {
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("图片工作流不存在"))
 		return
 	}
-	doc, err := c.media.LoadPrompterPresets()
+	doc, err := c.imageConfig.LoadPrompterPresets()
 	if err != nil {
 		envelopeErr(w, 500, codeConfigInvalid, err)
 		return
@@ -226,18 +169,18 @@ func (c *v2Controller) prompterPresets(w http.ResponseWriter, r *http.Request) {
 		label = req.Name
 	}
 	doc.Presets[req.Name] = imagejob.PrompterPreset{ID: req.Name, Label: label, Description: description, Template: req.Template}
-	if err := c.media.SavePrompterPresets(doc); err != nil {
+	if err := c.imageConfig.SavePrompterPresets(doc); err != nil {
 		envelopeErr(w, 500, codeConfigInvalid, err)
 		return
 	}
-	canvas, err := c.media.LoadOrCreateWorkflowCanvas(req.WorkflowID)
+	canvas, err := c.comfy.LoadOrCreateWorkflowCanvas(req.WorkflowID)
 	if err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
 	}
 	canvas.PrompterPreset = req.Name
 	canvas.PrompterTemplate = req.Template
-	if err := c.media.SaveWorkflowCanvas(req.WorkflowID, canvas); err != nil {
+	if err := c.comfy.SaveWorkflowCanvas(req.WorkflowID, canvas); err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
 	}
@@ -265,8 +208,8 @@ func (c *v2Controller) parsePrompterJSON(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	strict := true
-	if bridge, bridgeErr := c.media.LoadBridgeConfig(); bridgeErr == nil {
-		strict = bridge.Strict
+	if providerConfig, configErr := c.comfy.LoadConfig(); configErr == nil {
+		strict = providerConfig.Strict
 	}
 	if request.Strict != nil {
 		strict = *request.Strict
@@ -285,7 +228,7 @@ func (c *v2Controller) parsePrompterJSON(w http.ResponseWriter, r *http.Request)
 func (c *v2Controller) config(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		cfg, err := c.media.LoadConfig()
+		cfg, err := c.comfy.LoadConfig()
 		if err != nil {
 			comfyError(w, 500, codeConfigInvalid, "ComfyUI configuration is unreadable", comfyui.DefaultConfig(), "config_load", false)
 			return
@@ -307,7 +250,7 @@ func (c *v2Controller) config(w http.ResponseWriter, r *http.Request) {
 			comfyError(w, 400, codeConfigInvalid, "ComfyUI base URL is invalid", cfg, "config_validate", false)
 			return
 		}
-		if err := c.media.SaveConfig(cfg); err != nil {
+		if err := c.comfy.SaveConfig(cfg); err != nil {
 			comfyError(w, 500, codeConfigInvalid, "ComfyUI configuration could not be saved", cfg, "config_save", false)
 			return
 		}
@@ -327,7 +270,7 @@ func (c *v2Controller) testConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !draft {
-		cfg, err = c.media.LoadConfig()
+		cfg, err = c.comfy.LoadConfig()
 		if err != nil {
 			comfyError(w, 500, codeConfigInvalid, "ComfyUI configuration is unreadable", comfyui.DefaultConfig(), "config_load", false)
 			return
@@ -364,7 +307,7 @@ func (c *v2Controller) testConnection(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *v2Controller) instances(w http.ResponseWriter, r *http.Request) {
-	items, settings, err := c.media.LoadInstances()
+	items, settings, err := c.comfy.LoadInstances()
 	if err != nil {
 		envelopeErr(w, 500, codeConfigInvalid, err)
 		return
@@ -388,7 +331,7 @@ func (c *v2Controller) saveInstances(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	settings := comfyui.DefaultInstanceSettings()
-	if _, loaded, e := c.media.LoadInstances(); e == nil {
+	if _, loaded, e := c.comfy.LoadInstances(); e == nil {
 		settings = loaded
 	}
 	if doc.Settings != nil {
@@ -418,7 +361,7 @@ func (c *v2Controller) saveInstances(w http.ResponseWriter, r *http.Request) {
 	if doc.StickyUnit != nil {
 		settings.StickyUnit = *doc.StickyUnit
 	}
-	if err := c.media.SaveInstances(doc.Instances, settings); err != nil {
+	if err := c.comfy.SaveInstances(doc.Instances, settings); err != nil {
 		envelopeErr(w, 400, codeConfigInvalid, err)
 		return
 	}
@@ -430,7 +373,7 @@ func (c *v2Controller) testInstance(w http.ResponseWriter, r *http.Request, id s
 		envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
 		return
 	}
-	items, _, err := c.media.LoadInstances()
+	items, _, err := c.comfy.LoadInstances()
 	if err != nil {
 		envelopeErr(w, 500, codeConfigInvalid, err)
 		return
@@ -445,7 +388,7 @@ func (c *v2Controller) testInstance(w http.ResponseWriter, r *http.Request, id s
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("instance not found"))
 		return
 	}
-	cfg, _ := c.media.LoadConfig()
+	cfg, _ := c.comfy.LoadConfig()
 	ctx, cancel := context.WithTimeout(r.Context(), cfg.Timeout())
 	defer cancel()
 	h, e := inst.Test(ctx, cfg)
@@ -499,7 +442,7 @@ func (c *v2Controller) uploadMedia(w http.ResponseWriter, r *http.Request) {
 		envelopeErr(w, 413, 3007, fmt.Errorf("media exceeds size limit"))
 		return
 	}
-	ref, err := c.media.SaveMedia(data, h.Filename, h.Header.Get("Content-Type"), r.FormValue("instance_id"))
+	ref, err := c.images.SaveMedia(data, h.Filename, h.Header.Get("Content-Type"))
 	if err != nil {
 		envelopeErr(w, 500, 3007, fmt.Errorf("media could not be stored"))
 		return
@@ -507,7 +450,7 @@ func (c *v2Controller) uploadMedia(w http.ResponseWriter, r *http.Request) {
 	envelope(w, 201, 0, ref, "")
 }
 func (c *v2Controller) getMedia(w http.ResponseWriter, r *http.Request, id string) {
-	ref, path, err := c.media.LoadMedia(id)
+	ref, path, err := c.images.LoadMedia(id)
 	if err != nil {
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("media not found"))
 		return
@@ -538,7 +481,7 @@ type workflowRequest struct {
 }
 
 func (c *v2Controller) listWorkflows(w http.ResponseWriter, r *http.Request) {
-	items, err := c.media.ListWorkflows()
+	items, err := c.comfy.ListWorkflows()
 	if err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
@@ -594,11 +537,11 @@ func (c *v2Controller) importWorkflow(w http.ResponseWriter, r *http.Request) {
 		envelope(w, 400, codeWorkflowInvalid, map[string]any{"errors": es}, "canvas validation failed")
 		return
 	}
-	if err := c.media.SaveWorkflow(wflow); err != nil {
+	if err := c.comfy.SaveWorkflow(wflow); err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
 	}
-	if err := c.media.SaveWorkflowCanvas(wflow.ID, canvas); err != nil {
+	if err := c.comfy.SaveWorkflowCanvas(wflow.ID, canvas); err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
 	}
@@ -627,33 +570,25 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 	if strings.HasSuffix(id, "/run") {
-		base := strings.TrimSuffix(id, "/run")
-		var req testJobRequest
-		if r.Body != nil {
-			_ = decodeBody(r, &req)
-		}
-		req.WorkflowID = base
-		b, _ := json.Marshal(req)
-		r.Body = io.NopCloser(bytes.NewReader(b))
-		c.testJob(w, r)
+		envelopeErr(w, http.StatusGone, codeNotFound, fmt.Errorf("workflow runs must use an image profile and scene request"))
 		return
 	}
 	for _, action := range []string{"schema", "config", "export"} {
 		if strings.HasSuffix(id, "/"+action) {
 			base := strings.TrimSuffix(id, "/"+action)
 			if action == "schema" {
-				wf, e := c.media.LoadWorkflow(base)
+				wf, e := c.comfy.LoadWorkflow(base)
 				if e != nil {
 					envelopeErr(w, 404, codeNotFound, e)
 					return
 				}
-				cfg, _ := c.media.LoadWorkflowConfig(base)
+				cfg, _ := c.comfy.LoadWorkflowConfig(base)
 				envelope(w, 200, 0, map[string]any{"workflow": wf, "config": cfg, "fields": cfg.Fields}, "")
 				return
 			}
 			if action == "config" {
 				if r.Method != http.MethodPut {
-					cfg, e := c.media.LoadWorkflowConfig(base)
+					cfg, e := c.comfy.LoadWorkflowConfig(base)
 					if e != nil {
 						envelopeErr(w, 404, codeNotFound, e)
 						return
@@ -666,7 +601,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 					envelopeErr(w, 400, codeInvalidRequest, e)
 					return
 				}
-				wf, e := c.media.LoadWorkflow(base)
+				wf, e := c.comfy.LoadWorkflow(base)
 				if e != nil {
 					envelopeErr(w, 404, codeNotFound, e)
 					return
@@ -675,7 +610,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 					envelope(w, 400, codeWorkflowInvalid, map[string]any{"errors": es}, "workflow config validation failed")
 					return
 				}
-				if e := c.media.SaveWorkflowConfig(base, cfg); e != nil {
+				if e := c.comfy.SaveWorkflowConfig(base, cfg); e != nil {
 					envelopeErr(w, 500, codeWorkflowInvalid, e)
 					return
 				}
@@ -687,7 +622,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 				if format == "" {
 					format = "api"
 				}
-				wf, e := c.media.LoadWorkflow(base)
+				wf, e := c.comfy.LoadWorkflow(base)
 				if e != nil {
 					envelopeErr(w, 404, codeNotFound, e)
 					return
@@ -695,7 +630,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 				var content any
 				filename := base + ".api.json"
 				if format == "config" {
-					content, _ = c.media.LoadWorkflowConfig(base)
+					content, _ = c.comfy.LoadWorkflowConfig(base)
 					filename = base + ".config.json"
 				} else if format == "api" {
 					content = wf.Workflow
@@ -716,7 +651,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 	id = strings.TrimSuffix(id, "/validate")
 	validate := strings.HasSuffix(r.URL.Path, "/validate")
 	if validate {
-		wf, err := c.media.LoadWorkflow(id)
+		wf, err := c.comfy.LoadWorkflow(id)
 		if err != nil {
 			envelopeErr(w, 404, codeNotFound, err)
 			return
@@ -726,7 +661,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 		envelope(w, 200, 0, map[string]any{"valid": len(errs) == 0, "errors": errs}, "")
 		return
 	}
-	wf, err := c.media.LoadWorkflow(id)
+	wf, err := c.comfy.LoadWorkflow(id)
 	if err != nil {
 		if os.IsNotExist(err) {
 			envelopeErr(w, 404, codeNotFound, err)
@@ -738,7 +673,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 	comfyui.NormalizeWorkflowConfig(&wf)
 	switch r.Method {
 	case http.MethodGet:
-		canvas, _ := c.media.LoadOrCreateWorkflowCanvas(id)
+		canvas, _ := c.comfy.LoadOrCreateWorkflowCanvas(id)
 		envelope(w, 200, 0, map[string]any{"workflow": wf, "config": wf.Config, "canvas": canvas}, "")
 	case http.MethodPut:
 		var req workflowRequest
@@ -767,7 +702,7 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 			envelope(w, 400, codeWorkflowInvalid, map[string]any{"errors": errs}, "workflow validation failed")
 			return
 		}
-		canvas, _ := c.media.LoadOrCreateWorkflowCanvas(id)
+		canvas, _ := c.comfy.LoadOrCreateWorkflowCanvas(id)
 		if req.Canvas != nil {
 			canvas = req.Canvas.Normalize()
 			canvas.WorkflowID = id
@@ -776,17 +711,17 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 			envelope(w, 400, codeWorkflowInvalid, map[string]any{"errors": es}, "canvas validation failed")
 			return
 		}
-		if err := c.media.SaveWorkflow(nw); err != nil {
+		if err := c.comfy.SaveWorkflow(nw); err != nil {
 			envelopeErr(w, 500, codeWorkflowInvalid, err)
 			return
 		}
-		if err := c.media.SaveWorkflowCanvas(id, canvas); err != nil {
+		if err := c.comfy.SaveWorkflowCanvas(id, canvas); err != nil {
 			envelopeErr(w, 500, codeWorkflowInvalid, err)
 			return
 		}
 		envelope(w, 200, 0, map[string]any{"workflow": nw, "config": nw.Config, "canvas": canvas}, "")
 	case http.MethodDelete:
-		if err := c.media.DeleteWorkflow(id); err != nil {
+		if err := c.comfy.DeleteWorkflow(id); err != nil {
 			envelopeErr(w, 500, codeWorkflowInvalid, err)
 			return
 		}
@@ -797,12 +732,12 @@ func (c *v2Controller) workflow(w http.ResponseWriter, r *http.Request, id strin
 }
 
 func (c *v2Controller) workflowCanvas(w http.ResponseWriter, r *http.Request, id string) {
-	wf, err := c.media.LoadWorkflow(id)
+	wf, err := c.comfy.LoadWorkflow(id)
 	if err != nil {
 		envelopeErr(w, 404, codeNotFound, err)
 		return
 	}
-	canvas, err := c.media.LoadOrCreateWorkflowCanvas(id)
+	canvas, err := c.comfy.LoadOrCreateWorkflowCanvas(id)
 	if err != nil {
 		envelopeErr(w, 500, codeWorkflowInvalid, err)
 		return
@@ -827,7 +762,7 @@ func (c *v2Controller) workflowCanvas(w http.ResponseWriter, r *http.Request, id
 			envelope(w, 400, codeWorkflowInvalid, map[string]any{"errors": es}, "canvas validation failed")
 			return
 		}
-		if err := c.media.SaveWorkflowCanvas(id, next); err != nil {
+		if err := c.comfy.SaveWorkflowCanvas(id, next); err != nil {
 			envelopeErr(w, 500, codeWorkflowInvalid, err)
 			return
 		}

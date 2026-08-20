@@ -20,8 +20,11 @@ type ImageInfo struct {
 }
 
 type BufferInfo struct {
-	TextAhead     int `json:"text_ahead"`
-	ImagesPending int `json:"images_pending"`
+	TextAhead         int    `json:"text_ahead"`
+	ImageGenerating   bool   `json:"image_generating"`
+	ImageProgress     int    `json:"image_progress"`
+	ImageProgressNode string `json:"image_progress_node,omitempty"`
+	ImageError        string `json:"image_error,omitempty"`
 }
 
 type View struct {
@@ -52,7 +55,6 @@ func BuildView(meta store.PlayMeta, progress store.PlayProgress, beats []store.P
 	} else if view.Image.Ordinal > 0 && view.Image.JobID == "" {
 		view.Image.Status = ImagePending
 	}
-	view.Buffer.ImagesPending = CountUnfinishedImages(beats, progress.WriteHead, nil)
 	return view
 }
 

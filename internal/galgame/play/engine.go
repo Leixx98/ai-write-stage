@@ -280,10 +280,13 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 		CG: card.CG, CGIntent: card.CGIntent, Choices: card.Choices,
 		Text: strings.Join(card.RequiredBeats, "\n"),
 	}
+	imageDeferred := false
 	if beat.CG == store.PlayCGNew && e.startImage != nil {
 		if err := e.startImage(ctx, e.playID, &beat); err != nil {
 			beat.ImageError = err.Error()
 			e.note(fmt.Sprintf("配图启动失败 ordinal=%d err=%s", beat.Ordinal, err.Error()))
+		} else {
+			imageDeferred = beat.ImageJobID == ""
 		}
 	}
 	written, err := e.writer(ctx, WriterInput{
@@ -317,6 +320,14 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 		beat.Speaker = card.Speaker
 	}
 	beat.Text = strings.TrimSpace(written.Text)
+	// A scene switch can be enabled while Writer is producing this beat. Retry
+	// only a clean skip; an existing job or a real startup error is never repeated.
+	if imageDeferred && beat.CG == store.PlayCGNew && e.startImage != nil {
+		if err := e.startImage(ctx, e.playID, &beat); err != nil {
+			beat.ImageError = err.Error()
+			e.note(fmt.Sprintf("配图二次检查失败 ordinal=%d err=%s", beat.Ordinal, err.Error()))
+		}
+	}
 	if err := e.store.SaveBeat(e.playID, beat); err != nil {
 		return err
 	}

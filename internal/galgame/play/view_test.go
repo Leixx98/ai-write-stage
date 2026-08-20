@@ -16,9 +16,6 @@ func TestBuildViewBindsImageToCurrentNewBeat(t *testing.T) {
 	if view.Image.JobID != "job_a" || view.Image.Ordinal != 1 {
 		t.Fatalf("keep beat image = %+v", view.Image)
 	}
-	if view.Buffer.ImagesPending != 2 {
-		t.Fatalf("pending without job status = %d", view.Buffer.ImagesPending)
-	}
 	view = BuildView(store.PlayMeta{}, store.PlayProgress{PlayHead: 3, WriteHead: 3}, beats)
 	if view.Image.JobID != "" || view.Image.Ordinal != 3 || view.Image.Status != ImagePending {
 		t.Fatalf("unstarted new beat must not reuse previous image = %+v", view.Image)
@@ -40,7 +37,7 @@ func TestApplyImageJobOnlyExposesCompletedURL(t *testing.T) {
 	if view.Image.URL != "" || view.Image.Status != "running" {
 		t.Fatalf("running job must not expose url = %+v", view.Image)
 	}
-	view.ApplyImageJob(ImageCompleted, "/api/v2/comfyui/jobs/job_b/outputs/0", nil)
+	view.ApplyImageJob(ImageCompleted, "/api/v2/image-jobs/job_b/outputs/0", nil)
 	if view.Image.Status != ImageCompleted || view.Image.URL == "" {
 		t.Fatalf("completed job = %+v", view.Image)
 	}

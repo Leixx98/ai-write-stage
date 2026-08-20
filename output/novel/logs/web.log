@@ -3,3 +3,13 @@ time=2026-08-17T22:43:15.643+08:00 level=INFO msg=启动 session=20260817T224315
 time=2026-08-17T22:43:15.644+08:00 level=INFO msg=模型元数据已就绪 session=20260817T224315.638+0800-p8240 module=models count=209
 time=2026-08-17T22:43:15.646+08:00 level=INFO msg=模型就绪 session=20260817T224315.638+0800-p8240 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
 time=2026-08-17T22:43:15.647+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260817T224315.638+0800-p8240 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-20T20:06:40.228+08:00 level=INFO msg=日志会话开始 session=20260820T200640.221+0800-p51680 module=logger session_id=20260820T200640.221+0800-p51680
+time=2026-08-20T20:06:40.228+08:00 level=INFO msg=启动 session=20260820T200640.221+0800-p51680 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-20T20:06:40.229+08:00 level=INFO msg=模型元数据已就绪 session=20260820T200640.221+0800-p51680 module=models count=210
+time=2026-08-20T20:06:40.231+08:00 level=INFO msg=模型就绪 session=20260820T200640.221+0800-p51680 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-20T20:06:40.231+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260820T200640.221+0800-p51680 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-08-20T20:11:08.558+08:00 level=INFO msg=日志会话开始 session=20260820T201108.553+0800-p54236 module=logger session_id=20260820T201108.553+0800-p54236
+time=2026-08-20T20:11:08.558+08:00 level=INFO msg=启动 session=20260820T201108.553+0800-p54236 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-08-20T20:11:08.559+08:00 level=INFO msg=模型元数据已就绪 session=20260820T201108.553+0800-p54236 module=models count=210
+time=2026-08-20T20:11:08.560+08:00 level=INFO msg=模型就绪 session=20260820T201108.553+0800-p54236 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-08-20T20:11:08.561+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260820T201108.553+0800-p54236 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default

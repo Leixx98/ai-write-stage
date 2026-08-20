@@ -130,6 +130,12 @@ func (c *HTTPClient) Wait(ctx context.Context, promptID string, pollInterval tim
 	}
 }
 
+// CheckHistory performs one history lookup. Callers that also consume
+// WebSocket events can use it as the authoritative completion check.
+func (c *HTTPClient) CheckHistory(ctx context.Context, promptID string) (History, bool, error) {
+	return c.history(ctx, promptID)
+}
+
 func (c *HTTPClient) history(ctx context.Context, promptID string) (History, bool, error) {
 	data, _, err := c.request(ctx, http.MethodGet, "/history/"+url.PathEscape(promptID), nil)
 	h := History{PromptID: promptID}

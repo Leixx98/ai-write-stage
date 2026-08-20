@@ -29,15 +29,15 @@ func (c *v2Controller) watchCompletedUnits() {
 		case <-c.rt.Closed():
 			return
 		case <-ticker.C:
-			bridge, err := c.media.LoadBridgeConfig()
-			if err != nil || !bridge.Enabled || !bridge.AutoGenerate {
+			settings, err := c.imageConfig.LoadSettings()
+			if err != nil || !settings.Novel.Enabled || !settings.Novel.AutoGenerate {
 				continue
 			}
 			outline, err := c.st.Outline.LoadOutline()
 			if err != nil {
 				continue
 			}
-			jobs, err := c.media.ListJobs()
+			jobs, err := c.images.ListJobs()
 			if err != nil {
 				continue
 			}
@@ -72,7 +72,7 @@ func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string)
 			envelopeErr(w, 400, codeInvalidRequest, fmt.Errorf("invalid chapter"))
 			return
 		}
-		jobs, _ := c.media.ListJobs()
+		jobs, _ := c.images.ListJobs()
 		var filtered []store.ImageJob
 		for _, j := range jobs {
 			if imagesvc.IsUnitJob(j) && j.Chapter == ch {
@@ -98,7 +98,7 @@ func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string)
 		return
 	}
 	if strings.HasSuffix(rest, "/image-job") {
-		jobs, _ := c.media.ListJobs()
+		jobs, _ := c.images.ListJobs()
 		for i := len(jobs) - 1; i >= 0; i-- {
 			j := jobs[i]
 			if imagesvc.IsUnitJob(j) && j.Chapter == ch && j.Ordinal == ord {
@@ -110,7 +110,7 @@ func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string)
 		return
 	}
 	if strings.HasSuffix(rest, "/image/retry") {
-		jobs, _ := c.media.ListJobs()
+		jobs, _ := c.images.ListJobs()
 		for _, j := range jobs {
 			if imagesvc.IsUnitJob(j) && j.Chapter == ch && j.Ordinal == ord {
 				c.job(w, r, j.JobID+"/retry")
@@ -134,8 +134,8 @@ func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string)
 }
 
 type unitImageGenerateRequest struct {
-	WorkflowID string `json:"workflow_id"`
-	Force      bool   `json:"force"`
+	ProfileID string `json:"profile_id"`
+	Force     bool   `json:"force"`
 }
 
 func (c *v2Controller) generateUnitImage(w http.ResponseWriter, r *http.Request, chapter, ordinal int) {
@@ -150,7 +150,7 @@ func (c *v2Controller) generateUnitImage(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	}
-	job, err := c.startUnitImage(chapter, ordinal, request.WorkflowID, request.Force)
+	job, err := c.startUnitImage(chapter, ordinal, request.ProfileID, request.Force)
 	if err != nil {
 		var conflict imagesvc.ConflictError
 		if errors.As(err, &conflict) {
@@ -183,80 +183,49 @@ func (c *v2Controller) generateUnitImage(w http.ResponseWriter, r *http.Request,
 	envelope(w, http.StatusAccepted, 0, job, "")
 }
 
-func (c *v2Controller) startUnitImage(chapter, ordinal int, workflowID string, force bool) (store.ImageJob, error) {
-	bridge, err := c.media.LoadBridgeConfig()
-	if err != nil {
-		return store.ImageJob{}, fmt.Errorf("图片生成桥接配置无法读取")
-	}
-	if !bridge.Enabled {
-		return store.ImageJob{}, fmt.Errorf("图片生成桥接尚未启用")
-	}
-	workflowID = strings.TrimSpace(workflowID)
-	if workflowID == "" {
-		workflowID = bridge.WorkflowID
-	}
-	workflow, err := c.media.LoadWorkflow(workflowID)
-	if err != nil {
-		return store.ImageJob{}, fmt.Errorf("图片工作流不存在")
-	}
-	canvas, err := c.media.LoadOrCreateWorkflowCanvas(workflow.ID)
+func (c *v2Controller) startUnitImage(chapter, ordinal int, profileID string, force bool) (store.ImageJob, error) {
+	request, err := c.unitSceneImageRequest(chapter, ordinal)
 	if err != nil {
 		return store.ImageJob{}, err
 	}
-	promptSchema, err := imagejob.BuildPromptSchema(workflow.ID, canvas)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	if len(promptSchema.Fields) == 0 {
-		return store.ImageJob{}, fmt.Errorf("请先在画布中勾选要发给提示词模型的字段")
-	}
-	promptRequest, err := c.unitPromptRequest(chapter, ordinal, bridge, promptSchema)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	promptRequest.SystemPrompt = promptSchema.Composed
-	return c.svc.StartUnit(chapter, ordinal, force, imagesvc.PromptRun{
-		Request: promptRequest, Workflow: workflow, Canvas: canvas, Bridge: bridge, Schema: promptSchema,
-	})
+	request.ProfileID = strings.TrimSpace(profileID)
+	request.Force = force
+	request.Manual = true
+	job, _, err := c.svc.Start(request)
+	return job, err
 }
 
-func (c *v2Controller) unitPromptRequest(chapter, ordinal int, bridge imagejob.BridgeConfig, promptSchema imagejob.PromptSchema) (imagejob.PromptRequest, error) {
+func (c *v2Controller) unitSceneImageRequest(chapter, ordinal int) (imagejob.SceneImageRequest, error) {
 	unitText, err := c.st.Drafts.LoadWritingUnit(chapter, ordinal)
 	if err != nil {
-		return imagejob.PromptRequest{}, err
+		return imagejob.SceneImageRequest{}, err
 	}
 	if strings.TrimSpace(unitText) == "" {
-		return imagejob.PromptRequest{}, fmt.Errorf("writing unit %d/%d 不存在或为空", chapter, ordinal)
+		return imagejob.SceneImageRequest{}, fmt.Errorf("writing unit %d/%d is empty", chapter, ordinal)
 	}
 	plan, err := c.st.Drafts.LoadChapterPlan(chapter)
 	if err != nil || plan == nil {
-		return imagejob.PromptRequest{}, fmt.Errorf("第 %d 章计划不存在", chapter)
+		return imagejob.SceneImageRequest{}, fmt.Errorf("chapter %d plan does not exist", chapter)
 	}
 	assignments := plan.WritingUnits()
 	if ordinal <= 0 || ordinal > len(assignments) {
-		return imagejob.PromptRequest{}, fmt.Errorf("writing unit ordinal is outside the chapter plan")
+		return imagejob.SceneImageRequest{}, fmt.Errorf("writing unit ordinal is outside the chapter plan")
 	}
 	assignment := assignments[ordinal-1]
 	planJSON, err := json.Marshal(assignment)
 	if err != nil {
-		return imagejob.PromptRequest{}, err
+		return imagejob.SceneImageRequest{}, err
 	}
-	var previousTail string
-	if ordinal > 1 && bridge.PreviousTailChars > 0 {
-		previous, readErr := c.st.Drafts.LoadWritingUnit(chapter, ordinal-1)
-		if readErr != nil {
-			return imagejob.PromptRequest{}, readErr
+	previousTail := ""
+	if ordinal > 1 {
+		if previous, readErr := c.st.Drafts.LoadWritingUnit(chapter, ordinal-1); readErr == nil {
+			previousTail = tailText(previous, 2000)
 		}
-		previousTail = tailText(previous, bridge.PreviousTailChars)
 	}
-	schemaJSON, err := json.Marshal(promptSchema.Schema)
-	if err != nil {
-		return imagejob.PromptRequest{}, err
-	}
-	return imagejob.PromptRequest{
-		UnitID: assignment.Unit.ID, Chapter: chapter, Ordinal: ordinal, ChapterTitle: plan.Title,
-		UnitPlan: string(planJSON), UnitText: unitText, PreviousTail: previousTail,
-		Schema: schemaJSON, SchemaHash: promptSchema.SchemaHash,
+	return imagejob.SceneImageRequest{
+		Scene: imagejob.SceneNovel, SceneID: fmt.Sprintf("chapter-%d-unit-%d", chapter, ordinal),
+		UnitID: assignment.Unit.ID, Chapter: chapter, Ordinal: ordinal, Title: plan.Title,
+		Text: unitText, PreviousText: previousTail, VisualIntent: string(planJSON),
 	}, nil
 }
 

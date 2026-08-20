@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/voocel/ainovel-cli/internal/comfyui"
 )
 
-func ClassifyOutputs(outputs map[string]any, jobID string) []comfyui.MediaOutput {
-	var out []comfyui.MediaOutput
+func ClassifyOutputs(outputs map[string]any, jobID string) []MediaOutput {
+	var out []MediaOutput
 	index := 0
 	for node, v := range outputs {
 		m, ok := v.(map[string]any)
@@ -40,34 +38,12 @@ func ClassifyOutputs(outputs map[string]any, jobID string) []comfyui.MediaOutput
 				if kind == "" {
 					continue
 				}
-				out = append(out, comfyui.MediaOutput{Kind: kind, NodeID: node, OutputKey: key, ClassType: classType, MIME: mime, Previewable: kind == "image", URL: fmt.Sprintf("/api/v2/comfyui/jobs/%s/outputs/%d", jobID, index)})
+				out = append(out, MediaOutput{Kind: kind, NodeID: node, OutputKey: key, ClassType: classType, MIME: mime, Previewable: kind == "image", URL: fmt.Sprintf("/api/v2/image-jobs/%s/outputs/%d", jobID, index)})
 				index++
 			}
 		}
 	}
 	return out
-}
-
-func FirstOutput(outputs map[string]any, spec comfyui.OutputSpec) (comfyui.OutputRef, bool) {
-	if v, ok := outputs[spec.NodeID]; ok {
-		if m, ok := v.(map[string]any); ok {
-			if arr, ok := m[spec.Path].([]any); ok && len(arr) > spec.Index {
-				if x, ok := arr[spec.Index].(map[string]any); ok {
-					return comfyui.OutputRef{Filename: fmt.Sprint(x["filename"]), Subfolder: fmt.Sprint(x["subfolder"]), Type: fmt.Sprint(x["type"])}, true
-				}
-			}
-		}
-	}
-	for _, v := range outputs {
-		if m, ok := v.(map[string]any); ok {
-			if arr, ok := m["images"].([]any); ok && len(arr) > 0 {
-				if x, ok := arr[0].(map[string]any); ok {
-					return comfyui.OutputRef{Filename: fmt.Sprint(x["filename"]), Subfolder: fmt.Sprint(x["subfolder"]), Type: fmt.Sprint(x["type"])}, true
-				}
-			}
-		}
-	}
-	return comfyui.OutputRef{}, false
 }
 
 func MIMEFromName(name string) string {

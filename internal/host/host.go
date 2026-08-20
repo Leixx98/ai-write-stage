@@ -278,7 +278,8 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 	// 见 engine-arbiter.md §4.2)。
 	h.engine = &engine{
 		store:           store,
-		media:           roots.Media,
+		images:          roots.Images,
+		imageConfig:     roots.ImageConfig,
 		workers:         workers,
 		arbiterModel:    newUsageTrackedModel(models.Default, "arbiter", usage.Record),
 		failurePrompt:   bundle.Prompts.ArbiterFailure,
