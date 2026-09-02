@@ -59,7 +59,7 @@ type ProviderConfig struct {
 	API     string        `json:"api,omitempty"`      // OpenAI 协议 endpoint：chat（默认）/ responses
 	APIKey  string        `json:"api_key,omitempty"`  // API Key
 	BaseURL string        `json:"base_url,omitempty"` // API Base URL
-	Models  []ModelConfig `json:"models,omitempty"`   // 可选模型列表，供 TUI 切换时展示
+	Models  []ModelConfig `json:"models,omitempty"`   // Optional models exposed to configuration clients.
 	// ExtraBody 透传给该 provider 每次请求的额外参数（如 temperature/top_p/min_p/
 	// presence_penalty，或厂商特有键如 nvidia 开 think 的 chat_template_kwargs）。
 	// OpenAI 兼容端逐字并入请求体（即 extra_body 约定）；值由用户自负其责。

@@ -396,7 +396,7 @@ func newTestEngine(t *testing.T, st *storepkg.Store, workers *subagent.Runner, a
 		mu.Lock()
 		*events = append(*events, ev)
 		mu.Unlock()
-	}, func(string) {}, func() {})
+	}, func(StreamEvent) {})
 	e := &engine{
 		store:   st,
 		workers: workers,

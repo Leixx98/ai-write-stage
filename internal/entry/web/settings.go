@@ -135,8 +135,6 @@ type workflowSettingsDocument struct {
 	ActiveWritingRulesPreset string                       `json:"active_writing_rules_preset"`
 	WritingRulePresets       map[string]writingRulePreset `json:"writing_rule_presets"`
 	WritingRules             string                       `json:"writing_rules"`
-	ImportSource             string                       `json:"import_source"`
-	ImitateReference         string                       `json:"imitate_reference"`
 	ReplanFrom               int                          `json:"replan_from"`
 }
 
@@ -363,12 +361,6 @@ func (c *v2Controller) workflowSettings(w http.ResponseWriter, r *http.Request) 
 	if err := decodeBody(r, &req); err != nil {
 		envelopeErr(w, 400, codeInvalidRequest, err)
 		return
-	}
-	if value, ok := req["import_source"]; ok {
-		doc.ImportSource = fmt.Sprint(value)
-	}
-	if value, ok := req["imitate_reference"]; ok {
-		doc.ImitateReference = fmt.Sprint(value)
 	}
 	if value, ok := req["replan_from"].(float64); ok {
 		doc.ReplanFrom = int(value)

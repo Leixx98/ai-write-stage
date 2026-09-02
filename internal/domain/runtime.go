@@ -62,10 +62,8 @@ type Progress struct {
 	// 不增减结构，故排空后应按"结构完整即重新完结"放行（避免终卷末伏笔被返工扰动后卡在
 	// writing → 越界续写死循环）；正向写作不置此标记，完结判定保持线索收束的保守语义。
 	ReopenedFromComplete bool `json:"reopened_from_complete,omitempty"`
-	// ReopenCount 记录本书从完结态被重开的累计次数（/reopen 审计事实）。它同时保证
-	// 重开后的再完结与上次完结的 progress.json 内容不同：checkpoint 对同 digest 幂等
-	// 去重，字节相同的再完结不会产生新 checkpoint，StopGuard 会把成功的 complete_book
-	// 误判为空转并升级终止。
+	// ReopenCount records explicit user reopen actions and changes progress.json
+	// so completing a reopened book is not deduplicated against its prior checkpoint.
 	ReopenCount int `json:"reopen_count,omitempty"`
 }
 

@@ -110,12 +110,8 @@ func (e *JSONFieldExtractor) Reset() {
 	e.escape = false
 }
 
-// ThinkingSep 是思考文本与正文之间的分隔标记。
-// StreamFilter 在思考文本段前插入此标记，TUI 据此切换渲染样式。
-const ThinkingSep = "\x02"
-
 // StreamFilter 区分 SubAgent 的文本回复和 JSON 工具调用。
-// 文本回复标记为思考内容（前缀 ThinkingSep）；JSON 工具调用只提取指定字段。
+// 文本回复直接透传；JSON 工具调用只提取指定字段。
 //
 // 判断依据：遇到 { 进入 JSON 模式（追踪大括号深度），
 // 深度归零后回到文本模式。
@@ -158,7 +154,6 @@ func (f *StreamFilter) Feed(delta string) string {
 			} else {
 				if !f.thinking {
 					f.thinking = true
-					f.buf.WriteString(ThinkingSep)
 				}
 				f.buf.WriteRune(r)
 			}

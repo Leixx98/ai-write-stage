@@ -226,11 +226,16 @@ func tailEvents(evs []SkelEvent, n int) []SkelEvent {
 // captureLog 读日志尾部，只聚合结构信号（kind/error/warn/stop_guard），
 // 不把原始日志行入包——Detail 可能夹带正文。
 func captureLog(dir string, rc *RuntimeCapture) {
-	path := filepath.Join(dir, "logs", "tui.log")
-	tail, ok := readTail(path)
-	if !ok {
-		path = filepath.Join(dir, "logs", "headless.log")
+	var path string
+	var tail []byte
+	var ok bool
+	// tui.log remains readable for diagnostic compatibility with legacy workspaces.
+	for _, name := range []string{"runtime.log", "tui.log", "headless.log", "web.log"} {
+		path = filepath.Join(dir, "logs", name)
 		tail, ok = readTail(path)
+		if ok {
+			break
+		}
 	}
 	if !ok {
 		return

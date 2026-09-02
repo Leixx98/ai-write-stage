@@ -641,7 +641,6 @@
     } catch (error) {
       playState.choosing = false;
       notify(error.message, 'toast', 'error');
-      notify(error.message, 'galgame-settings-msg', 'error');
       renderPlayBeat();
     } finally {
       playState.choosing = false;

@@ -27,8 +27,8 @@ func TestInterventionStopsWhenPersistenceFails(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "持久化失败") {
 		t.Fatalf("expected persistence error, got %v", err)
 	}
-	// 公共 Steer 必须等待异步任务并把同一业务错误返回给 TUI；不能只表示 goroutine
-	// 启动成功，否则界面永远收不到真实失败。
+	// Steer must wait for asynchronous work and return the same business error to its caller.
+	// Reporting only goroutine startup would hide the actual failure from clients.
 	err = h.Steer("修改主角性格")
 	if err == nil || !strings.Contains(err.Error(), "持久化失败") {
 		t.Fatalf("Steer should return persistence error, got %v", err)
@@ -40,7 +40,7 @@ func TestCloseWaitsForRegisteredAsyncWork(t *testing.T) {
 		observer: &observer{},
 		engine:   &engine{},
 		events:   make(chan Event, 1),
-		streamCh: make(chan string, 1),
+		streamCh: make(chan StreamEvent, 1),
 		done:     make(chan struct{}, 1),
 	}
 	started := make(chan struct{})

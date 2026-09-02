@@ -68,7 +68,7 @@ func TestHostCloseReleasesBookLease(t *testing.T) {
 		observer:  &observer{},
 		engine:    &engine{},
 		events:    make(chan Event, 1),
-		streamCh:  make(chan string, 1),
+		streamCh:  make(chan StreamEvent, 1),
 		done:      make(chan struct{}, 1),
 	}
 	h.Close()

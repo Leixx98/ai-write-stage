@@ -19,7 +19,7 @@
 ## 当前落位
 
 ```text
-entry (Web/TUI)
+entry (Web/headless)
   ├─ 写作生命周期     → Host.Start/Resume/Steer/Abort/Snapshot
   ├─ 导入 / 仿写      → Host 独占入口（胶水在 host/import.go、host/simulate.go）
   ├─ 导出             → host/exp.Run

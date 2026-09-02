@@ -6,12 +6,12 @@ import (
 	"github.com/voocel/ainovel-cli/internal/domain"
 )
 
-// Event 是 TUI 消费的结构化事件。
+// Event 是运行时消费者使用的结构化事件。
 //
 // 对于 TOOL / DISPATCH / DECISION 三类调用事件，同一次调用的开始与结束共用一个 ID：
-// 开始时先发 FinishedAt 为零值的事件（TUI 渲染为"进行中"样式）；
+// 开始时先发 FinishedAt 为零值的事件（消费者渲染为"进行中"样式）；
 // 结束时再发一条同 ID 的事件，填入 FinishedAt + Duration（+ Failed），
-// TUI 按 ID 定位原行原地更新，避免"开始一行、完成又一行"的冗余。
+// 消费者按 ID 定位原记录原地更新，避免"开始一行、完成又一行"的冗余。
 //
 // SYSTEM / ERROR / CONTEXT 等非调用类事件 ID 为空，每条独立追加。
 type Event struct {
@@ -22,12 +22,12 @@ type Event struct {
 	Category   string    // DISPATCH / TOOL / DECISION / SYSTEM / REVIEW / CHECK / ERROR / CONTEXT
 	Agent      string    // 产生事件的 agent
 	Summary    string
-	Detail     string        // 完整文案，写入日志不截断供排查；为空回退 Summary。UI 只读 Summary
+	Detail     string        // 完整文案，写入日志不截断供排查；为空回退 Summary。展示层只读 Summary
 	Kind       string        // 错误分类（如 stream_idle），随日志输出供过滤/告警；为空不输出
 	Level      string        // info / warn / error / success
 	Depth      int           // 0 = Engine 层, 1 = Worker 层
 	Duration   time.Duration // 完成时的执行耗时
-	RetryAt    time.Time     // 重试类事件：下次重试的截止时刻；UI 据此逐秒倒计时，到点即清（请求已在途）
+	RetryAt    time.Time     // 重试类事件：下次重试的截止时刻；展示层据此逐秒倒计时，到点即清（请求已在途）
 }
 
 // Running 返回事件是否处于进行中。
@@ -48,12 +48,12 @@ func (e Event) hasLifecycle() bool {
 	}
 }
 
-// UISnapshot 是 TUI 渲染所需的聚合状态快照。
-type UISnapshot struct {
+// RuntimeSnapshot 是运行时状态的聚合快照。
+type RuntimeSnapshot struct {
 	Provider             string
 	NovelName            string
 	ModelName            string
-	ModelContextWindow   int // 当前默认模型的上下文窗口（随 /model 切换实时解析）
+	ModelContextWindow   int // Current default model context window, resolved dynamically.
 	ThinkingLevel        string
 	Style                string
 	RuntimeState         string // idle / running / pausing / paused / completed
@@ -107,7 +107,7 @@ type UISnapshot struct {
 
 	// MissingAssistantUsage > 0 通常意味着上游 streaming 没按 OpenAI
 	// stream_options.include_usage 协议发 final usage chunk（自建 proxy 常见），
-	// 导致 UsageTracker 收不到任何累计数据。UI 据此明示用户排查 backend，
+	// 导致 UsageTracker 收不到任何累计数据。展示层据此明示用户排查 backend，
 	// 不要让用户误以为是缓存模块本身坏了。
 	MissingAssistantUsage int
 
@@ -139,6 +139,8 @@ type OutlineSnapshot struct {
 	Chapter   int
 	Title     string
 	CoreEvent string
+	Hook      string
+	Scenes    []string
 }
 
 // AgentSnapshot 是 Agent 状态的展示投影。
@@ -208,12 +210,46 @@ type CoCreateReply struct {
 	Raw         string
 }
 
-// ReplayDeltaText 从运行时队列项中提取可回放的流式文本。
-func ReplayDeltaText(item domain.RuntimeQueueItem) string {
-	if payload, ok := item.Payload.(map[string]any); ok {
-		if text, ok := payload["delta"].(string); ok {
-			return text
-		}
+type StreamEventKind string
+
+const (
+	StreamEventText     StreamEventKind = "text"
+	StreamEventThinking StreamEventKind = "thinking"
+	StreamEventTool     StreamEventKind = "tool"
+	StreamEventClear    StreamEventKind = "clear"
+)
+
+type StreamEvent struct {
+	Kind StreamEventKind `json:"kind"`
+	Text string          `json:"text,omitempty"`
+	Tool string          `json:"tool,omitempty"`
+}
+
+func ReplayStreamEvent(item domain.RuntimeQueueItem) (StreamEvent, bool) {
+	if item.Kind == domain.RuntimeQueueStreamClear {
+		return StreamEvent{Kind: StreamEventClear}, true
 	}
-	return ""
+	if item.Kind != domain.RuntimeQueueStreamDelta {
+		return StreamEvent{}, false
+	}
+	payload, ok := item.Payload.(map[string]any)
+	if !ok {
+		return StreamEvent{}, false
+	}
+	kind, _ := payload["kind"].(string)
+	text, _ := payload["text"].(string)
+	tool, _ := payload["tool"].(string)
+	if kind == "" {
+		text, _ = payload["delta"].(string)
+		kind = string(StreamEventText)
+	}
+	event := StreamEvent{Kind: StreamEventKind(kind), Text: text, Tool: tool}
+	switch event.Kind {
+	case StreamEventText, StreamEventThinking:
+		return event, event.Text != ""
+	case StreamEventTool:
+		return event, event.Tool != ""
+	default:
+		return StreamEvent{}, false
+	}
 }

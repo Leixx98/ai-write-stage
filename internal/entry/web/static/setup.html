@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ainovel 首次配置</title>
+  <link rel="stylesheet" href="/static/setup.css">
+</head>
+<body>
+  <main class="setup">
+    <header>
+      <span>AINOVEL</span>
+      <h1>首次配置</h1>
+      <p>配置模型服务后将自动进入 Web 工作台。</p>
+    </header>
+    <form id="setup-form">
+      <label>服务商<select id="preset" name="preset" required></select></label>
+      <label id="provider-row" hidden>服务商名称<input id="provider" name="provider" autocomplete="off" placeholder="my-proxy"></label>
+      <label id="type-row" hidden>API 协议<select id="type" name="type"><option value="openai">OpenAI 兼容</option><option value="anthropic">Anthropic 兼容</option><option value="gemini">Gemini 兼容</option></select></label>
+      <label>API Key<input id="api-key" name="api_key" type="password" autocomplete="off" placeholder="sk-..."><small id="key-hint"></small></label>
+      <label>Base URL<input id="base-url" name="base_url" type="url" autocomplete="url" placeholder="使用服务商默认地址"></label>
+      <label>模型名称<input id="model" name="model" autocomplete="off" required placeholder="例如 gpt-4o / claude-sonnet-4"></label>
+      <label>OpenAI API 模式<select id="api" name="api"><option value="">Chat Completions（默认）</option><option value="responses">Responses</option></select></label>
+      <div class="setup-actions"><button id="test" type="button">测试连接</button><button id="save" type="submit">保存并进入工作台</button></div>
+    </form>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/setup.js"></script>
+</body>
+</html>

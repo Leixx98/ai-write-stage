@@ -139,9 +139,8 @@ func TestAcquireExclusive(t *testing.T) {
 	}
 }
 
-// TestExclusiveBlocksCreationEntries 守护 #2：后台独占作业（导入/仿写）进行中时，
-// 不仅第二个后台作业被堵，创作写入口（Continue/Resume）与新后台作业也必须被堵，
-// 否则 Continue 会在引擎被门禁拦下前就让 Arbiter 改状态、Resume/next 期间引擎可抢跑。
+// TestExclusiveBlocksCreationEntries verifies that exclusive background work blocks
+// additional jobs and every creation entry before arbitration or engine startup can race.
 func TestExclusiveBlocksCreationEntries(t *testing.T) {
 	h := newFlagTestHost(lifecycleIdle, false)
 	h.exclusive = "导入"

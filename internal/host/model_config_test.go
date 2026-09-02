@@ -100,7 +100,7 @@ func TestConfigureModelsRejectsDeletingReferencedModel(t *testing.T) {
 	}
 }
 
-// /config 不再代切默认：删掉顶层正在用的模型必须被拒，让用户先去 /model 切走。
+// Configuration edits must reject deletion of the active model instead of switching it implicitly.
 func TestConfigureModelsRejectsDeletingCurrentModel(t *testing.T) {
 	h, _ := newModelConfigTestHost(t)
 	err := h.ConfigureModels(ModelConfigurationDraft{
@@ -123,7 +123,7 @@ func TestConfigureModelsPersistsAndHotApplies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("configure: %v", err)
 	}
-	// 顶层选择不被 /config 改动：仍是 proxy/old。
+	// The active top-level selection remains proxy/old.
 	provider, model, _ := h.models.CurrentSelection("default")
 	if provider != "proxy" || model != "old" {
 		t.Fatalf("runtime selection mutated = %s/%s", provider, model)
@@ -147,8 +147,7 @@ func TestConfigureModelsPersistsAndHotApplies(t *testing.T) {
 	}
 }
 
-// TUI 草稿保存不得丢失 json_schema 三态（prepareProviderDraftLocked 整结构体
-// 往返的回归锁）。
+// A configuration draft round trip must preserve the json_schema tri-state.
 func TestConfigureModelsPreservesJSONSchemaTriState(t *testing.T) {
 	h, _ := newModelConfigTestHost(t)
 	tr := true
@@ -318,7 +317,7 @@ func TestConfigureModelsSuggestsSwitchForNewProvider(t *testing.T) {
 		t.Fatalf("configure backup: %v", err)
 	}
 	event := <-h.events
-	if !strings.Contains(event.Summary, "使用 /model 切换") {
+	if !strings.Contains(event.Summary, "在模型设置中切换") {
 		t.Fatalf("新增非当前 Provider 后应提示切换，event=%q", event.Summary)
 	}
 }

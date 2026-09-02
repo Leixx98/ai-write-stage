@@ -169,6 +169,22 @@ func (w *Workspace) LoadIntent() (*Intent, error) {
 	return &in, nil
 }
 
+// ConsumeContinueAfterImport atomically clears and returns the pending handoff intent.
+func (w *Workspace) ConsumeContinueAfterImport() (bool, error) {
+	intent, err := w.LoadIntent()
+	if err != nil {
+		return false, err
+	}
+	if !intent.ContinueAfterImport {
+		return false, nil
+	}
+	intent.ContinueAfterImport = false
+	if err := w.writeJSON(fileIntent, intent); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // LoadSource 读取归一化源快照文本。
 func (w *Workspace) LoadSource() ([]byte, error) {
 	return os.ReadFile(w.path(fileSource))
@@ -241,7 +257,7 @@ func createWorkspace(bookDir string, m Manifest, in Intent, normalized []byte) (
 	base := filepath.Join(bookDir, "meta")
 	final := filepath.Join(base, "import")
 	if fi, err := os.Stat(final); err == nil && fi.IsDir() {
-		return nil, fmt.Errorf("导入工作区已存在：%s（无参数 /import 可从中恢复）", final)
+		return nil, fmt.Errorf("导入工作区已存在：%s（可从导入设置中恢复）", final)
 	}
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		return nil, err

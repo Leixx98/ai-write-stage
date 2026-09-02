@@ -117,8 +117,7 @@ func Test_UsageTracker_RecordAccumulates(t *testing.T) {
 	}
 }
 
-// Test_UsageTracker_ArchitectAliasNormalized 验证 architect_short/mid/long
-// 都归一到同一个 "architect" key（避免被 /model 切换的子角色拆成多行）。
+// Test_UsageTracker_ArchitectAliasNormalized verifies that architect variants share one usage key.
 func Test_UsageTracker_ArchitectAliasNormalized(t *testing.T) {
 	tk := NewUsageTracker(nil, nil)
 	tk.Record("architect_short", "", makeUsageMsg(100, 50, 0, 20))

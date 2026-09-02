@@ -163,8 +163,7 @@ func TestWriterStopGuardOnlyRequestsCurrentUnit(t *testing.T) {
 	}
 }
 
-// TestSubAgentGuard_BlockHookReceivesAgentAndReason 验证审计回调收到正确的
-// agent 名与 reason 序列——Host 靠它把拦截浮出到 TUI。
+// TestSubAgentGuard_BlockHookReceivesAgentAndReason verifies the audit callback sequence.
 func TestSubAgentGuard_BlockHookReceivesAgentAndReason(t *testing.T) {
 	s := newTestStore(t)
 	var agents, reasons []string

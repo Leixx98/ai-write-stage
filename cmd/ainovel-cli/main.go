@@ -10,7 +10,6 @@ import (
 	"github.com/voocel/ainovel-cli/assets"
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/entry/headless"
-	"github.com/voocel/ainovel-cli/internal/entry/tui"
 	"github.com/voocel/ainovel-cli/internal/entry/web"
 	"github.com/voocel/ainovel-cli/internal/eval"
 	"github.com/voocel/ainovel-cli/internal/rules"
@@ -22,9 +21,6 @@ var (
 	commit  = "unknown"
 	date    = "unknown"
 )
-
-// headlessMode 记录本次是否 headless 启动，供 die 决定错误退出时是否暂停。
-var headlessMode bool
 
 func main() {
 	// 子命令在常规 flag 解析之前拦截：eval 是离线评测 harness，参数体系独立。
@@ -47,18 +43,16 @@ func main() {
 		}
 		return
 	}
-	headlessMode = opts.Headless
-
 	// 首次引导
 	if bootstrap.NeedsSetup() {
 		if opts.Headless {
-			die("error: headless 模式不支持首次引导，请先运行一次 TUI 完成配置")
+			die("error: headless 模式无法执行首次配置；请不带 --headless 启动默认 Web 配置页")
 		}
-		setupCfg, err := bootstrap.RunSetup()
+		setupCfg, err := web.RunSetup(web.Options{Listen: opts.Listen})
 		if err != nil {
 			die("setup: %v", err)
 		}
-		// 引导完成后使用生成的配置继续
+		// Continue on the same address so the setup page can enter the workbench.
 		runWithConfig(setupCfg, opts, args)
 		return
 	}
@@ -72,37 +66,21 @@ func main() {
 	runWithConfig(cfg, opts, args)
 }
 
-// die 统一处理致命错误退出：打印到 stderr、落盘到 ~/.ainovel/last-error.log，
-// 并在交互式终端（非 headless）下暂停等待回车——双击启动时控制台会随进程退出
-// 立即关闭，不暂停的话错误一闪而过，正是 issue #37 里用户无从排查的根因。
+// die prints and persists startup failures before exiting.
 func die(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprintln(os.Stderr, msg)
 	if path := bootstrap.WriteStartupError(msg); path != "" {
 		fmt.Fprintf(os.Stderr, "（详细错误已记录到 %s）\n", path)
 	}
-	if !headlessMode && stdinIsTerminal() {
-		fmt.Fprint(os.Stderr, "\n按回车键退出...")
-		fmt.Fscanln(os.Stdin)
-	}
 	os.Exit(1)
-}
-
-// stdinIsTerminal 判断标准输入是否连接到终端（字符设备）。双击启动 / 交互式终端
-// 为 true；管道、重定向、CI 为 false。零依赖近似，足够区分要不要暂停。
-func stdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
 }
 
 func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 	rules.EnsureHomeRulesDir()
 
 	if len(args) > 0 {
-		die("error: 不再支持命令行直接传入小说需求，请启动后在 TUI 输入框中输入")
+		die("error: 不再支持命令行直接传入小说需求，请在 Web 工作台中输入")
 	}
 
 	// FillDefaults 必须先于资产加载:OutputDir 是运行时字段,默认值在此归一——
@@ -127,23 +105,16 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 		}
 		return
 	}
-	if opts.Web {
-		if err := web.Run(cfg, bundle, versionInfo(), web.Options{Listen: opts.Listen}); err != nil {
-			die("error: %v", err)
-		}
-		return
-	}
 	if opts.Prompt != "" || opts.PromptFile != "" {
 		die("error: --prompt/--prompt-file 仅能在 --headless 模式下使用")
 	}
-	if err := tui.Run(cfg, bundle, versionInfo()); err != nil {
+	if err := web.Run(cfg, bundle, versionInfo(), web.Options{Listen: opts.Listen}); err != nil {
 		die("error: %v", err)
 	}
 }
 
 type cliOptions struct {
 	Headless      bool
-	Web           bool
 	Listen        string
 	Prompt        string
 	PromptFile    string
@@ -183,7 +154,7 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 		case "--headless":
 			opts.Headless = true
 		case "--web":
-			opts.Web = true
+			// Accepted as a compatibility no-op because Web is now the default mode.
 		case "--listen":
 			if i+1 >= len(argv) {
 				return opts, nil, fmt.Errorf("--listen 缺少值")
@@ -209,17 +180,11 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 	if opts.Prompt != "" && opts.PromptFile != "" {
 		return opts, nil, fmt.Errorf("--prompt 和 --prompt-file 不能同时使用")
 	}
-	if opts.Version && (opts.Update || opts.Headless || opts.Web || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
+	if opts.Version && (opts.Update || opts.Headless || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
 		return opts, nil, fmt.Errorf("version 不能与其他启动参数混用")
 	}
-	if opts.Update && (opts.Headless || opts.Web || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
+	if opts.Update && (opts.Headless || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
 		return opts, nil, fmt.Errorf("update 不能与其他启动参数混用")
-	}
-	if opts.Headless && opts.Web {
-		return opts, nil, fmt.Errorf("--headless 与 --web 不能同时使用")
-	}
-	if opts.Web && (opts.Prompt != "" || opts.PromptFile != "") {
-		return opts, nil, fmt.Errorf("--web 不接受 --prompt/--prompt-file，请在浏览器工作台输入创作需求")
 	}
 	return opts, args, nil
 }

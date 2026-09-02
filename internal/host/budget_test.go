@@ -159,7 +159,7 @@ func TestBudgetSentinelZeroCostBlindWarning(t *testing.T) {
 }
 
 func TestBudgetSentinelBlindWarningAfterModelSwitch(t *testing.T) {
-	// 长跑中途 /model 切到无价模型：total 停在历史值非零但不再增长，同样要告警
+	// Switching to an unpriced model leaves a nonzero total unchanged and must still warn.
 	r := &budgetRecorder{}
 	s := r.sentinel(bootstrap.BudgetConfig{BookUSD: 100, WarnRatio: 0.8})
 

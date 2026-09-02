@@ -64,8 +64,7 @@ type activeCall struct {
 // 它是纯观察者,不参与任何控制决策。
 type observer struct {
 	emitEv  func(Event)
-	emitD   func(string)
-	emitC   func()
+	emitS   func(StreamEvent)
 	store   *storepkg.Store // 用于 runtime queue 持久化（ReplayQueue 消费）
 	agents  map[string]*agentState
 	agentMu sync.Mutex
@@ -75,7 +74,6 @@ type observer struct {
 	// "用户手动暂停"事件重复）。真实异常（非 cancel）仍照常上报。
 	aborting atomic.Bool
 
-	streamThinking      bool
 	lastThinkingByAgent map[string]string          // agent → 最近的累积 thinking 文本（用于提取增量 delta）
 	dispatchStarts      map[string]*activeCall     // dispatched agent → 进行中的 DISPATCH 调用
 	toolStarts          map[string]*activeCall     // agent → 进行中的 TOOL 调用
@@ -83,8 +81,6 @@ type observer struct {
 	streamArgPrefixes   map[string]string          // agent/tool → 参数流前缀，用于提前识别轻量标签
 	streamArgLabels     map[string]string          // agent/tool → 已从参数流提前识别出的展示名
 	retryEvents         map[string]string          // retry scope → event ID，用同一行原地更新 (2/7)
-	streamHasContent    bool                       // 当前 streamRound 是否已输出过内容（判断是否需要段落分隔）
-	streamLastByte      byte                       // 最近一次流式输出的末字节（用于精确补齐换行）
 }
 
 // agentExtractor 记录某个 agent 当前正在抽取的工具名与抽取器实例。
@@ -105,11 +101,10 @@ type agentState struct {
 	updated time.Time
 }
 
-func newObserver(s *storepkg.Store, emitEv func(Event), emitD func(string), emitC func()) *observer {
+func newObserver(s *storepkg.Store, emitEv func(Event), emitS func(StreamEvent)) *observer {
 	return &observer{
 		emitEv:              emitEv,
-		emitD:               emitD,
-		emitC:               emitC,
+		emitS:               emitS,
 		store:               s,
 		agents:              make(map[string]*agentState),
 		lastThinkingByAgent: make(map[string]string),
@@ -203,7 +198,7 @@ func (o *observer) retryEventID(scope string, attempt int) string {
 	return o.retryEvents[scope]
 }
 
-// emitAndLog 用于调用类事件的"开始"态：发给 TUI 但不写入 runtime queue，
+// emitAndLog 用于调用类事件的"开始"态：发给实时消费者但不写入 runtime queue，
 // 避免 replay 时"开始一行、完成又一行"重复。slog 由 host.emitEvent 统一记录。
 func (o *observer) emitAndLog(ev Event) {
 	o.emitEv(ev)

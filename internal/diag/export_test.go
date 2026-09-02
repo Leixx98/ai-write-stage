@@ -139,7 +139,7 @@ func TestProjectValue_ProseArgRedacted(t *testing.T) {
 	}
 }
 
-// TestWriteExport_WritesFile 证明纯函数路径：不依赖 TUI，写出固定相对路径。
+// TestWriteExport_WritesFile verifies the interface-independent path and fixed output location.
 func TestWriteExport_WritesFile(t *testing.T) {
 	dir := writeSession(t, filepath.Join("agents", "writer-ch07.jsonl"), []agentcore.Message{commitCall(`"7"`), errResult("boom")})
 	s := store.NewStore(dir)

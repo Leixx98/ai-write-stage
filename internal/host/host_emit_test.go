@@ -9,19 +9,19 @@ import (
 func TestEmitAfterCloseDoesNotPanic(t *testing.T) {
 	h := &Host{
 		events:   make(chan Event, 1),
-		streamCh: make(chan string, 1),
+		streamCh: make(chan StreamEvent, 1),
 		done:     make(chan struct{}, 1),
 	}
 	h.closeOutputChannels()
 
 	h.emitEvent(Event{Summary: "after close"})
-	h.emitDelta("after close")
+	h.emitStream(StreamEvent{Kind: StreamEventText, Text: "after close"})
 }
 
 func TestConcurrentEmitAndCloseDoesNotRaceChannelLifecycle(t *testing.T) {
 	h := &Host{
 		events:   make(chan Event, 1),
-		streamCh: make(chan string, 1),
+		streamCh: make(chan StreamEvent, 1),
 		done:     make(chan struct{}, 1),
 	}
 
@@ -32,7 +32,7 @@ func TestConcurrentEmitAndCloseDoesNotRaceChannelLifecycle(t *testing.T) {
 			defer emitters.Done()
 			for range 100 {
 				h.emitEvent(Event{})
-				h.emitDelta("delta")
+				h.emitStream(StreamEvent{Kind: StreamEventText, Text: "delta"})
 			}
 		}()
 	}
@@ -47,7 +47,7 @@ func TestConcurrentEmitAndCloseDoesNotRaceChannelLifecycle(t *testing.T) {
 func TestClosedIsIndependentFromEngineDone(t *testing.T) {
 	h := &Host{
 		events:   make(chan Event, 1),
-		streamCh: make(chan string, 1),
+		streamCh: make(chan StreamEvent, 1),
 		done:     make(chan struct{}, 1),
 		closed:   make(chan struct{}),
 	}

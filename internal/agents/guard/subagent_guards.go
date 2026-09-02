@@ -13,10 +13,10 @@ import (
 // subagentMaxConsecutiveBlocks 连续阻拦 N 次后升级为终止，避免弱模型死循环。
 const subagentMaxConsecutiveBlocks = 3
 
-// BlockHook 是 StopGuard 的审计回调：每次拦截/升级时同步调用。Host 用它把拦截
-// 事实浮出到 TUI 事件流与离屏通知——否则拦截只进日志，用户在界面上只看到
-// "卡顿+token 变快"，无从判断系统是在自愈还是在空转（issue #75）。
-// 回调不参与 guard 决策。reason 取值：
+// BlockHook synchronously reports every StopGuard block or escalation.
+// Host forwards the facts to runtime events and external notifications so clients
+// can distinguish recovery from repeated work. The callback never affects guard decisions.
+// Reason values:
 //   - "blocked"    已注入催促消息，模型将继续推进
 //   - "escalated"  连续空转超限，本轮 run 终止交回上层
 //   - "hard_stop"  provider 拒答（safety/content_filter），立即终止

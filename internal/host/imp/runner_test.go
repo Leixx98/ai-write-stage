@@ -159,9 +159,8 @@ func TestRunRejectsDifferentSource(t *testing.T) {
 	}
 }
 
-// TestConfirmNotesGate 守护 --yes 的容错门槛：语义容错（Notes 非空）发生过的切分结构
-// 被确定性改写过，不由未看预览的 --yes 盲放行；TUI 预览后按 y（AcceptSegmentation）放行，
-// 确认方法记 user_confirmed 溯源。
+// TestConfirmNotesGate verifies that --yes cannot accept a deterministically recovered split.
+// Explicit preview confirmation may accept it and records user_confirmed provenance.
 func TestConfirmNotesGate(t *testing.T) {
 	newRunner := func(opts Options, notes []string) *runner {
 		ws := &Workspace{dir: t.TempDir()}
@@ -337,6 +336,20 @@ func TestRunGuidanceResegments(t *testing.T) {
 	norm, _ := ws.LoadSource()
 	if art.InputDigest != segmentInputDigest(Digest(norm), guidance, segmentPromptVersion) {
 		t.Fatal("新切分 InputDigest 应绑定指导文本")
+	}
+	ch3, err := Run(context.Background(), testDeps(st, &mockModel{responses: []string{one}}), Options{ResetGuidance: true})
+	if err != nil {
+		t.Fatalf("清空指导 Run: %v", err)
+	}
+	if !drain(ch3) {
+		t.Fatal("清空指导后应重新切分并等待确认")
+	}
+	art, err = readArtifact[Segmentation](ws, fileSegmentation)
+	if err != nil {
+		t.Fatalf("读取清空指导后的切分工件：%v", err)
+	}
+	if art.InputDigest != segmentInputDigest(Digest(norm), "", segmentPromptVersion) {
+		t.Fatal("清空指导后的切分摘要不得继续绑定旧指导")
 	}
 }
 

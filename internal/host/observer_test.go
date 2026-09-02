@@ -14,8 +14,7 @@ func testObserver(events *[]Event) *observer {
 		emitEv: func(ev Event) {
 			*events = append(*events, ev)
 		},
-		emitD:               func(string) {},
-		emitC:               func() {},
+		emitS:               func(StreamEvent) {},
 		agents:              make(map[string]*agentState),
 		lastThinkingByAgent: make(map[string]string),
 		dispatchStarts:      make(map[string]*activeCall),

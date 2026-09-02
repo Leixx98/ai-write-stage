@@ -30,6 +30,19 @@ func TestWorkspaceAtomicRoundtrip(t *testing.T) {
 	}
 }
 
+func TestConsumeContinueAfterImportIsOneShot(t *testing.T) {
+	w := &Workspace{dir: t.TempDir()}
+	if err := w.writeJSON(fileIntent, Intent{Version: workspaceSchemaVersion, ContinueAfterImport: true}); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := w.ConsumeContinueAfterImport(); err != nil || !pending {
+		t.Fatalf("first consume = %v, %v", pending, err)
+	}
+	if pending, err := w.ConsumeContinueAfterImport(); err != nil || pending {
+		t.Fatalf("second consume = %v, %v", pending, err)
+	}
+}
+
 func TestArtifactRoundtripPreservesIdentity(t *testing.T) {
 	w := &Workspace{dir: t.TempDir()}
 	type payload struct {

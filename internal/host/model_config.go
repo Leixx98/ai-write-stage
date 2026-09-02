@@ -19,7 +19,7 @@ const (
 	APIKeyClear   APIKeyAction = "clear"
 )
 
-// ProviderSnapshot 是供 TUI 使用的脱敏 provider 配置。
+// ProviderSnapshot is a redacted provider configuration for external clients.
 type ProviderSnapshot struct {
 	Name           string                  `json:"name"`
 	Type           string                  `json:"type"`
@@ -46,8 +46,8 @@ func (s ModelConfigurationSnapshot) ReferencesFor(provider, model string) []stri
 	return append([]string(nil), s.References[modelReferenceKey(provider, model)]...)
 }
 
-// ModelConfigurationDraft 是 /config 提交给 Host 的单个 provider 配置草稿。
-// 只描述该 provider 的定义（协议/凭证/模型库），不含“当前用哪个”——切换归 /model。
+// ModelConfigurationDraft describes one provider definition submitted to Host.
+// It contains protocol, credentials, and models but does not select the active model.
 type ModelConfigurationDraft struct {
 	Provider     string
 	Type         string
@@ -60,7 +60,7 @@ type ModelConfigurationDraft struct {
 }
 
 // ModelRename 描述同一条模型配置的 ID 变化。它不是“删旧增新”的猜测，
-// Host 只在 TUI 明确提交该关系时迁移 default、角色和 fallback 引用。
+// Host migrates default, role, and fallback references only when a client submits this relation explicitly.
 type ModelRename struct {
 	From string
 	To   string
@@ -77,7 +77,7 @@ func modelReferenceKey(provider, model string) string {
 }
 
 // MaskAPIKey 仅保留足够识别凭证的首尾片段；短凭证全部隐藏。
-// TUI 只接收这个结果，绝不持有配置中的完整 API Key。
+// Clients receive only this value and never the complete configured API key.
 func MaskAPIKey(value string) string {
 	runes := []rune(strings.TrimSpace(value))
 	if len(runes) == 0 {
@@ -174,7 +174,7 @@ type preparedProviderDraft struct {
 	oldModels []bootstrap.ModelConfig
 }
 
-// prepareProviderDraftLocked 将 TUI 草稿规范化并合入配置副本，保存和连接测试共用同一条校验链路。
+// prepareProviderDraftLocked normalizes a client draft and merges it into a configuration copy.
 func (h *Host) prepareProviderDraftLocked(draft ModelConfigurationDraft) (preparedProviderDraft, error) {
 	draft.Provider = strings.TrimSpace(draft.Provider)
 	draft.Type = strings.ToLower(strings.TrimSpace(draft.Type))
@@ -255,8 +255,8 @@ func (h *Host) ConfigureModels(draft ModelConfigurationDraft) error {
 	for _, model := range pc.Models {
 		newNames[model.Name] = true
 	}
-	// 删除模型前先查引用：被顶层默认或任何角色/fallback 指向的模型不能删，
-	// 让用户先去 /model 切走——/config 不再代切默认。
+	// Reject deletion while the model is referenced by the default, a role, or a fallback.
+	// Configuration edits never switch the active model implicitly.
 	for _, old := range preparedDraft.oldModels {
 		if newNames[old.Name] {
 			continue
@@ -265,7 +265,7 @@ func (h *Host) ConfigureModels(draft ModelConfigurationDraft) error {
 			continue
 		}
 		if refs := h.modelReferencesLocked(draft.Provider, old.Name); len(refs) > 0 {
-			return fmt.Errorf("模型 %q 仍被 %s 引用，请先在 /model 切换后再删除", old.Name, strings.Join(refs, "、"))
+			return fmt.Errorf("模型 %q 仍被 %s 引用，请先在模型设置中切换后再删除", old.Name, strings.Join(refs, "、"))
 		}
 	}
 
@@ -292,7 +292,7 @@ func (h *Host) ConfigureModels(draft ModelConfigurationDraft) error {
 	h.applyThinkingLocked("default")
 	summary := fmt.Sprintf("Provider 配置已保存：%s → %s", draft.Provider, h.configPath)
 	if draft.Provider != h.cfg.Provider {
-		summary += "；使用 /model 切换"
+		summary += "；请在模型设置中切换"
 	}
 	h.emitEvent(Event{
 		Time: time.Now(), Category: "SYSTEM", Level: "info",

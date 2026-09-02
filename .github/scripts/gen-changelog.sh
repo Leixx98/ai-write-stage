@@ -38,7 +38,7 @@ cat > "$TMPDIR/prompt.txt" <<PROMPT_EOF
 - 移除 conventional commit 前缀，例如 feat:、fix:、perf:、refactor: 等
 - 合并相近或重复的提交，避免逐条机械复述 commit
 - 使用面向用户的表达，突出实际变化和影响
-- 重点关注用户可感知的变化，例如发布流程、二进制打包、CLI/TUI 行为、写作流程、模型支持和文档
+- 重点关注用户可感知的变化，例如发布流程、二进制打包、CLI/Web 行为、写作流程、模型支持和文档
 - 只输出 Markdown 内容，不要输出开场白、解释或总结
 
 提交记录（${RANGE}）：

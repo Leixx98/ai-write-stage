@@ -35,7 +35,7 @@ const (
 //   - agentName 映射到 role（architect_* 归一为 architect），查 ModelSet 当前该 role 绑定的模型
 //   - 用 models.DefaultRegistry 查模型价格，按非缓存输入/输出/缓存读/缓存写四项累乘
 //   - 注册表无此模型时，退回 msg.Usage.Cost.Total（provider 自带，可能为 0）
-//   - 模型热切换（/model）后续消息自动按新模型算价，旧消息保留旧成本
+//   - After a model switch, new messages use the new price while old costs remain unchanged.
 //
 // 同时维护 per-role 维度（writer/editor/architect）：
 //   - 累计命中数据 → 整体优化效果
@@ -62,7 +62,7 @@ type UsageTracker struct {
 	// 始终为 nil，所有累计字段全部停在 0。计数器让 UI 能直接告诉用户"是上游不返
 	// usage 不是这边坏了"，而不是死磕缓存面板代码。
 	missingAssistantUsage int
-	loggedMissingUsage    bool // 整个会话只 warn 一次，避免 tui.log 被刷屏
+	loggedMissingUsage    bool // 整个会话只 warn 一次，避免 runtime.log 被刷屏
 
 	// saveCh 由 Record 在累加后非阻塞触发；autoSaveLoop 监听并按 debounce 落盘。
 	// buffered=1：连续多次 Record 折叠为一次落盘信号；满了直接丢，下个 tick 一并写。
@@ -213,7 +213,7 @@ func usageActualModel(u *agentcore.Usage) (provider, modelName string) {
 }
 
 // flagMissingUsage 累计一次"看似真 LLM 响应却没拿到 usage"事件，整会话只打一次
-// warn 日志避免 tui.log 被刷屏。
+// warn 日志避免 runtime.log 被刷屏。
 func (t *UsageTracker) flagMissingUsage(agentName string) {
 	t.mu.Lock()
 	t.missingAssistantUsage++

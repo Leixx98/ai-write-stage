@@ -1,25 +1,52 @@
 package bootstrap
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	"github.com/voocel/ainovel-cli/internal/utils"
+	"github.com/voocel/agentcore"
 )
 
-// exampleConfig 是引导后写入 ~/.ainovel/config.example.jsonc 的带注释模板。
-// 嵌入文件必须与仓库根目录 config.example.jsonc 保持一致，测试会防止漂移。
-//
 //go:embed config.example.jsonc
 var exampleConfig string
 
-// NeedsSetup checks whether the shared model library must be created.
+type ProviderPreset struct {
+	Name           string `json:"name"`
+	Label          string `json:"label"`
+	BaseURL        string `json:"base_url,omitempty"`
+	NeedType       bool   `json:"need_type,omitempty"`
+	APIKeyOptional bool   `json:"api_key_optional,omitempty"`
+}
+
+type SetupRequest struct {
+	Preset   string `json:"preset"`
+	Provider string `json:"provider"`
+	Type     string `json:"type,omitempty"`
+	API      string `json:"api,omitempty"`
+	APIKey   string `json:"api_key,omitempty"`
+	BaseURL  string `json:"base_url,omitempty"`
+	Model    string `json:"model"`
+}
+
+var providerPresets = []ProviderPreset{
+	{Name: "openrouter", Label: "OpenRouter", BaseURL: "https://openrouter.ai/api/v1"},
+	{Name: "anthropic", Label: "Anthropic"},
+	{Name: "gemini", Label: "Gemini"},
+	{Name: "openai", Label: "OpenAI"},
+	{Name: "deepseek", Label: "DeepSeek"},
+	{Name: "qwen", Label: "Qwen"},
+	{Name: "glm", Label: "GLM"},
+	{Name: "grok", Label: "Grok"},
+	{Name: "ollama", Label: "Ollama", BaseURL: "http://localhost:11434/v1", APIKeyOptional: true},
+	{Name: "bedrock", Label: "Bedrock", APIKeyOptional: true},
+	{Name: "custom", Label: "Custom Proxy", NeedType: true, APIKeyOptional: true},
+}
+
 func NeedsSetup() bool {
 	path := DefaultModelLibraryPath()
 	if path == "" {
@@ -29,369 +56,114 @@ func NeedsSetup() bool {
 	return err != nil
 }
 
-type setupProvider struct {
-	name           string
-	label          string
-	baseURL        string // 预填的 base_url
-	needType       bool   // 自定义代理需要额外问 type 和 base_url
-	apiKeyOptional bool   // true 表示 API Key 允许留空
-}
-
-// ProviderPreset 是首次引导和运行时 /config 共用的 provider 目录项。
-type ProviderPreset struct {
-	Name           string
-	Label          string
-	BaseURL        string
-	NeedType       bool
-	APIKeyOptional bool
-}
-
-var setupProviders = []setupProvider{
-	{name: "openrouter", label: "OpenRouter", baseURL: "https://openrouter.ai/api/v1"},
-	{name: "anthropic", label: "Anthropic"},
-	{name: "gemini", label: "Gemini"},
-	{name: "openai", label: "OpenAI"},
-	{name: "deepseek", label: "DeepSeek"},
-	{name: "qwen", label: "Qwen"},
-	{name: "glm", label: "GLM"},
-	{name: "grok", label: "Grok"},
-	{name: "ollama", label: "Ollama", baseURL: "http://localhost:11434/v1", apiKeyOptional: true},
-	{name: "bedrock", label: "Bedrock", apiKeyOptional: true},
-	{name: "custom", label: "Custom Proxy", needType: true, apiKeyOptional: true},
-}
-
-// ProviderPresets 返回一份可安全修改的预设列表。
 func ProviderPresets() []ProviderPreset {
-	out := make([]ProviderPreset, 0, len(setupProviders))
-	for _, preset := range setupProviders {
-		out = append(out, ProviderPreset{
-			Name: preset.name, Label: preset.label, BaseURL: preset.baseURL,
-			NeedType: preset.needType, APIKeyOptional: preset.apiKeyOptional,
-		})
-	}
-	return out
+	return append([]ProviderPreset(nil), providerPresets...)
 }
 
-// RunSetup 运行首次引导，返回生成的配置。
-func RunSetup() (Config, error) {
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).
-		Render("未检测到配置文件，开始初始化设置..."))
-	fmt.Fprintf(os.Stderr, "  模型库路径：%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(DefaultModelLibraryPath()))
-	fmt.Fprintf(os.Stderr, "  完成后可随时编辑该文件调整高级设置。\n")
-	fmt.Fprintln(os.Stderr)
+func ValidateSetup(request SetupRequest) error {
+	_, err := setupConfig(request)
+	return err
+}
 
-	// Step 1: 选择 Provider
-	sp, err := runProviderSelect()
+func SaveSetup(request SetupRequest) (Config, error) {
+	cfg, err := setupConfig(request)
 	if err != nil {
 		return Config{}, err
 	}
-
-	providerName := sp.name
-	var pc ProviderConfig
-	printStepDone("Provider", sp.label)
-
-	// 自定义代理：额外问名称和 API 协议类型
-	if sp.needType {
-		providerName, err = runTextInput("Provider 名称", "my-proxy")
-		if err != nil {
-			return Config{}, err
-		}
-		providerType, err := runTypeSelect()
-		if err != nil {
-			return Config{}, err
-		}
-		pc.Type = providerType
-	}
-
-	// Step 2: 输入 API Key
-	var apiKey string
-	if sp.apiKeyOptional {
-		apiKey, err = runOptionalTextInput("[2/4] API Key（可留空）", "留空表示不使用 API Key")
-	} else {
-		apiKey, err = runTextInput("[2/4] API Key", "sk-xxx")
-	}
-	if err != nil {
-		return Config{}, err
-	}
-	pc.APIKey = apiKey
-	if apiKey == "" {
-		printStepDone("API Key", "未设置")
-	} else {
-		printStepDone("API Key", maskKey(apiKey))
-	}
-
-	// Step 3: Base URL（直接回车使用官方默认地址）
-	baseDefault := sp.baseURL
-	baseHint := "留空使用官方地址"
-	if baseDefault != "" {
-		baseHint = baseDefault
-	}
-	baseURL, err := runTextInputWithDefault("[3/4] Base URL（直接回车使用默认，代理用户填写代理地址）", baseHint, baseDefault)
-	if err != nil {
-		return Config{}, err
-	}
-	pc.BaseURL = baseURL
-	if baseURL != "" {
-		printStepDone("Base URL", baseURL)
-	} else {
-		printStepDone("Base URL", "默认")
-	}
-
-	// Step 4: 模型名（必填）
-	modelName, err := runTextInput("[4/4] 模型名称", "例如：gpt-4o / claude-sonnet-4 / gemini-2.5-pro")
-	if err != nil {
-		return Config{}, err
-	}
-	printStepDone("Model", modelName)
-	pc.Models = []ModelConfig{{Name: modelName}}
-
-	cfg := Config{
-		Provider:  providerName,
-		ModelName: modelName,
-		Providers: map[string]ProviderConfig{providerName: pc},
-		Roles:     map[string]RoleConfig{},
-		Style:     "default",
-	}
-
-	// Save the provider once in the shared library and create the current
-	// workspace's effective selection separately.
-	library := ModelLibraryFromConfig(cfg, []string{providerName})
+	library := ModelLibraryFromConfig(cfg, []string{cfg.Provider})
 	if err := SaveModelLibrary(library); err != nil {
-		return cfg, fmt.Errorf("save model library: %w", err)
+		return Config{}, fmt.Errorf("save model library: %w", err)
 	}
-	path := ProjectConfigPath()
-	if err := SaveWorkspaceConfig(path, cfg); err != nil {
-		return cfg, fmt.Errorf("save workspace config: %w", err)
+	if err := SaveWorkspaceConfig(ProjectConfigPath(), cfg); err != nil {
+		return Config{}, fmt.Errorf("save workspace config: %w", err)
 	}
-
-	// 生成注释模板
-	saveExampleConfig()
-
-	// 全局偏好目录由启动流程（runWithConfig）统一创建，这里仅取路径用于提示
-	rulesDir := rules.DefaultHomeRulesDir()
-
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "%s 当前工作区配置已保存到 %s\n",
-		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("✓"), path)
-	fmt.Fprintf(os.Stderr, "  默认模型：%s\n", modelName)
-	fmt.Fprintln(os.Stderr, "  如需按角色配置不同模型，编辑配置文件即可。")
-	if rulesDir != "" {
-		fmt.Fprintf(os.Stderr, "  全局写作偏好可放 %s 下的 .md 文件（见其中 README.txt）\n", rulesDir)
-	}
-	fmt.Fprintln(os.Stderr)
-
+	_ = saveExampleConfig()
 	return cfg, nil
 }
 
-func saveExampleConfig() {
+func TestSetupConnection(ctx context.Context, request SetupRequest) error {
+	cfg, err := setupConfig(request)
+	if err != nil {
+		return err
+	}
+	models, err := NewModelSet(cfg)
+	if err != nil {
+		return fmt.Errorf("create model client: %w", err)
+	}
+	if _, err := models.Default.Generate(ctx, []agentcore.Message{agentcore.UserMsg("Reply OK.")}, nil); err != nil {
+		return fmt.Errorf("connection test failed for %s/%s: %w", cfg.Provider, cfg.ModelName, err)
+	}
+	return nil
+}
+
+func setupConfig(request SetupRequest) (Config, error) {
+	request = normalizeSetupRequest(request)
+	preset, ok := findProviderPreset(request.Preset)
+	if !ok {
+		return Config{}, fmt.Errorf("unknown provider preset %q", request.Preset)
+	}
+	provider := preset.Name
+	if preset.NeedType {
+		provider = request.Provider
+		if provider == "" {
+			return Config{}, fmt.Errorf("provider is required for a custom proxy")
+		}
+		if request.Type == "" {
+			return Config{}, fmt.Errorf("type is required for a custom proxy")
+		}
+	} else if request.Provider != "" && request.Provider != preset.Name {
+		return Config{}, fmt.Errorf("provider must match preset %q", preset.Name)
+	}
+	if request.Model == "" {
+		return Config{}, fmt.Errorf("model is required")
+	}
+	if !preset.APIKeyOptional && request.APIKey == "" {
+		return Config{}, fmt.Errorf("api_key is required for provider %q", provider)
+	}
+	if request.BaseURL != "" {
+		parsed, err := url.ParseRequestURI(request.BaseURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return Config{}, fmt.Errorf("base_url must be an absolute HTTP URL")
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return Config{}, fmt.Errorf("base_url must use http or https")
+		}
+	}
+	pc := ProviderConfig{Type: request.Type, API: request.API, APIKey: request.APIKey, BaseURL: request.BaseURL, Models: []ModelConfig{{Name: request.Model}}}
+	cfg := Config{Provider: provider, ModelName: request.Model, Providers: map[string]ProviderConfig{provider: pc}, Roles: map[string]RoleConfig{}, Style: "default"}
+	if err := cfg.ValidateBase(); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func normalizeSetupRequest(request SetupRequest) SetupRequest {
+	request.Preset = strings.TrimSpace(request.Preset)
+	request.Provider = strings.TrimSpace(request.Provider)
+	request.Type = strings.TrimSpace(request.Type)
+	request.API = strings.TrimSpace(request.API)
+	request.APIKey = strings.TrimSpace(request.APIKey)
+	request.BaseURL = strings.TrimSpace(request.BaseURL)
+	request.Model = strings.TrimSpace(request.Model)
+	if preset, ok := findProviderPreset(request.Preset); ok && request.BaseURL == "" {
+		request.BaseURL = preset.BaseURL
+	}
+	return request
+}
+
+func findProviderPreset(name string) (ProviderPreset, bool) {
+	for _, preset := range providerPresets {
+		if preset.Name == name {
+			return preset, true
+		}
+	}
+	return ProviderPreset{}, false
+}
+
+func saveExampleConfig() error {
 	dir, err := configDir()
 	if err != nil {
-		return
+		return err
 	}
-	_ = os.WriteFile(filepath.Join(dir, "config.example.jsonc"), []byte(exampleConfig), 0o644)
-}
-
-// printStepDone 打印一步完成的确认行。
-func printStepDone(label, value string) {
-	fmt.Fprintf(os.Stderr, "  %s %s: %s\n",
-		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("✓"),
-		label,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(value))
-}
-
-func maskKey(key string) string {
-	if len(key) <= 8 {
-		return "****"
-	}
-	return key[:4] + "****" + key[len(key)-4:]
-}
-
-// ---------- TUI 组件 ----------
-
-func runProviderSelect() (setupProvider, error) {
-	m := setupSelectModel{
-		title: "[1/4] 选择 Provider",
-		items: setupProviders,
-	}
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
-	final, err := p.Run()
-	if err != nil {
-		return setupProvider{}, err
-	}
-	result := final.(setupSelectModel)
-	if result.cancelled {
-		return setupProvider{}, fmt.Errorf("setup cancelled")
-	}
-	return result.items[result.cursor], nil
-}
-
-var apiTypeOptions = []setupProvider{
-	{name: "openai", label: "OpenAI 兼容"},
-	{name: "anthropic", label: "Anthropic 兼容"},
-	{name: "gemini", label: "Gemini 兼容"},
-}
-
-func runTypeSelect() (string, error) {
-	m := setupSelectModel{
-		title: "API 协议类型",
-		items: apiTypeOptions,
-	}
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
-	final, err := p.Run()
-	if err != nil {
-		return "", err
-	}
-	result := final.(setupSelectModel)
-	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
-	}
-	return result.items[result.cursor].name, nil
-}
-
-func runTextInput(label, placeholder string) (string, error) {
-	return runTextInputWithDefault(label, placeholder, "")
-}
-
-func runOptionalTextInput(label, placeholder string) (string, error) {
-	m := setupInputModel{label: label, placeholder: placeholder, allowEmpty: true}
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
-	final, err := p.Run()
-	if err != nil {
-		return "", err
-	}
-	result := final.(setupInputModel)
-	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
-	}
-	return utils.CleanInputLine(result.value), nil
-}
-
-func runTextInputWithDefault(label, placeholder, defaultValue string) (string, error) {
-	m := setupInputModel{label: label, placeholder: placeholder, defaultValue: defaultValue}
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
-	final, err := p.Run()
-	if err != nil {
-		return "", err
-	}
-	result := final.(setupInputModel)
-	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
-	}
-	if result.value == "" && result.defaultValue != "" {
-		return result.defaultValue, nil
-	}
-	return utils.CleanInputLine(result.value), nil
-}
-
-// ---------- 选择器 ----------
-
-var (
-	setupCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	setupDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	setupHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	setupInputStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-)
-
-type setupSelectModel struct {
-	title     string
-	items     []setupProvider
-	cursor    int
-	cancelled bool
-}
-
-func (m setupSelectModel) Init() tea.Cmd { return nil }
-
-func (m setupSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.String() {
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case "down", "j":
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
-			}
-		case "enter":
-			return m, tea.Quit
-		case "q", "esc", "ctrl+c":
-			m.cancelled = true
-			return m, tea.Quit
-		}
-	}
-	return m, nil
-}
-
-func (m setupSelectModel) View() string {
-	var b strings.Builder
-	b.WriteString(setupHeaderStyle.Render(m.title))
-	b.WriteString("\n\n")
-	for i, item := range m.items {
-		cursor := "  "
-		label := item.label
-		if i == m.cursor {
-			cursor = setupCursorStyle.Render("❯ ")
-			label = setupCursorStyle.Render(label)
-		}
-		b.WriteString(cursor + label + "\n")
-	}
-	b.WriteString(setupDimStyle.Render("\n  ↑↓ 选择  Enter 确认  Esc 取消"))
-	return b.String()
-}
-
-// ---------- 文本输入 ----------
-
-type setupInputModel struct {
-	label        string
-	placeholder  string
-	defaultValue string // 直接回车时使用的默认值
-	allowEmpty   bool   // 允许直接输入空值
-	value        string
-	cancelled    bool
-}
-
-func (m setupInputModel) Init() tea.Cmd { return nil }
-
-func (m setupInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.String() {
-		case "enter":
-			if utils.CleanInputLine(m.value) != "" || m.defaultValue != "" || m.allowEmpty {
-				return m, tea.Quit
-			}
-		case "ctrl+c", "esc":
-			m.cancelled = true
-			return m, tea.Quit
-		case "backspace":
-			if len(m.value) > 0 {
-				runes := []rune(m.value)
-				m.value = string(runes[:len(runes)-1])
-			}
-		default:
-			if msg.Type == tea.KeyRunes {
-				m.value += utils.CleanInputRunes(msg.Runes)
-			} else if msg.Type == tea.KeySpace {
-				m.value += " "
-			}
-		}
-	}
-	return m, nil
-}
-
-func (m setupInputModel) View() string {
-	var b strings.Builder
-	b.WriteString(setupHeaderStyle.Render(m.label))
-	b.WriteString("\n\n")
-	b.WriteString(setupInputStyle.Render("❯ "))
-	if m.value == "" {
-		b.WriteString(setupCursorStyle.Render("▌"))
-		b.WriteString(setupDimStyle.Render(m.placeholder))
-	} else {
-		b.WriteString(m.value)
-		b.WriteString(setupCursorStyle.Render("▌"))
-	}
-	b.WriteString(setupDimStyle.Render("  (Enter 确认, Esc 取消)"))
-	b.WriteString("\n")
-	return b.String()
+	return os.WriteFile(filepath.Join(dir, "config.example.jsonc"), []byte(exampleConfig), 0o644)
 }

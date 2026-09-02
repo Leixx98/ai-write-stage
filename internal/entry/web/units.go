@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,59 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/voocel/ainovel-cli/internal/imagejob"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
-
-// watchCompletedUnits bridges completed writing units without coupling the
-// writing tools to the web controller. It is intentionally conservative:
-// existing jobs are left for the normal retry controls, and the watcher stops
-// with the host runtime.
-func (c *v2Controller) watchCompletedUnits() {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-c.rt.Closed():
-			return
-		case <-ticker.C:
-			settings, err := c.imageConfig.LoadSettings()
-			if err != nil || !settings.Novel.Enabled || !settings.Novel.AutoGenerate {
-				continue
-			}
-			outline, err := c.st.Outline.LoadOutline()
-			if err != nil {
-				continue
-			}
-			jobs, err := c.images.ListJobs()
-			if err != nil {
-				continue
-			}
-			for _, chapter := range outline {
-				progress, progressErr := c.st.Drafts.LoadWritingProgress(chapter.Chapter)
-				if progressErr != nil || progress == nil {
-					continue
-				}
-				for ordinal := 1; ordinal <= progress.CompletedUnits; ordinal++ {
-					found := false
-					for _, job := range jobs {
-						if imagesvc.IsUnitJob(job) && job.Chapter == chapter.Chapter && job.Ordinal == ordinal {
-							found = true
-							break
-						}
-					}
-					if found {
-						continue
-					}
-					_, _ = c.startUnitImage(chapter.Chapter, ordinal, "", false)
-				}
-			}
-		}
-	}
-}
 
 func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string) {
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
@@ -184,49 +134,7 @@ func (c *v2Controller) generateUnitImage(w http.ResponseWriter, r *http.Request,
 }
 
 func (c *v2Controller) startUnitImage(chapter, ordinal int, profileID string, force bool) (store.ImageJob, error) {
-	request, err := c.unitSceneImageRequest(chapter, ordinal)
-	if err != nil {
-		return store.ImageJob{}, err
-	}
-	request.ProfileID = strings.TrimSpace(profileID)
-	request.Force = force
-	request.Manual = true
-	job, _, err := c.svc.Start(request)
-	return job, err
-}
-
-func (c *v2Controller) unitSceneImageRequest(chapter, ordinal int) (imagejob.SceneImageRequest, error) {
-	unitText, err := c.st.Drafts.LoadWritingUnit(chapter, ordinal)
-	if err != nil {
-		return imagejob.SceneImageRequest{}, err
-	}
-	if strings.TrimSpace(unitText) == "" {
-		return imagejob.SceneImageRequest{}, fmt.Errorf("writing unit %d/%d is empty", chapter, ordinal)
-	}
-	plan, err := c.st.Drafts.LoadChapterPlan(chapter)
-	if err != nil || plan == nil {
-		return imagejob.SceneImageRequest{}, fmt.Errorf("chapter %d plan does not exist", chapter)
-	}
-	assignments := plan.WritingUnits()
-	if ordinal <= 0 || ordinal > len(assignments) {
-		return imagejob.SceneImageRequest{}, fmt.Errorf("writing unit ordinal is outside the chapter plan")
-	}
-	assignment := assignments[ordinal-1]
-	planJSON, err := json.Marshal(assignment)
-	if err != nil {
-		return imagejob.SceneImageRequest{}, err
-	}
-	previousTail := ""
-	if ordinal > 1 {
-		if previous, readErr := c.st.Drafts.LoadWritingUnit(chapter, ordinal-1); readErr == nil {
-			previousTail = tailText(previous, 2000)
-		}
-	}
-	return imagejob.SceneImageRequest{
-		Scene: imagejob.SceneNovel, SceneID: fmt.Sprintf("chapter-%d-unit-%d", chapter, ordinal),
-		UnitID: assignment.Unit.ID, Chapter: chapter, Ordinal: ordinal, Title: plan.Title,
-		Text: unitText, PreviousText: previousTail, VisualIntent: string(planJSON),
-	}, nil
+	return c.rt.StartUnitImage(chapter, ordinal, profileID, force)
 }
 
 func tailText(value string, maximum int) string {

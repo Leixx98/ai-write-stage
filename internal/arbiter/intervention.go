@@ -24,7 +24,7 @@ type InterventionFacts struct {
 	DynamicPlanning   bool             `json:"dynamic_planning"`
 	NextChapter       int              `json:"next_chapter,omitempty"`
 	PendingRewrites   []int            `json:"pending_rewrites,omitempty"`
-	ReopenCount       int              `json:"reopen_count,omitempty"` // 用户显式 /reopen 重开完结书的累计次数
+	ReopenCount       int              `json:"reopen_count,omitempty"` // Number of explicit user reopen actions.
 	FoundationMissing []string         `json:"foundation_missing,omitempty"`
 	PlanningTier      string           `json:"planning_tier,omitempty"`
 	AdvanceMode       string           `json:"advance_mode,omitempty"`

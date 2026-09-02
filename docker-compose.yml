@@ -6,5 +6,6 @@ services:
     volumes:
       - ./config:/root/.ainovel
       - ./workspace:/workspace
-    stdin_open: true
-    tty: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    command: ["--listen", "0.0.0.0:8080"]

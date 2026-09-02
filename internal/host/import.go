@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/voocel/agentcore"
@@ -62,12 +63,21 @@ func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Eve
 // StartImport is the Host-owned async entry used by web clients. It drains
 // the import stream and republishes progress through the normal Host events.
 func (h *Host) StartImport(opts imp.Options) error {
-	ch, err := h.ImportFrom(context.Background(), opts)
+	ctx, cancel := context.WithCancel(context.Background())
+	session := h.importSessionManager()
+	if err := session.begin(opts, cancel); err != nil {
+		cancel()
+		return err
+	}
+	ch, err := h.ImportFrom(ctx, opts)
 	if err != nil {
+		cancel()
+		session.fail(err)
 		return err
 	}
 	if !h.launchAsync(func() {
 		for ev := range ch {
+			session.appendEvent(ev)
 			summary := ev.Message
 			level := ev.Level
 			if ev.Err != nil {
@@ -79,15 +89,110 @@ func (h *Host) StartImport(opts imp.Options) error {
 			h.emitEvent(Event{Time: ev.Time, Category: "IMPORT", Summary: summary, Level: level})
 		}
 	}) {
-		return fmt.Errorf("Host is closing; cannot start import")
+		cancel()
+		err := fmt.Errorf("Host is closing; cannot start import")
+		session.fail(err)
+		return err
 	}
 	return nil
 }
 
-// ImportResumeHint 返回未完成导入的一行提示（无则空串），供 TUI 启动时主动告知（RFC §18.2）。
-// 只在启动时调用一次：内部会重算工作区各工件的 InputDigest，不适合放进快照轮询。
+// ImportStatus returns the UI-neutral import session projection.
+func (h *Host) ImportStatus() ImportSessionStatus {
+	session := h.importSessionManager()
+	status := session.snapshot()
+	if status.State != ImportSessionIdle {
+		if (status.State == ImportSessionFailed || status.State == ImportSessionCancelled) && !imp.OpenWorkspace(h.store.Dir()).Active() {
+			status.CanResume = false
+		}
+		return status
+	}
+	workspace := imp.OpenWorkspace(h.store.Dir())
+	if !workspace.Active() {
+		return status
+	}
+	facts, err := imp.CollectFacts(h.store, workspace)
+	if err != nil {
+		return session.restore(ImportSessionFailed, "Import state cannot be read: "+err.Error(), "")
+	}
+	action := imp.NextAction(facts)
+	switch action {
+	case imp.ActionDone:
+		message := "Import completed"
+		if intent, intentErr := workspace.LoadIntent(); intentErr == nil && intent.ContinueAfterImport {
+			message = "Import completed; continue writing from the workbench"
+		}
+		return session.restore(ImportSessionCompleted, message, "")
+	case imp.ActionAwaitConfirmation:
+		preview, previewErr := imp.PendingConfirmationPreview(h.store)
+		if previewErr != nil {
+			return session.restore(ImportSessionFailed, "Segmentation preview cannot be read: "+previewErr.Error(), "")
+		}
+		return session.restore(ImportSessionAwaitingConfirmation, fmt.Sprintf("Segmentation is ready with %d chapters and requires confirmation", facts.ExpectedChapters), preview)
+	case imp.ActionAwaitStoryResolution:
+		return session.restore(ImportSessionAwaitingStoryStatus, "Story status requires an open or closed decision", "")
+	default:
+		return session.restore(ImportSessionPaused, fmt.Sprintf("Import can resume from %s", action), "")
+	}
+}
+
+// ConfirmImport accepts the current segmentation after user review.
+func (h *Host) ConfirmImport() error {
+	status := h.ImportStatus()
+	if status.State != ImportSessionAwaitingConfirmation {
+		return fmt.Errorf("import is not awaiting segmentation confirmation")
+	}
+	return h.StartImport(imp.Options{AcceptSegmentation: true, ContinueAfter: status.ContinueAfter})
+}
+
+// ResegmentImport applies replacement guidance and rebuilds segmentation.
+func (h *Host) ResegmentImport(guidance string) error {
+	status := h.ImportStatus()
+	if status.State != ImportSessionAwaitingConfirmation {
+		return fmt.Errorf("import is not awaiting segmentation confirmation")
+	}
+	trimmed := strings.TrimSpace(guidance)
+	return h.StartImport(imp.Options{Guidance: trimmed, ResetGuidance: trimmed == "", ContinueAfter: status.ContinueAfter})
+}
+
+// ResolveImportStory records the open or closed decision and resumes import.
+func (h *Host) ResolveImportStory(storyStatus string) error {
+	status := h.ImportStatus()
+	if status.State != ImportSessionAwaitingStoryStatus {
+		return fmt.Errorf("import is not awaiting story status")
+	}
+	choice := strings.ToLower(strings.TrimSpace(storyStatus))
+	if choice != "open" && choice != "closed" {
+		return fmt.Errorf("story status must be open or closed")
+	}
+	return h.StartImport(imp.Options{StoryResolution: choice, ContinueAfter: status.ContinueAfter})
+}
+
+// CancelImport cancels only the active import session.
+func (h *Host) CancelImport() bool {
+	return h.importSessionManager().cancelRun()
+}
+
+func (h *Host) importSessionManager() *importSessionManager {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.importSession == nil {
+		h.importSession = newImportSessionManager()
+	}
+	return h.importSession
+}
+
+// ImportResumeHint returns a one-line startup notice for an unfinished import.
+// Call it once at startup because it recomputes workspace artifact input digests.
 func (h *Host) ImportResumeHint() string {
-	return imp.ResumeSummary(h.store)
+	status := h.ImportStatus()
+	if status.State == ImportSessionIdle || status.State == ImportSessionCompleted {
+		return ""
+	}
+	if status.Message != "" {
+		return status.Message
+	}
+	return "An unfinished import can be resumed in the import panel"
 }
 
 // importCaller 解析一个导入语义函数的模型档位（RFC §13.1）：roles 配置存在 import_<fn>
@@ -132,9 +237,9 @@ func (h *Host) importModelRuntime(role string, model agentcore.ChatModel) imp.Mo
 	return rt
 }
 
-// superviseImport 是"导入完成后是否接力"的唯一所有者：转发导入事件，成功完成时先释放独占槽、
-// 再决定并执行接力，最后把真实接力结果写进 StageDone 事件的 Continued 字段。TUI 只据此渲染，
-// 不再用本地 --continue 标志臆测运行态（消除 Runner/Host/TUI 三方各自解释导致的时序竞态）。
+// superviseImport exclusively owns post-import continuation. It forwards events,
+// releases the exclusive slot before continuing, and records the actual outcome
+// in StageDone.Continued so clients do not infer runtime state from local options.
 func (h *Host) superviseImport(src <-chan imp.Event, opts imp.Options) <-chan imp.Event {
 	out := make(chan imp.Event, 32)
 	if !h.launchAsync(func() {
@@ -151,6 +256,8 @@ func (h *Host) superviseImport(src <-chan imp.Event, opts imp.Options) <-chan im
 			if ev.Stage == imp.StageDone {
 				release() // 先释放独占槽，接力的 startEngine 才能通过独占门禁
 				ev.Continued = h.continueAfterImport(opts)
+			} else if ev.RequiresAction || ev.Stage == imp.StageError {
+				release()
 			}
 			select {
 			case out <- ev:
@@ -167,20 +274,16 @@ func (h *Host) superviseImport(src <-chan imp.Event, opts imp.Options) <-chan im
 	return out
 }
 
-// continueAfterImport 决定并执行 --continue 的真正自动接力，返回 Engine 是否已启动。
-// 有效接力意图 = 本次 opts 或工作区持久化 intent（覆盖崩溃后无参数 /import 恢复的场景）；
-// 仅 auto 推进模式接力，由自适应扩弧规划承接开放故事、或让已完结故事收尾；review 交用户 /next。
+// continueAfterImport applies a one-shot continuation request and reports whether the Engine started.
 func (h *Host) continueAfterImport(opts imp.Options) bool {
-	want := opts.ContinueAfter
-	if !want {
-		in, err := imp.OpenWorkspace(h.store.Dir()).LoadIntent()
-		if err != nil {
-			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
-				Summary: "导入已完成，但自动接力意图读取失败：" + err.Error()})
-		} else if in != nil {
-			want = in.ContinueAfterImport
-		}
+	workspace := imp.OpenWorkspace(h.store.Dir())
+	intent, err := workspace.LoadIntent()
+	if err != nil {
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
+			Summary: "导入已完成，但自动接力意图读取失败：" + err.Error()})
+		return false
 	}
+	want := opts.ContinueAfter || intent.ContinueAfterImport
 	if !want {
 		return false
 	}
@@ -190,8 +293,15 @@ func (h *Host) continueAfterImport(opts imp.Options) bool {
 		return false
 	}
 	if meta.AdvanceMode != domain.ChapterAdvanceAuto {
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
-			Summary: "导入完成；当前为逐章验收模式，输入继续或 /next 接力续写"})
+		if err := h.store.RunMeta.SetAdvanceMode(domain.ChapterAdvanceAuto); err != nil {
+			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
+				Summary: "导入已完成，但无法迁移旧的逐章验收状态：" + err.Error()})
+			return false
+		}
+	}
+	if _, err := workspace.ConsumeContinueAfterImport(); err != nil {
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
+			Summary: "导入已完成，但自动接力意图消费失败：" + err.Error()})
 		return false
 	}
 	h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info", Summary: "导入完成，自动接力续写"})
@@ -201,4 +311,16 @@ func (h *Host) continueAfterImport(opts imp.Options) bool {
 		return false
 	}
 	return true
+}
+
+func (h *Host) recoverCompletedImportContinuation() {
+	workspace := imp.OpenWorkspace(h.store.Dir())
+	if !workspace.Active() {
+		return
+	}
+	facts, err := imp.CollectFacts(h.store, workspace)
+	if err != nil || imp.NextAction(facts) != imp.ActionDone {
+		return
+	}
+	h.continueAfterImport(imp.Options{})
 }

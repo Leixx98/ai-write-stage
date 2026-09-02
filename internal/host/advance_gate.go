@@ -172,9 +172,9 @@ func (g *ChapterAdvanceGate) Allow(inst *flow.Instruction) (bool, error) {
 		return false, fmt.Errorf("第 %d 章派发与第 %d 章许可不一致", target, meta.AdvancePermitChapter)
 	}
 	latest := progress.LatestCompleted()
-	message := fmt.Sprintf("已完成至第 %d 章，逐章验收等待放行第 %d 章；使用 /next 生成，或输入修改意见", latest, target)
+	message := fmt.Sprintf("已完成至第 %d 章，逐章验收等待放行第 %d 章；请使用章节放行操作，或输入修改意见", latest, target)
 	if latest == 0 {
-		message = fmt.Sprintf("规划已就绪，逐章验收等待放行第 %d 章；使用 /next 生成，或输入修改意见", target)
+		message = fmt.Sprintf("规划已就绪，逐章验收等待放行第 %d 章；请使用章节放行操作，或输入修改意见", target)
 	}
 	g.pauseNow(message)
 	return false, nil

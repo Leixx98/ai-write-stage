@@ -20,8 +20,7 @@ func Export(s *store.Store) (string, error) {
 	return WriteExport(s, rep, rc)
 }
 
-// WriteExport 把已算好的 Report + RuntimeCapture 渲染落盘，不重复抓取。
-// 供 /diag 命令复用 Diagnose 的结果。
+// WriteExport renders an existing report and runtime capture without collecting twice.
 func WriteExport(s *store.Store, rep Report, rc RuntimeCapture) (string, error) {
 	data := RenderExport(rep, rc)
 	abs := filepath.Join(s.Dir(), filepath.FromSlash(ExportRelPath))
@@ -57,7 +56,7 @@ func RenderExport(rep Report, rc RuntimeCapture) []byte {
 		fmt.Fprintf(&b, "- %s → `%s` / `%s`\n", m.Agent, orDash(m.Provider), orDash(m.Model))
 	}
 
-	// 2. 诊断发现（仅运行时；创作类诊断含剧情/伏笔，留在 /diag 屏上报告，不进可分享导出）
+	// Export only runtime findings because creative diagnostics may contain story details.
 	b.WriteString("\n## 2. 诊断发现（运行时）\n\n")
 	rf := runtimeFindings(&rc)
 	sortFindings(rf)

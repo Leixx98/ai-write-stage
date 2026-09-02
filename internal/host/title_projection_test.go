@@ -34,7 +34,7 @@ func TestFillDetailsUsesCommittedTitleOnlyForCompletedChapters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var snapshot UISnapshot
+	var snapshot RuntimeSnapshot
 	(&Host{store: s}).fillDetails(&snapshot, progress)
 
 	if len(snapshot.Outline) != 2 {
@@ -45,5 +45,26 @@ func TestFillDetailsUsesCommittedTitleOnlyForCompletedChapters(t *testing.T) {
 	}
 	if snapshot.Outline[1].Title != "计划二" {
 		t.Fatalf("future title = %q, want planned title", snapshot.Outline[1].Title)
+	}
+}
+
+func TestFillDetailsIncludesOutlineHookAndScenes(t *testing.T) {
+	s := store.NewStore(t.TempDir())
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Outline.SaveOutline([]domain.OutlineEntry{
+		{Chapter: 1, Title: "开端", CoreEvent: "主角离家", Hook: "谁在跟踪", Scenes: []string{"打包", "夜路"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var snapshot RuntimeSnapshot
+	(&Host{store: s}).fillDetails(&snapshot, nil)
+	if len(snapshot.Outline) != 1 {
+		t.Fatalf("outline snapshot = %+v", snapshot.Outline)
+	}
+	entry := snapshot.Outline[0]
+	if entry.CoreEvent != "主角离家" || entry.Hook != "谁在跟踪" || len(entry.Scenes) != 2 || entry.Scenes[1] != "夜路" {
+		t.Fatalf("outline extras = %+v", entry)
 	}
 }

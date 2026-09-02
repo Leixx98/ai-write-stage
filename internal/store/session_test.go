@@ -54,8 +54,7 @@ func TestSessionStore_MetaInjected_AssistantWithUsage(t *testing.T) {
 	}
 }
 
-// TestSessionStore_MetaModelSwitch 验证运行中切换模型后，后续消息的 _meta 也跟着变。
-// 这是 B 方案对"同进程内 /model 切换"的精确支持。
+// TestSessionStore_MetaModelSwitch verifies that later message metadata follows a runtime model switch.
 func TestSessionStore_MetaModelSwitch(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSessionStore(newIO(dir))
@@ -67,7 +66,7 @@ func TestSessionStore_MetaModelSwitch(t *testing.T) {
 	logger := s.SubAgentLogger(lookup)
 
 	logger("writer", "写第 1 章", makeAssistantWithUsage())
-	current = "model-b" // 模拟 /model 切换
+	current = "model-b" // Simulate a runtime model switch.
 	logger("writer", "写第 1 章", makeAssistantWithUsage())
 
 	entries := readJSONL(t, filepath.Join(dir, "meta/sessions/agents/writer-ch01.jsonl"))

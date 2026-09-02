@@ -8,7 +8,7 @@ import (
 	storepkg "github.com/voocel/ainovel-cli/internal/store"
 )
 
-// TestHostReopen 守护 /reopen 的用户级重开出口：完本是重决策，重开只能由用户显式
+// TestHostReopen guards the explicit user-level reopen operation: completing a book is a major decision, so reopening must be explicit
 // 发起——未完结拒绝、运行中拒绝；重开成功把 phase 回退 writing，附带的续写方向登记为
 // 待处理干预（PendingSteer），恢复时先经 Arbiter 裁定注入再续跑。
 func TestHostReopen(t *testing.T) {

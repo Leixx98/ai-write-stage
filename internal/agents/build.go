@@ -50,7 +50,7 @@ const subagentMaxRetries = 7
 // nil 表示不追踪。
 type UsageRecorder func(agentName, task string, msg agentcore.AgentMessage)
 
-// ApplyThinking 把某具体角色的推理强度应用到 Worker（运行时 /model 调整用）。
+// ApplyThinking applies a role's reasoning level to its worker at runtime.
 // architect → 两个 architect_* 子代理；writer → 对应子代理。
 // 空 level = 沿用模型/provider 默认。其它 role 名忽略。
 type ApplyThinking func(role string, level agentcore.ThinkingLevel)
@@ -103,7 +103,7 @@ func resolvedRoleThinking(model agentcore.ChatModel, cfg bootstrap.Config, role 
 // BuildWorkers 组装 Worker(architect_short/long、chapter_planner、writer)为可程序化
 // 调用的 subagent.Runner。Engine 直接调用其类型化入口，无 LLM 工具层
 // (docs/history/engine-rfc.md §1)。
-// 返回 Runner、WriterRestorePack 与 ApplyThinking(运行时 /model 联动各角色推理强度;
+// 返回 Runner、WriterRestorePack 与 ApplyThinking(运行时联动各角色推理强度;
 // writer/architect 的 ContextManager 走工厂自动重建)。
 // onGuardBlock 可选(nil 安全):各 Worker StopGuard 的拦截/升级审计回调。
 func BuildWorkers(
@@ -301,7 +301,7 @@ func BuildWorkers(
 
 	runner := subagent.NewRunner(architectShort, architectLong, chapterPlanner, writer)
 
-	// 运行时联动各角色推理强度（/model 调整用）。
+	// Propagate runtime reasoning changes to each role.
 	applyThinking := func(role string, level agentcore.ThinkingLevel) {
 		switch role {
 		case "architect":

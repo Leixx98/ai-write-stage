@@ -20,7 +20,7 @@ const (
 	segmentPromptVersion = "seg-v2" // v2：边界只落真实分隔处、标题逐字复制（配合标题回显校验）
 	analyzePromptVersion = "analyze-v1"
 	confirmMethodAuto    = "auto_authorized"
-	confirmMethodUser    = "user_confirmed" // TUI 预览后按 y 的显式人工确认
+	confirmMethodUser    = "user_confirmed" // Explicit confirmation after reviewing the preview.
 )
 
 // Prompts 是各语义函数的系统提示词。综合分两阶段：Synthesize 出全书 BookSynthesis，
@@ -159,9 +159,9 @@ func Run(ctx context.Context, deps Deps, opts Options) (<-chan Event, error) {
 	if deps.Budgets == (RunBudgets{}) {
 		deps.Budgets = budgetsFromDeps(deps)
 	}
-	// 导入流程日志独立成文件：一次导入的完整转录（事件、重试、完整错误链）不与
-	// 引擎/TUI 日志混流，排查时只看这一个文件。创建失败须回显——面板会指引用户
-	// 查看 logs/import.log，静默回退等于指向一个不存在的文件（Debug-First）。
+	// Keep each import transcript separate from runtime logs so events, retries,
+	// and complete error chains can be diagnosed from logs/import.log.
+	// Report creation failures because silently falling back would hide the expected file.
 	log, closeLog, logErr := logger.FileLogger(deps.Store.Dir(), "import.log")
 	log.Info("imp 导入模型运行时",
 		"segment_ctx", deps.Segment.Runtime.ContextTokens,
@@ -284,7 +284,17 @@ func (r *runner) profileFor(c Caller, stage Stage) callProfile {
 // 不写手工失效规则。工作区未建立时先跳过，ingest 后的下一轮循环写入。
 func (r *runner) applyGuidance() error {
 	g := strings.TrimSpace(r.opts.Guidance)
-	if g == "" || !r.ws.Active() {
+	if !r.ws.Active() {
+		return nil
+	}
+	if r.opts.ResetGuidance {
+		err := os.Remove(r.ws.path(fileGuidance))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove saved segmentation guidance: %w", err)
+		}
+		return nil
+	}
+	if g == "" {
 		return nil
 	}
 	existing, err := r.ws.LoadGuidance()
@@ -308,8 +318,8 @@ func (r *runner) applyGuidance() error {
 }
 
 // checkSourceIdentity 拦截「工作区进行中却传入不同源文件」：ingest 只在无工作区时执行，
-// 若不比对，/import B.txt 会静默从 A 的断点继续、把 A 发布完毕而 B 一个字节都没读（RFC §12.1/§18.2）。
-// 同一文件重复传路径是常见习惯（/import 同路径恢复），按内容摘要比对而非拒绝所有路径。
+// Without this comparison, importing B could silently resume and publish A without reading B.
+// Compare content digests so repeating the same source path remains resumable.
 func (r *runner) checkSourceIdentity() error {
 	if r.opts.SourcePath == "" || !r.ws.Active() {
 		return nil
@@ -390,9 +400,8 @@ func (r *runner) run(ctx context.Context) {
 }
 
 func (r *runner) ingest(ctx context.Context) error {
-	// 走到 ingest 而目录已存在 = 身份三件套（manifest/source/intent）缺失或损坏：
-	// createWorkspace 会以「已存在（无参数 /import 可恢复）」拒绝，无参数重跑又因
-	// WorkspaceReady=false 回到这里要求源路径——两条提示互相打架，用户无路可走。
+	// An active workspace reaching ingest has missing or damaged identity artifacts.
+	// Fail explicitly because treating it as resumable conflicts with requesting a new source.
 	if r.ws.Active() {
 		return fmt.Errorf("meta/import/ 已存在但工作区身份不可用（manifest/source/intent 缺失或损坏），请人工确认后删除该目录再重新导入")
 	}
@@ -461,7 +470,7 @@ func (r *runner) confirm() bool {
 	auto := r.opts.AutoConfirm || (in != nil && in.AutoConfirm)
 	// 语义容错发生过（Notes 非空：空章吸收/起始兜底/重合去重）的切分不由 --yes 盲放行：
 	// 结构被确定性改写过，必须人工核对——否则容错说明在 --yes 下无人看见，等于静默改写。
-	// TUI 预览后按 y 走 AcceptSegmentation（看过预览的显式裁定），不受此限。
+	// AcceptSegmentation represents an explicit decision after preview and bypasses this limit.
 	blockedByNotes := auto && !accept && len(seg.Payload.Notes) > 0
 	if blockedByNotes {
 		auto = false
@@ -471,7 +480,7 @@ func (r *runner) confirm() bool {
 		if blockedByNotes {
 			msg += "  ! 存在切分容错说明，--yes 未自动放行，请人工核对\n"
 		}
-		r.emit(StageAwaitingConfirmation, len(seg.Payload.Chapters), len(seg.Payload.Chapters), msg, nil)
+		r.send(Event{Time: time.Now(), Stage: StageAwaitingConfirmation, Current: len(seg.Payload.Chapters), Total: len(seg.Payload.Chapters), Message: msg, RequiresAction: true})
 		return false
 	}
 	raw, err := r.ws.readBytes(fileSegmentation)
@@ -522,8 +531,18 @@ func buildConfirmPreview(seg *Segmentation) string {
 	for _, n := range seg.Notes {
 		fmt.Fprintf(&b, "  ! %s\n", n)
 	}
-	// 操作提示（y 确认 / --guide 重切 / Esc）由 TUI 暂停块统一渲染，此处只留事实，避免双份文案漂移。
+	// Keep this payload factual; clients own action guidance and controls.
 	return b.String()
+}
+
+// PendingConfirmationPreview rebuilds the saved segmentation preview for UI recovery.
+func PendingConfirmationPreview(st *store.Store) (string, error) {
+	workspace := OpenWorkspace(st.Dir())
+	segmentation, err := readArtifact[Segmentation](workspace, fileSegmentation)
+	if err != nil {
+		return "", err
+	}
+	return buildConfirmPreview(&segmentation.Payload), nil
 }
 
 func (r *runner) analyze(ctx context.Context) error {
@@ -675,7 +694,7 @@ func (r *runner) resolveStoryStatus() bool {
 		return false
 	}
 	if choice != storyOpen && choice != storyClosed {
-		r.emit(StageAwaitingStoryStatus, 0, 0, "综合判定故事状态为 uncertain，请用 --story=open|closed 明确后重试", nil)
+		r.send(Event{Time: time.Now(), Stage: StageAwaitingStoryStatus, Message: "综合判定故事状态为 uncertain，请在导入面板选择 open 或 closed 后继续", RequiresAction: true})
 		return false
 	}
 	raw, err := r.ws.readBytes(fileSynthesis)

@@ -37,10 +37,9 @@ type BudgetSentinel struct {
 
 	state atomic.Int32
 
-	// 计费盲区检测：注册表无价且 provider 不自报 cost 的模型每笔记账增量为 $0，
-	// 预算静默失效。按"连续多笔零增量"判定而非 total==0——后者抓不住长跑中途
-	// /model 切到无价模型的场景（total 停在历史值非零但不再增长）。
-	// 免费模型同样命中，提示"预算不会触发"对其同样成立。
+	// Detect pricing blind spots from consecutive zero-cost increments rather than
+	// total==0, including a runtime switch from a priced model to an unpriced one.
+	// Free models also match because the configured budget cannot trigger for them.
 	lastTotal   atomic.Uint64 // math.Float64bits(上次回调的累计成本)
 	zeroStreak  atomic.Int32
 	blindWarned atomic.Bool

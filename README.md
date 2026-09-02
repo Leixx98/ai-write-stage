@@ -151,35 +151,31 @@ go build -o ainovel-cli ./cmd/ainovel-cli
 ./ainovel-cli
 ```
 
-三种入口，同一套引擎：
+默认启动 Web 工作台；`--web` 仅为旧脚本兼容保留，不改变行为：
 
 ```bash
-./ainovel-cli              # TUI：交互式创作（默认）
-./ainovel-cli --web        # Web 工作台：浏览器创作 + ComfyUI 画布 + 酒馆（可用 --listen 指定地址）
+./ainovel-cli              # Web 工作台（默认 127.0.0.1:8080，占用则顺延）
+./ainovel-cli --web        # 兼容旧脚本，与无参数启动相同
+./ainovel-cli --listen 0.0.0.0:8080  # 指定 Web 监听地址
 ./ainovel-cli --headless --prompt "写一本东方玄幻长篇，主角从边陲小城起步"   # 无人值守
+./ainovel-cli eval --help  # 离线评测入口
 ```
 
 ### Docker
 
-Docker 镜像适合在服务器/NAS 上运行 headless 长任务，也可以用 `-it` 进入 TUI。配置和作品目录建议挂载到宿主机：
+Docker Compose 默认在 `0.0.0.0:8080` 启动 Web 工作台，并将配置和作品目录挂载到宿主机：
 
 ```bash
 mkdir -p config workspace
 docker compose build
-
-# TUI
-docker compose run --rm ainovel
-
-# Headless
+docker compose up
+# 浏览器打开 http://localhost:8080
 docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 ```
 
-进入 TUI 后，启动阶段支持两种前置交互：
+Web 工作台提供创作输入、运行状态、模型设置、导入、导出、ComfyUI 画布、酒馆和剧场功能。首次运行会先打开 Web 配置页，保存模型配置后进入工作台。
 
-- `快速开始`：一句话直接进入创作
-- `共创规划`：与 AI 多轮对话澄清需求，右侧实时同步整理出的创作指令草稿；按 `Ctrl+S` 进入正式创作
-
-两种模式最终都会收敛为同一份创作指令，再进入同一套创作引擎。
+`--headless` 不执行首次配置；请先启动默认 Web 配置页完成配置。Headless 可用 `--prompt`、`--prompt-file <路径>` 或 `--prompt-file -` 从标准输入读取需求；不提供 prompt 时仅恢复当前目录已有会话。
 
 ### 管理多本小说
 
@@ -187,7 +183,7 @@ docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 
 ## 配置文件
 
-首次运行时自动引导生成配置文件 `~/.ainovel/config.json`。进入 TUI 后可输入 `/config` 新增或编辑 Provider、保存多个模型并为每个模型设置上下文窗口；`/model` 用于在这些已保存模型之间切换。
+首次运行时，Web 配置页会生成配置文件 `~/.ainovel/config.json`。工作台的模型设置可新增或编辑 Provider、保存多个模型、设置上下文窗口并切换各角色使用的模型。
 
 配置文件查找顺序（后者覆盖前者）：
 
@@ -282,7 +278,7 @@ docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 
 ## ComfyUI 图片桥接
 
-出图是本 fork 的重心，推荐从 Web 工作台（`--web`）开始使用。
+出图是本 fork 的重心，默认 Web 工作台提供完整配置与监控界面。
 
 ### 画布工作台
 
@@ -337,10 +333,10 @@ Web 工作台的「酒馆」标签页：
 
 ## 导入 / 导出 / 诊断 / 仿写
 
-- **导入**（`/import <文件>`）— 把已有小说**语义编译**进项目用于续写：源文件快照 → LLM 识别章节边界 → 逐章提取事实 → 分层归纳 → 发布 Foundation；分阶段断点恢复，中断重跑只补缺失部分
-- **导出**（`/export`）— 合并已完成章节为 TXT / EPUB，只读操作，写作中途随时可用
-- **诊断**（`/diag`）— 对 output 产物做流程 / 质量 / 规划 / 上下文四维诊断，并写出已脱敏的 `meta/diag-export.md`，方便提 issue
-- **仿写画像**（`/simulate`）— 把参考文章放进 `simulate/` 目录，用 architect 模型分析语料生成风格画像，注入各 Agent 的上下文；按文件指纹增量更新，`/importsim` 可导入别人分享的画像
+- **导入**（Web 设置页）— 把已有小说**语义编译**进项目用于续写：源文件快照 → LLM 识别章节边界 → 逐章提取事实 → 分层归纳 → 发布 Foundation；分阶段断点恢复，中断重跑只补缺失部分
+- **导出**（Web 工作台）— 合并已完成章节为 EPUB，只读操作，写作中途随时可用
+- **诊断** — 运行结束或错误返回时生成已脱敏的 `meta/diag-export.md`；诊断内核仍可供评测和内部调用复用
+- **仿写画像** — 相关分析与导入内核保留，供现有程序化调用方使用
 
 ## 写作风格与自定义规则
 
@@ -384,14 +380,9 @@ output/novel/
 
 文件写入使用 temp + fsync + rename 原子操作，即使在写入过程中断电也不会损坏已有数据。出图作业同样可恢复：重启后未完成的小节图片作业可以重新触发。
 
-## 逐章验收与实时干预
+## 实时干预
 
-```text
-/review on   # 开启逐章验收：每次 /next 只放行一个新章节
-/review off  # 恢复自动推进
-```
-
-创作过程中还可以随时通过输入框注入修改意见，**不需要暂停或重启**：
+创作过程中可以随时通过 Web 工作台输入框注入修改意见，**不需要暂停或重启**：
 
 ```
 ❯ 把感情线提前到第4章，增加男女主的对手戏
@@ -413,9 +404,9 @@ output/novel/
 ## 技术栈
 
 - **Go 1.25** — 主语言
+- **Web 工作台** — 默认交互入口，提供写作、设置、导入导出、ComfyUI、酒馆与剧场功能
 - **[agentcore](https://github.com/voocel/agentcore)** — 极简 Agent 内核（tool-calling + streaming）
 - **[litellm](https://github.com/voocel/litellm)** — 统一 LLM 接口适配（本仓库 vendor 于 `third-party/litellm`）
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** — 终端 TUI 框架
 - **ComfyUI** — 图片生成后端（HTTP API）
 
 ## 致谢与许可证

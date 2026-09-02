@@ -77,7 +77,7 @@ func (o *observer) handleContextProgress(ev agentcore.Event) {
 		return
 	}
 
-	// 更新 agent 快照（TUI 侧边栏始终可见）
+	// Update the agent snapshot exposed to observers.
 	o.updateAgent(agent, func(a *agentState) {
 		a.context = AgentContextSnapshot{
 			Tokens:        payload.Tokens,

@@ -28,14 +28,14 @@ type Options struct {
 	Version string
 }
 
-// Run starts the browser workbench and keeps the same Host/Engine used by the TUI.
+// Run starts the browser workbench with the shared Host and Engine runtime.
 func Run(cfg bootstrap.Config, bundle assets.Bundle, build buildversion.Info, opts Options) error {
-	listen := strings.TrimSpace(opts.Listen)
-	if listen == "" {
-		listen = "127.0.0.1:8080"
+	listener, listen, err := openListener(opts.Listen)
+	if err != nil {
+		return err
 	}
-	// Keep the web entry's logs separate from an interactive TUI session.
-	rt, err := host.New(cfg, bundle, host.WithFileLog("web.log", false))
+	defer listener.Close()
+	rt, err := host.New(cfg, bundle, host.WithFileLog("runtime.log", false))
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, build buildversion.Info, op
 		IdleTimeout:       2 * time.Minute,
 	}
 	fmt.Fprintf(os.Stdout, "ainovel web workbench: http://%s\n", listen)
-	err = server.ListenAndServe()
+	err = server.Serve(listener)
 	if err == http.ErrServerClosed {
 		return nil
 	}
@@ -159,10 +159,15 @@ type streamBroker struct {
 func newStreamBroker(rt *host.Host) *streamBroker {
 	b := &streamBroker{clients: make(map[int]chan map[string]any)}
 	go func() {
-		for delta := range rt.Stream() {
-			payload := map[string]any{"delta": delta}
-			if delta == host.StreamClearSentinel {
+		for event := range rt.Stream() {
+			payload := map[string]any{"kind": event.Kind}
+			switch event.Kind {
+			case host.StreamEventClear:
 				payload = map[string]any{"clear": true}
+			case host.StreamEventTool:
+				payload["tool"] = event.Tool
+			case host.StreamEventText, host.StreamEventThinking:
+				payload["delta"] = event.Text
 			}
 			b.mu.Lock()
 			for _, ch := range b.clients {

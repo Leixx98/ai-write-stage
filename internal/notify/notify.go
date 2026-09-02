@@ -1,8 +1,8 @@
-// Package notify 提供无人值守告警通道。
+// Package notify provides unattended alert channels.
 //
-// 合宪定位（architecture.md §2.3）：纯观察层动作——告警永不介入控制流
-// （不重试、不改派、不停机），只是把 TUI 内已有的事件"喊"到屏幕之外。
-// Send 异步执行、永不阻塞 Host、失败只记 slog。
+// Notifications only mirror existing runtime events and never alter control flow,
+// retry work, change dispatch, or stop the process. Send is asynchronous and
+// failures are recorded only through slog.
 package notify
 
 import (

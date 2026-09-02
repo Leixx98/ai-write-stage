@@ -169,6 +169,38 @@ func TestOldComfyUIJobRouteIsNotRegistered(t *testing.T) {
 	}
 }
 
+func TestImportStartRejectsRelativePathAndInvalidStoryStatus(t *testing.T) {
+	controller := &v2Controller{}
+	recorder := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"source_path":"book.txt","story_status":"open"}`)
+	controller.importStart(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/import/start", body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("relative path returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	recorder = httptest.NewRecorder()
+	body = bytes.NewBufferString(`{"source_path":"` + filepath.ToSlash(filepath.Join(t.TempDir(), "book.txt")) + `","story_status":"unknown"}`)
+	controller.importStart(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/import/start", body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid story status returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestReopenRequiresDirectionAndRemovedCommandsStayUnavailable(t *testing.T) {
+	controller := &v2Controller{}
+	recorder := httptest.NewRecorder()
+	controller.command(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/commands/reopen", bytes.NewBufferString(`{}`)), "reopen")
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("empty reopen direction returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	for _, name := range []string{"import", "imitate"} {
+		recorder = httptest.NewRecorder()
+		controller.command(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/commands/"+name, bytes.NewBufferString(`{}`)), name)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("removed command %q returned %d: %s", name, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
 func TestImageGenerationSettingsRejectInvalidEveryN(t *testing.T) {
 	t.Setenv("AINOVEL_HOME", t.TempDir())
 	roots := store.Open(t.TempDir(), "")

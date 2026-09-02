@@ -14,27 +14,27 @@ import (
 // panic 的关键不变量。
 type fakeEngine struct {
 	events chan host.Event
-	stream chan string
+	stream chan host.StreamEvent
 	done   chan struct{}
 
 	mu      sync.Mutex
-	snap    host.UISnapshot
+	snap    host.RuntimeSnapshot
 	aborted bool
 }
 
 func newFakeEngine() *fakeEngine {
 	return &fakeEngine{
 		events: make(chan host.Event, 4),
-		stream: make(chan string),
+		stream: make(chan host.StreamEvent),
 		done:   make(chan struct{}, 1),
 	}
 }
 
-func (f *fakeEngine) Events() <-chan host.Event { return f.events }
-func (f *fakeEngine) Stream() <-chan string     { return f.stream }
-func (f *fakeEngine) Done() <-chan struct{}     { return f.done }
+func (f *fakeEngine) Events() <-chan host.Event       { return f.events }
+func (f *fakeEngine) Stream() <-chan host.StreamEvent { return f.stream }
+func (f *fakeEngine) Done() <-chan struct{}           { return f.done }
 
-func (f *fakeEngine) Snapshot() host.UISnapshot {
+func (f *fakeEngine) Snapshot() host.RuntimeSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.snap
@@ -77,7 +77,7 @@ func TestDriveTimeoutDrainsToDone(t *testing.T) {
 func TestDriveCapStopsAndDrains(t *testing.T) {
 	f := newFakeEngine()
 	f.mu.Lock()
-	f.snap = host.UISnapshot{CompletedCount: 1}
+	f.snap = host.RuntimeSnapshot{CompletedCount: 1}
 	f.mu.Unlock()
 	f.events <- host.Event{Category: "SYSTEM", Summary: "committed"} // 触发 cap 检查
 

@@ -33,7 +33,7 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, opts Options) error {
 	if stderr == nil {
 		stderr = os.Stderr
 	}
-	eng, err := host.New(cfg, bundle, host.WithFileLog("headless.log", false))
+	eng, err := host.New(cfg, bundle, host.WithFileLog("runtime.log", false))
 	if err != nil {
 		return err
 	}
@@ -41,8 +41,8 @@ func Run(cfg bootstrap.Config, bundle assets.Bundle, opts Options) error {
 	if logErr := eng.FileLogError(); logErr != nil {
 		fmt.Fprintf(stderr, "警告：文件日志不可用，继续使用终端日志：%v\n", logErr)
 	}
-	// 运行结束 / 出错返回时落一份脱敏诊断，方便 headless 用户贴 issue。
-	// （外部 kill 的挂死不走 defer，仍需在 TUI 里手动 /diag。）
+	// Export a redacted diagnostic report on normal completion or returned errors.
+	// External termination bypasses this defer, so diagnostics must then be exported separately.
 	defer func() {
 		if _, err := diag.Export(store.NewStore(eng.Dir())); err != nil {
 			fmt.Fprintf(stderr, "警告：诊断报告导出失败：%v\n", err)
@@ -99,26 +99,15 @@ func consume(eng *host.Host, stdout, stderr io.Writer, roundHasContent bool) err
 				return nil
 			}
 			writeEvent(stderr, ev)
-		case delta, ok := <-eng.Stream():
+		case event, ok := <-eng.Stream():
 			if !ok {
 				continue
 			}
-			if delta == host.StreamClearSentinel {
-				if roundHasContent {
-					if _, err := io.WriteString(stdout, "\n\n"); err != nil {
-						return err
-					}
-					roundHasContent = false
-				}
-				continue
-			}
-			if delta == "" {
-				continue
-			}
-			if _, err := io.WriteString(stdout, delta); err != nil {
+			var err error
+			roundHasContent, err = writeStreamEvent(stdout, event, roundHasContent)
+			if err != nil {
 				return err
 			}
-			roundHasContent = true
 		case _, ok := <-eng.Done():
 			if !ok {
 				return nil
@@ -135,24 +124,14 @@ func drainPending(eng *host.Host, stdout, stderr io.Writer, roundHasContent bool
 			if ok {
 				writeEvent(stderr, ev)
 			}
-		case delta, ok := <-eng.Stream():
+		case event, ok := <-eng.Stream():
 			if !ok {
 				continue
 			}
-			if delta == host.StreamClearSentinel {
-				if roundHasContent {
-					if _, err := io.WriteString(stdout, "\n\n"); err != nil {
-						return err
-					}
-					roundHasContent = false
-				}
-				continue
-			}
-			if delta != "" {
-				if _, err := io.WriteString(stdout, delta); err != nil {
-					return err
-				}
-				roundHasContent = true
+			var err error
+			roundHasContent, err = writeStreamEvent(stdout, event, roundHasContent)
+			if err != nil {
+				return err
 			}
 		default:
 			if roundHasContent {
@@ -176,8 +155,34 @@ func writeEvent(w io.Writer, ev host.Event) {
 	fmt.Fprintf(w, "[%s] [%s] %s\n", ts, ev.Category, ev.Summary)
 }
 
+func writeStreamEvent(w io.Writer, event host.StreamEvent, roundHasContent bool) (bool, error) {
+	switch event.Kind {
+	case host.StreamEventClear:
+		if !roundHasContent {
+			return false, nil
+		}
+		_, err := io.WriteString(w, "\n\n")
+		return false, err
+	case host.StreamEventTool:
+		if strings.TrimSpace(event.Tool) == "" {
+			return roundHasContent, nil
+		}
+		_, err := fmt.Fprintf(w, "▸ %s\n", event.Tool)
+		return true, err
+	case host.StreamEventText, host.StreamEventThinking:
+		if event.Text == "" {
+			return roundHasContent, nil
+		}
+		_, err := io.WriteString(w, event.Text)
+		return true, err
+	default:
+		return roundHasContent, nil
+	}
+}
+
 func replayQueue(items []domain.RuntimeQueueItem, stdout, stderr io.Writer) (bool, error) {
 	var roundHasContent bool
+	var err error
 	for _, item := range items {
 		switch item.Kind {
 		case domain.RuntimeQueueUIEvent:
@@ -187,21 +192,19 @@ func replayQueue(items []domain.RuntimeQueueItem, stdout, stderr io.Writer) (boo
 				Summary:  item.Summary,
 			})
 		case domain.RuntimeQueueStreamClear:
-			if roundHasContent {
-				if _, err := io.WriteString(stdout, "\n\n"); err != nil {
-					return roundHasContent, err
-				}
-				roundHasContent = false
-			}
-		case domain.RuntimeQueueStreamDelta:
-			text := host.ReplayDeltaText(item)
-			if text == "" {
-				continue
-			}
-			if _, err := io.WriteString(stdout, text); err != nil {
+			roundHasContent, err = writeStreamEvent(stdout, host.StreamEvent{Kind: host.StreamEventClear}, roundHasContent)
+			if err != nil {
 				return roundHasContent, err
 			}
-			roundHasContent = true
+		case domain.RuntimeQueueStreamDelta:
+			event, ok := host.ReplayStreamEvent(item)
+			if !ok {
+				continue
+			}
+			roundHasContent, err = writeStreamEvent(stdout, event, roundHasContent)
+			if err != nil {
+				return roundHasContent, err
+			}
 		}
 	}
 	return roundHasContent, nil

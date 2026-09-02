@@ -44,12 +44,25 @@ func mustNotContain(t *testing.T, got, want string) {
 	}
 }
 
+func TestToolExtractorExposesStructuredHeader(t *testing.T) {
+	extractor := newToolExtractor("plan_chapter")
+	if extractor == nil {
+		t.Fatal("expected extractor")
+	}
+	got := extractor.Header()
+	if got != "规划" {
+		t.Fatalf("got header %q", got)
+	}
+	if strings.Contains(got, "✻") {
+		t.Fatalf("header contains presentation marker: %q", got)
+	}
+}
+
 // ── 通用模式：扁平 obj ──
 
 func TestExtract_PlanChapter(t *testing.T) {
 	in := `{"chapter":1,"title":"卖身契","goal":"建立矿场基线","conflict":"父债","hook":"灰矿","emotion_arc":"压抑"}`
 	out := feedAll(t, "plan_chapter", in)
-	mustContain(t, out, "✻ 规划")
 	mustContain(t, out, "chapter: 1")
 	mustContain(t, out, "title: 卖身契")
 	mustContain(t, out, "goal: 建立矿场基线")
@@ -66,7 +79,6 @@ func TestExtract_FoundationCharacters(t *testing.T) {
 		`{"name":"顾小灯","role":"重要配角","description":"药坊试药童女。"}` +
 		`]}`
 	out := feedAll(t, "save_foundation", in)
-	mustContain(t, out, "✻ 设定")
 	mustContain(t, out, "type: characters")
 	mustContain(t, out, "scale: long")
 	// 通用渲染：所有字段都展示，包括之前被白名单跳过的 aliases / traits
@@ -122,7 +134,6 @@ func TestExtract_FoundationUpdateCompass(t *testing.T) {
 func TestExtract_SaveReview(t *testing.T) {
 	in := `{"chapter":3,"scope":"chapter","verdict":"polish","summary":"节奏略慢。","dimensions":[{"dimension":"hook","score":55,"verdict":"fail"}],"issues":[{"type":"hook","severity":"error","description":"章末缺钩子。"}],"affected_chapters":[3,4]}`
 	out := feedAll(t, "save_review", in)
-	mustContain(t, out, "✻ 审阅")
 	mustContain(t, out, "verdict: polish")
 	mustContain(t, out, "summary: 节奏略慢。")
 	mustContain(t, out, "dimension: hook")
@@ -140,7 +151,6 @@ func TestExtract_SaveReview(t *testing.T) {
 func TestExtract_CommitChapter(t *testing.T) {
 	in := `{"chapter":1,"summary":"被卖入矿场。","characters":["沈砺","母亲"],"key_events":["签卖身契"],"foreshadow_updates":[{"id":"f1","action":"plant","description":"灰矿发烫。"}],"state_changes":[{"entity":"沈砺","field":"身份","old_value":"采药少年","new_value":"矿场杂役"}]}`
 	out := feedAll(t, "commit_chapter", in)
-	mustContain(t, out, "✻ 章节提交")
 	mustContain(t, out, "summary: 被卖入矿场。")
 	mustContain(t, out, "- 沈砺")
 	mustContain(t, out, "- 母亲")
@@ -159,7 +169,6 @@ func TestExtract_CommitChapter(t *testing.T) {
 func TestExtract_EditChapter(t *testing.T) {
 	in := `{"chapter":24,"old_string":"沈砺低头不语。\n他攥紧了拳头。","new_string":"沈砺没有抬头，喉结滚动一下。\n指节攥得发白。","replace_all":false}`
 	out := feedAll(t, "edit_chapter", in)
-	mustContain(t, out, "✻ 打磨")
 	mustContain(t, out, "chapter: 24")
 	mustContain(t, out, "old_string: 沈砺低头不语。\n他攥紧了拳头。")
 	mustContain(t, out, "new_string: 沈砺没有抬头，喉结滚动一下。\n指节攥得发白。")
@@ -171,27 +180,25 @@ func TestExtract_EditChapter(t *testing.T) {
 func TestExtract_ReadChapter(t *testing.T) {
 	in := `{"chapter":234,"source":"final"}`
 	out := feedAll(t, "read_chapter", in)
-	mustContain(t, out, "✻ 读章节")
 	mustContain(t, out, "chapter: 234")
 	mustContain(t, out, "source: final")
 }
 
 func TestExtract_CheckConsistency(t *testing.T) {
 	out := feedAll(t, "check_consistency", `{"chapter":234}`)
-	mustContain(t, out, "✻ 一致性检查")
 	mustContain(t, out, "chapter: 234")
 }
 
-// 空 args 兜底：architect 调 novel_context 不传参时 args 是 {}，
-// 不能完全静默，至少要输出 header 让用户感知调用。
+// 空 args 由结构化工具事件负责展示标题，提取器不输出正文。
 func TestExtract_NovelContextEmptyArgs(t *testing.T) {
 	out := feedAll(t, "novel_context", `{}`)
-	mustContain(t, out, "✻ 查询上下文")
+	if out != "" {
+		t.Fatalf("expected empty extracted body, got %q", out)
+	}
 }
 
 func TestExtract_NovelContextWithChapter(t *testing.T) {
 	out := feedAll(t, "novel_context", `{"chapter":234}`)
-	mustContain(t, out, "✻ 查询上下文")
 	mustContain(t, out, "chapter: 234")
 }
 
@@ -211,7 +218,6 @@ func TestExtract_DraftChapterRawMarkdown(t *testing.T) {
 func TestExtract_WriteChapterUnitStreamsOnlyContent(t *testing.T) {
 	in := `{"chapter":3,"unit_id":"3-2-1","content":"承接上一片段的正文。"}`
 	out := feedAll(t, "write_chapter_unit", in)
-	mustContain(t, out, "✻ 写作片段")
 	mustContain(t, out, "承接上一片段的正文。")
 	mustNotContain(t, out, "unit_id")
 	mustNotContain(t, out, "3-2-1")

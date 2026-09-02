@@ -40,7 +40,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 		// 未提前发过 → 正常流程
 		// （非流式 tool args 的模型不会触发 ensureSubagentToolStarted，
 		// fallback header 必须在这条路径上补一次，否则 read_chapter 这类
-		// 无 extractor 的工具流式面板上就没有 ✻ 头部，紧贴前面思考一段。）
+		// 无 extractor 的工具流式面板上就没有头部，紧贴前面思考一段。）
 		id := nextEventID()
 		o.toolStarts[ev.Progress.Agent] = &activeCall{id: id, start: time.Now(), summary: toolName, depth: 1}
 		o.emitAndLog(Event{
@@ -68,7 +68,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 			return
 		}
 		delete(o.toolStarts, ev.Progress.Agent)
-		// 同 ID 更新事件：TUI 按 ID 定位原 TOOL 行，回填 FinishedAt / Duration。
+		// 同 ID 更新事件：消费者按 ID 定位原 TOOL 记录，回填 FinishedAt / Duration。
 		// Summary / Depth 也带上，保证 runtime queue replay 时能还原完整行。
 		finishEv := Event{
 			ID:         call.id,
@@ -113,7 +113,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 		}
 		// 如果有进行中的 TOOL 行，原地标记为失败并把完整错误放进 Detail。
 		// 同一次失败只生成一个 ERROR 级事件，避免 TOOL 失败态与附加 ERROR
-		// 详情在 tui.log 中被误读成两次独立故障。
+		// 详情在 runtime.log 中被误读成两次独立故障。
 		if call, ok := o.toolStarts[ev.Progress.Agent]; ok {
 			delete(o.toolStarts, ev.Progress.Agent)
 			detail := fmt.Sprintf("%s 错误: %s", ev.Progress.Tool, msg)

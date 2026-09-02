@@ -1,0 +1,10 @@
+time=2026-09-02T17:48:00.524+08:00 level=INFO msg=日志会话开始 session=20260902T174800.516+0800-p63588 module=logger session_id=20260902T174800.516+0800-p63588
+time=2026-09-02T17:48:00.524+08:00 level=INFO msg=启动 session=20260902T174800.516+0800-p63588 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-09-02T17:48:00.525+08:00 level=INFO msg=模型元数据已就绪 session=20260902T174800.516+0800-p63588 module=models count=211
+time=2026-09-02T17:48:00.527+08:00 level=INFO msg=模型就绪 session=20260902T174800.516+0800-p63588 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-09-02T17:48:00.528+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260902T174800.516+0800-p63588 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default
+time=2026-09-02T17:57:50.542+08:00 level=INFO msg=日志会话开始 session=20260902T175750.535+0800-p63640 module=logger session_id=20260902T175750.535+0800-p63640
+time=2026-09-02T17:57:50.542+08:00 level=INFO msg=启动 session=20260902T175750.535+0800-p63640 module=boot provider=modelscope model=inclusionAI/Ling-3.0-flash output=output\novel
+time=2026-09-02T17:57:50.543+08:00 level=INFO msg=模型元数据已就绪 session=20260902T175750.535+0800-p63640 module=models count=211
+time=2026-09-02T17:57:50.545+08:00 level=INFO msg=模型就绪 session=20260902T175750.535+0800-p63640 module=boot summary="default=modelscope/inclusionAI/Ling-3.0-flash"
+time=2026-09-02T17:57:50.545+08:00 level=WARN msg="未识别的模型，使用兜底窗口（可在 providers.<name>.models[].context_window 显式指定）" session=20260902T175750.535+0800-p63640 module=context role=writer model=inclusionAI/Ling-3.0-flash window=200000 source=default

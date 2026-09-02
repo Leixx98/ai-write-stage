@@ -42,7 +42,7 @@ func RunCase(cfg bootstrap.Config, bundle assets.Bundle, c Case, opts RunOptions
 		cfg.Style = c.Style
 	}
 
-	eng, err := host.New(cfg, bundle, host.WithFileLog("headless.log", false))
+	eng, err := host.New(cfg, bundle, host.WithFileLog("runtime.log", false))
 	if err != nil {
 		return fmt.Errorf("装配 host: %w", err)
 	}
@@ -73,9 +73,9 @@ func RunCase(cfg bootstrap.Config, bundle assets.Bundle, c Case, opts RunOptions
 // drain-to-Done 纪律写确定性测试——这段并发逻辑出过 send-on-closed-channel 的坑。
 type driveEngine interface {
 	Events() <-chan host.Event
-	Stream() <-chan string
+	Stream() <-chan host.StreamEvent
 	Done() <-chan struct{}
-	Snapshot() host.UISnapshot
+	Snapshot() host.RuntimeSnapshot
 	Abort() bool
 }
 
@@ -132,7 +132,7 @@ func drive(eng driveEngine, maxChapters int, opts RunOptions) error {
 
 // capReached 判断是否达到截停条件。maxChapters>0 按已完成章数；<=0 视为"规划类"，
 // 规划完成（进入 writing 或已 complete）即停。
-func capReached(snap host.UISnapshot, maxChapters int) bool {
+func capReached(snap host.RuntimeSnapshot, maxChapters int) bool {
 	if maxChapters <= 0 {
 		return snap.Phase == string(domain.PhaseWriting) || snap.Phase == string(domain.PhaseComplete)
 	}

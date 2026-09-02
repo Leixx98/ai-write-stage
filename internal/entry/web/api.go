@@ -72,7 +72,6 @@ func newV2Controller(rt *host.Host) *v2Controller {
 	st := roots.Facts
 	c := &v2Controller{rt: rt, st: st, images: roots.Images, imageConfig: roots.ImageConfig, comfy: roots.ComfyUI, tavern: roots.Tavern, chat: rt.NewGalgameGenerate()}
 	c.svc = rt.ImageService()
-	go c.watchCompletedUnits()
 	return c
 }
 
@@ -160,6 +159,18 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.settingsDocument(w, r, "workflow")
 	case p == "settings/prompts":
 		c.settingsDocument(w, r, "prompts")
+	case p == "import/status":
+		c.importStatus(w, r)
+	case p == "import/start":
+		c.importStart(w, r)
+	case p == "import/confirm":
+		c.importConfirm(w, r)
+	case p == "import/resegment":
+		c.importResegment(w, r)
+	case p == "import/resolve":
+		c.importResolve(w, r)
+	case p == "import/cancel":
+		c.importCancel(w, r)
 	case strings.HasPrefix(p, "commands/"):
 		c.command(w, r, strings.TrimPrefix(p, "commands/"))
 	default:
@@ -207,8 +218,7 @@ func (c *v2Controller) command(w http.ResponseWriter, r *http.Request, name stri
 	var req struct {
 		Prompt      string `json:"prompt"`
 		Text        string `json:"text"`
-		Source      string `json:"source"`
-		Reference   string `json:"reference"`
+		Direction   string `json:"direction"`
 		Preferences string `json:"preferences"`
 	}
 	if r.Body != nil {
@@ -233,23 +243,15 @@ func (c *v2Controller) command(w http.ResponseWriter, r *http.Request, name stri
 		}
 	case "steer":
 		err = c.rt.Steer(req.Text)
-	case "import":
-		source := strings.TrimSpace(req.Source)
-		if source == "" {
-			err = fmt.Errorf("import source is required")
+	case "reopen":
+		direction := strings.TrimSpace(req.Direction)
+		if direction == "" {
+			err = fmt.Errorf("continuation direction is required")
 			break
 		}
-		err = c.rt.StartImport(imp.Options{SourcePath: source, AutoConfirm: true, ContinueAfter: true})
-	case "imitate":
-		reference := strings.TrimSpace(req.Reference)
-		if reference == "" {
-			err = fmt.Errorf("imitation reference is required")
-			break
+		if err = c.rt.Reopen(direction); err == nil {
+			_, err = c.rt.Resume()
 		}
-		if info, statErr := os.Stat(reference); statErr == nil && !info.IsDir() {
-			reference = filepath.Dir(reference)
-		}
-		err = c.rt.StartSimulation(reference)
 	case "writing-rules":
 		preferences := req.Preferences
 		if strings.TrimSpace(preferences) == "" {
@@ -267,6 +269,117 @@ func (c *v2Controller) command(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 	envelope(w, 202, 0, map[string]any{"accepted": true}, "")
+}
+
+func (c *v2Controller) importStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	envelope(w, http.StatusOK, 0, c.rt.ImportStatus(), "")
+}
+
+func (c *v2Controller) importStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		SourcePath    string `json:"source_path"`
+		StoryStatus   string `json:"story_status"`
+		Guidance      string `json:"guidance"`
+		ContinueAfter bool   `json:"continue_after"`
+	}
+	if err := decodeBody(r, &req); err != nil {
+		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, err)
+		return
+	}
+	sourcePath := strings.TrimSpace(req.SourcePath)
+	if sourcePath == "" {
+		status := c.rt.ImportStatus()
+		if !status.CanResume || status.State == host.ImportSessionAwaitingConfirmation || status.State == host.ImportSessionAwaitingStoryStatus {
+			envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("server-local source path is required"))
+			return
+		}
+	} else if !filepath.IsAbs(sourcePath) {
+		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("server-local source path must be absolute"))
+		return
+	}
+	storyStatus := strings.ToLower(strings.TrimSpace(req.StoryStatus))
+	if storyStatus == "undetermined" {
+		storyStatus = ""
+	}
+	if storyStatus != "" && storyStatus != "open" && storyStatus != "closed" {
+		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("story status must be open, closed, or undetermined"))
+		return
+	}
+	if err := c.rt.StartImport(imp.Options{SourcePath: sourcePath, StoryResolution: storyStatus, Guidance: req.Guidance, ContinueAfter: req.ContinueAfter}); err != nil {
+		envelopeErr(w, http.StatusConflict, codeConflict, err)
+		return
+	}
+	envelope(w, http.StatusAccepted, 0, c.rt.ImportStatus(), "")
+}
+
+func (c *v2Controller) importConfirm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	if err := c.rt.ConfirmImport(); err != nil {
+		envelopeErr(w, http.StatusConflict, codeConflict, err)
+		return
+	}
+	envelope(w, http.StatusAccepted, 0, c.rt.ImportStatus(), "")
+}
+
+func (c *v2Controller) importResegment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		Guidance string `json:"guidance"`
+	}
+	if err := decodeBody(r, &req); err != nil {
+		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, err)
+		return
+	}
+	if err := c.rt.ResegmentImport(req.Guidance); err != nil {
+		envelopeErr(w, http.StatusConflict, codeConflict, err)
+		return
+	}
+	envelope(w, http.StatusAccepted, 0, c.rt.ImportStatus(), "")
+}
+
+func (c *v2Controller) importResolve(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		StoryStatus string `json:"story_status"`
+	}
+	if err := decodeBody(r, &req); err != nil {
+		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, err)
+		return
+	}
+	if err := c.rt.ResolveImportStory(req.StoryStatus); err != nil {
+		envelopeErr(w, http.StatusConflict, codeConflict, err)
+		return
+	}
+	envelope(w, http.StatusAccepted, 0, c.rt.ImportStatus(), "")
+}
+
+func (c *v2Controller) importCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		envelopeErr(w, http.StatusMethodNotAllowed, codeInvalidRequest, fmt.Errorf("method not allowed"))
+		return
+	}
+	if !c.rt.CancelImport() {
+		envelopeErr(w, http.StatusConflict, codeConflict, fmt.Errorf("no running import session"))
+		return
+	}
+	envelope(w, http.StatusAccepted, 0, c.rt.ImportStatus(), "")
 }
 
 func decodeBody(r *http.Request, v any) error {

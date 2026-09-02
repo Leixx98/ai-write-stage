@@ -294,7 +294,7 @@ func TestCollectInterventionFacts(t *testing.T) {
 		t.Fatal("新书应有基础设定缺项")
 	}
 
-	// /reopen 是可枚举事实，必须进 facts：重开后的书章数已写满，缺了它模型会
+	// Reopen state is enumerable and must be included in facts; otherwise the model may
 	// 据 completed=total 推断"已完结"、无视 phase=writing（实测事故）。
 	if err := st.Progress.UpdatePhase(domain.PhaseWriting); err != nil {
 		t.Fatalf("phase: %v", err)

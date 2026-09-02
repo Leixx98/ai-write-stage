@@ -14,25 +14,21 @@ import (
 //
 // 裸流模式（nakedKey 非空）：仅把目标顶层字段的 string 值原样流出，其它字段
 // 全部跳过。给 draft_chapter 用，让整章 markdown 不被装饰成 "content: # …"。
-// header 一律以 "✻ " 开头：这是 TUI renderStreamContent 走 renderAgentBlock
-// 高亮路径（金 ✻ + 青底蓝下划线 label + dim 横线）的约定前缀，跟 fallback
-// header（streamHeaderFallback）保持一致；改成普通文字会落到正文路径用终端
-// 默认色画掉，title 不再醒目。
 var toolDisplays = map[string]toolDisplay{
 	"draft_chapter":      {nakedKey: "content"},
-	"write_chapter_unit": {header: "✻ 写作片段", nakedKey: "content"},
+	"write_chapter_unit": {header: "写作片段", nakedKey: "content"},
 
-	"plan_chapter":        {header: "✻ 规划"},
-	"edit_chapter":        {header: "✻ 打磨"},
-	"commit_chapter":      {header: "✻ 章节提交"},
-	"save_review":         {header: "✻ 审阅"},
-	"save_arc_summary":    {header: "✻ 弧摘要"},
-	"save_volume_summary": {header: "✻ 卷摘要"},
-	"save_foundation":     {header: "✻ 设定"},
-	"revise_outline":      {header: "✻ 修订大纲"},
-	"read_chapter":        {header: "✻ 读章节"},
-	"check_consistency":   {header: "✻ 一致性检查"},
-	"novel_context":       {header: "✻ 查询上下文"},
+	"plan_chapter":        {header: "规划"},
+	"edit_chapter":        {header: "打磨"},
+	"commit_chapter":      {header: "章节提交"},
+	"save_review":         {header: "审阅"},
+	"save_arc_summary":    {header: "弧摘要"},
+	"save_volume_summary": {header: "卷摘要"},
+	"save_foundation":     {header: "设定"},
+	"revise_outline":      {header: "修订大纲"},
+	"read_chapter":        {header: "读章节"},
+	"check_consistency":   {header: "一致性检查"},
+	"novel_context":       {header: "查询上下文"},
 }
 
 type toolDisplay struct {
@@ -84,6 +80,8 @@ func newToolExtractor(tool string) *jsonFieldExtractor {
 }
 
 func (e *jsonFieldExtractor) Done() bool { return e.done }
+
+func (e *jsonFieldExtractor) Header() string { return e.cfg.header }
 
 func (e *jsonFieldExtractor) Feed(chunk string) string {
 	if e.done || chunk == "" {
@@ -230,10 +228,6 @@ func (e *jsonFieldExtractor) emitKeyLine(out *strings.Builder, key string) {
 		return
 	}
 	if !e.started {
-		if e.cfg.header != "" {
-			out.WriteString(e.cfg.header)
-			out.WriteByte('\n')
-		}
 		e.started = true
 	} else {
 		out.WriteByte('\n')
@@ -250,10 +244,6 @@ func (e *jsonFieldExtractor) emitArrayItem(out *strings.Builder) {
 		return
 	}
 	if !e.started {
-		if e.cfg.header != "" {
-			out.WriteString(e.cfg.header)
-			out.WriteByte('\n')
-		}
 		e.started = true
 	} else {
 		out.WriteByte('\n')
@@ -346,13 +336,6 @@ func (e *jsonFieldExtractor) beginNested(kind byte, out *strings.Builder) {
 func (e *jsonFieldExtractor) closeContainer(out *strings.Builder) {
 	e.pop()
 	if len(e.stack) == 0 {
-		// 空 args（如 novel_context 不传参）兜底：emitKeyLine 没机会输出 header，
-		// 这里补一次，避免落到"既没标题也没内容"。
-		if !e.started && e.cfg.nakedKey == "" && e.cfg.header != "" {
-			out.WriteString(e.cfg.header)
-			out.WriteByte('\n')
-			e.started = true
-		}
 		// 收尾换行让面板与下一段输出之间有清晰边界
 		if e.started {
 			out.WriteByte('\n')

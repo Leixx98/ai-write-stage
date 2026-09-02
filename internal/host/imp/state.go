@@ -204,8 +204,8 @@ func ResumeStatus(st *store.Store) (active, done bool, err error) {
 	return true, NextAction(f) == ActionDone, nil
 }
 
-// ResumeSummary 生成未完成导入的一行提示（RFC §18.2）；无未完成导入返回空串。
-// 供宿主在启动/欢迎界面主动告知，避免用户只有在创作被门禁拒绝时才发现这本书停在导入半路。
+// ResumeSummary returns a one-line startup notice for an unfinished import.
+// It lets entry points expose the state before creation is blocked by the import gate.
 func ResumeSummary(st *store.Store) string {
 	w := OpenWorkspace(st.Dir())
 	if !w.Active() {
@@ -213,7 +213,7 @@ func ResumeSummary(st *store.Store) string {
 	}
 	f, err := CollectFacts(st, w)
 	if err != nil {
-		return "发现导入状态读取异常：" + err.Error() + "；请运行 /import 查看并修复"
+		return "发现导入状态读取异常：" + err.Error() + "；请在导入设置中查看并修复"
 	}
 	var state string
 	switch NextAction(f) {
@@ -232,7 +232,7 @@ func ResumeSummary(st *store.Store) string {
 	case ActionPublish:
 		state = "综合完成，待发布正式状态"
 	}
-	return "发现未完成的导入（" + state + "），输入 /import 从断点恢复"
+	return "发现未完成的导入（" + state + "），请在导入设置中从断点恢复"
 }
 
 // checkImportPreconditions 校验新导入前置条件（RFC §12.1）：
