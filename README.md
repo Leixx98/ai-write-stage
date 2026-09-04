@@ -8,7 +8,7 @@
 
 ### 生文 × 生图（本 fork 的重心）
 
-- **小节化生成，一节一图** — Chapter Planner 把每章拆成场景卡和有序 writing units，Writer 逐小节书写；小节粒度即插画粒度。图片桥开启后，每个小节自动走「Prompter 出提示词 → Schema 校验 → 字段绑定 → 提交 ComfyUI」，全部小节图片落盘后章节才算完成
+- **小节化生成，一节一图** — Chapter Planner 把每章拆成场景卡和有序 writing units，Writer 逐小节书写；小节粒度即插画粒度。小说生图开启且自动生成时，每个小节走「Prompter 出提示词 → Schema 校验 → 字段绑定 → 提交 ComfyUI」，全部小节图片落盘后章节才算完成
 - **出图全链路可控** — 严格/非严格模式、取消、重试、提示词重生成、出图预览；作业状态机 `prompting → validating → binding → submitting → queued → running → completed` 全程可在 Web 工作台实时查看
 - **ComfyUI 画布工作台** — 直接导入 API workflow，在节点上暴露可填字段，Test canvas 试跑并预览图片；暴露的字段就是 LLM 与工作流之间的契约
 - **角色一致性提示词** — Prompter 接收小节计划 + 正文 + 前文结尾作为事实输入，系统提示词要求保持人物外观、服饰、时代背景、地点和世界观连续
@@ -21,14 +21,14 @@
 - **Step 级断点恢复** — 每个工具执行成功后写入 checkpoint，崩溃后精确到步骤级恢复；同一目录再次启动自动续跑
 - **卷弧双层滚动规划** — 初始只规划 2 卷弧骨架 + 第 1 弧详细章节，后续弧/卷在写作推进到时再由 Architect 展开，每次展开都参考前文，远期规划不空洞
 - **自适应上下文策略** — 根据总章节数自动切换全量 / 滑窗 / 分层摘要；四级压缩管线 + CJK token 估算 + 压缩后恢复包；每章写作时还会从伏笔、角色出场、状态变化、关系四个维度自动推荐相关历史章节
-- **用户实时干预** — 写作过程中随时在输入框注入修改意见（无需暂停），系统自动评估影响范围并重写受影响章节
+- **用户实时干预** — 小说页底栏用按钮提交指令：继续/暂停、其他指令、重新规划（只改未写章节的后续大纲）、重写要求、完结后续写；保存结果用右下角 toast 提示
 - **多 LLM 支持** — OpenRouter / Anthropic / Gemini / OpenAI / DeepSeek / Qwen / GLM / Grok / Ollama / Bedrock 及任意自定义代理，各角色可独立配置模型
 
 ### 酒馆角色扮演与剧场
 
 - **角色扮演对话** — 支持导入 Tavern / SillyTavern 角色卡（V1 扁平结构 / V2 data 信封 / 原生 JSON），`{{char}}` / `{{user}}` 宏展开、token 预算管理与滑动窗口历史；酒馆模型可独立配置
-- **剧场模式** — AI 驱动的视觉小说式剧场：Architect / Planner / Writer 三段式编排剧情，玩家选项 gate 处暂停等待选择，buffer-ahead 预写后续 beat，每个 beat 可配图
-- **酒馆生图与切图** — 与小说插图共用出图服务，会话图片按会话归档
+- **剧场模式** — AI 驱动的视觉小说式剧场：Architect / Planner / Writer 三段式编排剧情，玩家选项 gate 处暂停等待选择，buffer-ahead 预写后续 beat；剧场生图开启后 beat 可配图
+- **布局随生图开关** — 对话/剧场各自看生图设置；未开启时隐藏图片框、文本居中
 
 ## 架构
 
@@ -173,11 +173,44 @@ docker compose up
 docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 ```
 
-Web 工作台提供创作输入、运行状态、模型设置、导入、导出、ComfyUI 画布、酒馆和剧场功能。首次运行会先打开 Web 配置页，保存模型配置后进入工作台。
+首次运行会先打开 Web 配置页，保存模型配置后进入工作台。命令行不再接受小说需求参数，开书、干预和续写都在浏览器里完成。TUI 已移除，交互入口只有 Web。
 
 `--headless` 不执行首次配置；请先启动默认 Web 配置页完成配置。Headless 可用 `--prompt`、`--prompt-file <路径>` 或 `--prompt-file -` 从标准输入读取需求；不提供 prompt 时仅恢复当前目录已有会话。
 
-### 管理多本小说
+## Web 工作台
+
+顶栏六个页：小说、酒馆、API、设置、小说写作提示词、生图设置。首次进入或已有存稿时先显示欢迎页，跳过或开始创作后进入工作台。未指定 `--listen` 时默认 `127.0.0.1:8080`，被占用则自动顺延。
+
+### 小说页
+
+三栏：左侧运行状态，中间事件与流式输出，右侧作品详情与大纲。大纲章节可点开，展开完整 CoreEvent、Hook 和 Scenes。右侧还有当前 writing unit 的图片预览；小说生图未开启时预览占位隐藏。
+
+底栏不再使用命令行输入框，改成按钮组：
+
+| 按钮 | 作用 |
+|---|---|
+| 继续 / 暂停 | 恢复或打断当前创作 |
+| 其他指令 | 浮窗提交自由指令：未开书当创作需求，写作中当干预，暂停时当继续说明 |
+| 重新规划 | 从指定章起修订**未写章节**的后续大纲，不回改已写正文 |
+| 重写 | 把重写要求交给后续规划；当前不会自动回改已写正文 |
+| 完结后续写 | 作品完结后重开并继续 |
+| 导出 | 按钮上方弹出 TXT / EPUB，点空白处收起 |
+| 沉浸式阅读 | 阅读已正式提交的章节 |
+
+导出只读已完成章节：TXT 只要正文，EPUB 带插图。无已完成章节时 toast 提示失败原因。保存、导出、配置结果一律走右下角 toast。
+
+### 酒馆页
+
+同一舞台切「对话」和「剧场」。布局跟生图设置联动：对应场景未启用生图时隐藏图片框，文本居中；启用后恢复图文布局。对话看「对话」开关，剧场看「剧场」开关。
+
+### 其他页
+
+- **API** — 共享模型库、当前工作区默认模型与角色分配
+- **设置** — 导入已有小说、写作要求预设
+- **小说写作提示词** — 架构师 / 章节规划师 / 写作者 / 编辑模板；保存或切换后需重启才用于后续写作
+- **生图设置** — 场景策略、生图方案、ComfyUI 画布（见下节）
+
+## 管理多本小说
 
 每本小说绑定到启动目录，产物落在 `{cwd}/output/novel/`。换目录启动 = 换一本，`cd` 回去启动 = 自动从最近 checkpoint 恢复。配置 `~/.ainovel/config.json` 全局共享，无需复制。
 
@@ -276,65 +309,57 @@ Web 工作台提供创作输入、运行状态、模型设置、导入、导出�
 
 `providers.<name>.extra` 为 provider 级配置（`user_agent`、`headers`、`anthropic_beta` 等），`extra_body` 是请求体扩展参数，两者不要混用。更多高级配置参考仓库根目录的 `config.example.jsonc`。
 
-## ComfyUI 图片桥接
+## 生图设置
 
-出图是本 fork 的重心，默认 Web 工作台提供完整配置与监控界面。
+出图按**场景**开关，不再使用单独的小说 Unit Bridge 配置表。三个场景默认都关闭：
 
-### 画布工作台
+| 场景 | 开关位置 | 触发 |
+|---|---|---|
+| 小说 | 生图设置 → 场景设置 → 小说 | 启用后，可选「writing unit 完成后自动生成」；图片进度参与章节完成判定 |
+| 对话 | 生图设置 → 场景设置 → 对话 | 每轮 / 每 N 轮 / 仅手动 |
+| 剧场 | 生图设置 → 场景设置 → 剧场 | 启用后，可选 CGNew 自动生成 |
 
-- 导入 ComfyUI API workflow，解析节点结构
-- 在节点上**暴露字段**（字段 ID + 说明），这些字段就是 Prompter 的填空位
-- 切换 Test canvas 直接试跑并预览图片，验证 workflow 本身可用
+具体工作流、超时、宽高比挂在**生图方案**上：方案绑定 Provider（当前主要是 ComfyUI）、提示词预设、workflow、实例。场景只选默认方案，会话或剧场局可以再覆盖。
 
-### 小说小节插图桥（Unit Bridge）
-
-桥配置（Web 工作台维护）控制小说出图的自动化程度：
-
-| 配置项 | 说明 |
-|---|---|
-| `enabled` | 桥总开关 |
-| `auto_generate` | 开启后每个小节完成后**自动**触发出图作业，图片进度参与章节完成判定 |
-| `workflow_id` | 使用的画布工作流 |
-| `strict` | 严格模式：Prompter 的 JSON 必须精确匹配 schema（未知字段/缺字段即拒绝）；非严格模式允许用字段默认值兜底 |
-| `prompter_timeout_ms` | 提示词生成超时 |
-| `previous_tail_chars` | 传给 Prompter 的前文结尾字符数，保证画面连续性 |
-
-出图链路：
+三处出图共用 `imagejob` 服务：
 
 ```
-unit 完成 → Prompter（LLM 单次调用，JSON 模式）
-         → Schema 校验（strict/non-strict）
-         → 字段绑定进 workflow
-         → 提交 ComfyUI /prompt → 轮询 /history
-         → 下载图片落盘（Content-Type 校验 + 大小上限）
+unit / 对话消息 / 剧场 beat
+  → Prompter（LLM 单次 JSON）
+  → Schema 校验（ComfyUI 连接的 strict / 非严格）
+  → 字段绑定进 workflow
+  → 提交 ComfyUI /prompt → 轮询 /history
+  → 图片落盘
 ```
 
-每个作业是独立状态机：`prompting → validating → binding → submitting → queued → running → completed / failed / timeout / cancelled`，支持取消、重试与提示词重生成。
+作业状态机：`prompting → validating → binding → submitting → queued → running → completed / failed / timeout / cancelled`。酒馆图落在 `galgame/sessions/{session_id}/images/{job_id}.png`。
 
-### 酒馆与剧场出图
+### ComfyUI 画布
 
-酒馆对话配图、剧场 beat 配图与小说小节插图共用同一个 `imagejob` 服务（同一状态机、同一 ComfyUI 客户端），只是触发源和落盘路径不同：
+在「生图设置 → ComfyUI」中：
 
-```
-galgame/sessions/{session_id}/images/{job_id}.png
-```
+- 导入 ComfyUI **API workflow JSON**（编辑器 UI workflow 需先导出 API 格式）
+- 在节点上暴露字段，作为 Prompter 的填空位
+- Test canvas 试跑并预览
+- 高级连接：服务地址、超时、轮询、strict 模式
 
 ## 酒馆角色扮演与剧场模式
 
-Web 工作台的「酒馆」标签页：
+Web 工作台的「酒馆」页分对话和剧场，共用同一舞台：
 
 - **角色卡导入** — 兼容 Tavern / SillyTavern 角色卡（V1 扁平结构、V2 `data` 信封、原生 JSON），支持 `alternate_greetings`、`system_prompt`、`post_history_instructions`、`{{char}}`/`{{user}}` 宏
 - **会话管理** — 每个角色多会话；提示词按「主指令 → 角色描述 → 人格 → 场景 → 用户 persona」组装，带 token 预算管理与滑动窗口历史
+- **布局随生图开关变化** — 该模式未启用生图时隐藏图片框、文本居中；启用后保持图文布局
 - **剧场模式** — AI 驱动的视觉小说式剧场：
   - Architect 定设定 → Planner 出 beat 分镜 → Writer 逐 beat 写作
   - 玩家选项处（gate）暂停等待选择，剧情因选择分叉
   - buffer-ahead 预写后续 beat（默认 8 条），翻页无等待
-  - 每个 beat 可自动配图
+  - 剧场生图开启后，beat 可自动配图
 
 ## 导入 / 导出 / 诊断 / 仿写
 
 - **导入**（Web 设置页）— 把已有小说**语义编译**进项目用于续写：源文件快照 → LLM 识别章节边界 → 逐章提取事实 → 分层归纳 → 发布 Foundation；分阶段断点恢复，中断重跑只补缺失部分
-- **导出**（Web 工作台）— 合并已完成章节为 TXT（纯文字）或 EPUB（图文），只读操作，写作中途随时可用
+- **导出**（小说页「导出」按钮）— 弹出 TXT（纯文字）或 EPUB（图文）；只读已完成章节，写作中途随时可用
 - **诊断** — 运行结束或错误返回时生成已脱敏的 `meta/diag-export.md`；诊断内核仍可供评测和内部调用复用
 - **仿写画像** — 相关分析与导入内核保留，供现有程序化调用方使用
 
@@ -382,13 +407,14 @@ output/novel/
 
 ## 实时干预
 
-创作过程中可以随时通过 Web 工作台输入框注入修改意见，**不需要暂停或重启**：
+小说页底栏提交指令，**不需要重启进程**：
 
-```
-❯ 把感情线提前到第4章，增加男女主的对手戏
-```
+- **其他指令** — 自由文本。未开书当作欢迎页那样的创作需求；写作中交给 Arbiter 做干预分诊；暂停时作为继续说明
+- **重新规划** — 指定从第几章起改后续大纲，只动未写章节，不回改已写正文
+- **重写** — 记录重写要求供后续规划使用；当前实现不会自动改写已经落盘的章节正文
+- **完结后续写** — 完结作品重开后继续写
 
-系统自动：记录干预指令（崩溃恢复用）→ Arbiter 裁定（查询秒级回显；控制类动作在章节边界安全提交）→ 按裁定执行（修改设定 / 重写章节 / 落盘写作规则），每次裁定审计可回放。
+干预仍走：记录指令（崩溃恢复）→ Arbiter 裁定（查询秒级回显；控制类动作在章节边界安全提交）→ 按裁定执行，每次裁定落盘可回放。
 
 ## 设计理念
 
@@ -404,7 +430,7 @@ output/novel/
 ## 技术栈
 
 - **Go 1.25** — 主语言
-- **Web 工作台** — 默认交互入口，提供写作、设置、导入导出、ComfyUI、酒馆与剧场功能
+- **Web 工作台** — 唯一交互入口（TUI 已移除）：小说底栏按钮、导出 TXT/EPUB、沉浸式阅读、酒馆对话/剧场、生图场景与方案、ComfyUI 画布
 - **[agentcore](https://github.com/voocel/agentcore)** — 极简 Agent 内核（tool-calling + streaming）
 - **[litellm](https://github.com/voocel/litellm)** — 统一 LLM 接口适配（本仓库 vendor 于 `third-party/litellm`）
 - **ComfyUI** — 图片生成后端（HTTP API）
