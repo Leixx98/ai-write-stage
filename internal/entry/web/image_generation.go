@@ -105,6 +105,9 @@ func (c *v2Controller) imageProfiles(w http.ResponseWriter, r *http.Request, res
 }
 
 func (c *v2Controller) saveImageProfile(w http.ResponseWriter, profile imagejob.Profile) {
+	if !c.requireHost(w) {
+		return
+	}
 	profile = imagejob.NormalizeProfile(profile)
 	if err := c.svc.ValidateProfile(profile); err != nil {
 		envelopeErr(w, http.StatusUnprocessableEntity, codeConfigInvalid, err)

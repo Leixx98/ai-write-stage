@@ -3,6 +3,8 @@ services:
     image: ghcr.io/voocel/ainovel-cli:latest
     build:
       context: .
+    environment:
+      AINOVEL_ROOT: /workspace
     volumes:
       - ./config:/root/.ainovel
       - ./workspace:/workspace

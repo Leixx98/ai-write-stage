@@ -6,6 +6,8 @@ let currentState = null;
 const WELCOME_KEY_PREFIX = 'ainovel.web.welcome.v2.';
 let welcomeWorkspaceID = '';
 let welcomeStateSynced = false;
+let currentWorkspaceName = '';
+let workspaceItems = [];
 const MAX_EVENT_ITEMS = 500;
 const MAX_STREAM_ROUNDS = 32;
 const MAX_STREAM_CHARS = 256 * 1024;
@@ -91,6 +93,12 @@ function renderState(state = {}) {
   $('status').textContent = state.StatusLabel || ui('ready');
   $('status').className = `status ${state.IsRunning || state.Exclusive ? 'running' : ''}`;
   const busy = Boolean(state.IsRunning || state.Exclusive);
+  const switcher = $('workspace-current');
+  if (switcher) {
+    switcher.textContent = currentWorkspaceName || '未选择工作区';
+    switcher.disabled = busy;
+    switcher.title = busy ? '写作或独占作业进行中，请先暂停再切换工作区' : '切换工作区';
+  }
   const complete = state.Phase === 'complete';
   const novel = Boolean(state.NovelName || state.Phase);
   const completed = Number(state.CompletedCount || 0);
@@ -117,7 +125,9 @@ async function refresh() {
   try {
     const data = await api('/api/v2/state');
     welcomeWorkspaceID = String(data.workspace_id || data.dir || '').trim();
+    currentWorkspaceName = String(data.workspace || '').trim();
     renderState(data.snapshot || data);
+    await renderWorkspacePickers();
   } catch (error) { notify(`状态刷新失败：${error.message}`, 'toast', 'error'); }
 }
 function scheduleRefresh() {
@@ -276,7 +286,7 @@ function closeWelcome() {
   window.requestAnimationFrame(() => $('pause')?.focus());
 }
 function syncWelcomeState(state = {}) {
-  if (!welcomeStateSynced && welcomeStorageKey()) {
+  if (currentWorkspaceName && !welcomeStateSynced && welcomeStorageKey()) {
     welcomeStateSynced = true;
     try {
       if (localStorage.getItem(welcomeStorageKey()) === 'seen') {
@@ -286,12 +296,84 @@ function syncWelcomeState(state = {}) {
     } catch (_) { /* Keep the welcome screen when browser storage is unavailable. */ }
   }
   if (!welcomeIsOpen()) return;
+  const hasWorkspace = Boolean(currentWorkspaceName);
   const hasNovel = Boolean(state.NovelName || state.Phase);
-  $('welcome-new').hidden = hasNovel;
-  $('welcome-existing').hidden = !hasNovel;
+  $('welcome-new').hidden = !hasWorkspace || hasNovel;
+  $('welcome-existing').hidden = !hasWorkspace || !hasNovel;
   if (hasNovel) $('welcome-novel-name').textContent = state.NovelName || '未命名作品';
 }
+function workspaceBusy(state = currentState) {
+  return Boolean(state?.IsRunning || state?.Exclusive);
+}
+function workspaceMeta(item) {
+  const bits = [];
+  if (item.novel_name) bits.push(item.novel_name);
+  if (item.phase) bits.push(item.phase);
+  if (item.completed) bits.push(`已完成 ${item.completed} 章`);
+  return bits.join(' · ');
+}
+function renderWorkspaceList(target, items, selected) {
+  if (!target) return;
+  if (!items.length) {
+    target.innerHTML = '<p class="welcome-workspace-empty">还没有工作区。新建一个后即可开始创作。</p>';
+    return;
+  }
+  target.innerHTML = items.map((item) => {
+    const name = item.name || '';
+    const label = item.display || name;
+    const meta = workspaceMeta(item);
+    const active = selected && name === selected ? ' active' : '';
+    return `<button type="button" class="${target.id === 'workspace-menu-list' ? 'workspace-menu-item' : 'welcome-workspace-item'}${active}" data-workspace="${esc(name)}"><strong>${esc(label)}</strong>${meta ? `<small>${esc(meta)}</small>` : ''}</button>`;
+  }).join('');
+}
+async function loadWorkspaces() {
+  const data = await api('/api/v2/workspaces');
+  workspaceItems = Array.isArray(data?.items) ? data.items : [];
+  if (data?.current) currentWorkspaceName = String(data.current);
+}
+async function renderWorkspacePickers() {
+  try { await loadWorkspaces(); }
+  catch (error) { notify(`读取工作区失败：${error.message}`, 'toast', 'error'); return; }
+  renderWorkspaceList($('welcome-workspace-list'), workspaceItems, currentWorkspaceName);
+  renderWorkspaceList($('workspace-menu-list'), workspaceItems, currentWorkspaceName);
+  const switcher = $('workspace-current');
+  if (switcher) switcher.textContent = currentWorkspaceName || '未选择工作区';
+}
+function resetWorkspaceViews() {
+  events.innerHTML = '';
+  streamRounds = [''];
+  streamChars = 0;
+  pendingStreamText = '';
+  streamNeedsRebuild = true;
+  flushStreamRender();
+  connect();
+}
+async function openWorkspace(name, { notifySuccess = true } = {}) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) throw new Error('请先选择工作区');
+  if (workspaceBusy()) throw new Error('写作或独占作业进行中，请先暂停再切换工作区');
+  const data = await api('/api/v2/workspaces/open', { method: 'POST', body: JSON.stringify({ name: trimmed }) });
+  currentWorkspaceName = String(data.workspace || trimmed);
+  welcomeWorkspaceID = String(data.workspace_id || '').trim();
+  welcomeStateSynced = false;
+  resetWorkspaceViews();
+  renderState(data.snapshot || {});
+  await renderWorkspacePickers();
+  try { await replay(); } catch (_) { /* replay is optional after a switch */ }
+  if (notifySuccess) notify(`已打开工作区「${currentWorkspaceName}」。`, 'toast', 'success');
+}
+async function createAndOpenWorkspace(name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) throw new Error('请输入工作区名称');
+  await api('/api/v2/workspaces', { method: 'POST', body: JSON.stringify({ name: trimmed }) });
+  await openWorkspace(trimmed);
+}
 async function startFromWelcome() {
+  if (!currentWorkspaceName) {
+    $('welcome-error').textContent = '请先选择或新建工作区。';
+    $('welcome-workspace-name')?.focus();
+    return;
+  }
   const input = $('welcome-prompt');
   const text = input.value.trim();
   if (!text) {
@@ -307,6 +389,19 @@ async function startFromWelcome() {
   $('welcome-start').textContent = '开始创作';
   if (started) closeWelcome();
   else $('welcome-error').textContent = '启动失败，请检查工作台事件中的错误信息后重试。';
+}
+function closeWorkspaceMenu() {
+  const menu = $('workspace-menu');
+  const button = $('workspace-current');
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+function toggleWorkspaceMenu() {
+  const menu = $('workspace-menu');
+  const button = $('workspace-current');
+  if (!menu || !button || button.disabled) return;
+  menu.hidden = !menu.hidden;
+  button.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
 }
 function updateUnitImage(state) {
   const image = $('unit-image');
@@ -518,9 +613,14 @@ document.querySelectorAll('[data-export]').forEach((element) => {
 document.addEventListener('click', (event) => {
   const wrap = $('export-menu');
   if (wrap && !wrap.contains(event.target)) closeExportMenu();
+  const switcher = $('workspace-switcher');
+  if (switcher && !switcher.contains(event.target)) closeWorkspaceMenu();
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeExportMenu();
+  if (event.key === 'Escape') {
+    closeExportMenu();
+    closeWorkspaceMenu();
+  }
 });
 streamView.addEventListener('scroll', () => { streamAutoFollow = isNearBottom(streamView); }, { passive: true });
 window.addEventListener('beforeunload', () => {
@@ -532,6 +632,51 @@ window.addEventListener('beforeunload', () => {
 $('welcome-skip')?.addEventListener('click', closeWelcome);
 $('welcome-enter')?.addEventListener('click', closeWelcome);
 $('welcome-start')?.addEventListener('click', startFromWelcome);
+$('welcome-workspace-list')?.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-workspace]');
+  if (!button) return;
+  try {
+    await openWorkspace(button.dataset.workspace);
+    $('welcome-error').textContent = '';
+  } catch (error) {
+    $('welcome-error').textContent = error.message;
+    notify(error.message, 'toast', 'error');
+  }
+});
+$('welcome-workspace-create')?.addEventListener('click', async () => {
+  try {
+    await createAndOpenWorkspace($('welcome-workspace-name').value);
+    $('welcome-workspace-name').value = '';
+    $('welcome-error').textContent = '';
+  } catch (error) {
+    $('welcome-error').textContent = error.message;
+    notify(error.message, 'toast', 'error');
+  }
+});
+$('welcome-workspace-name')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); $('welcome-workspace-create')?.click(); }
+});
+$('workspace-current')?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  toggleWorkspaceMenu();
+});
+$('workspace-menu-list')?.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-workspace]');
+  if (!button) return;
+  closeWorkspaceMenu();
+  try { await openWorkspace(button.dataset.workspace); }
+  catch (error) { notify(error.message, 'toast', 'error'); }
+});
+$('workspace-menu-create')?.addEventListener('click', async () => {
+  try {
+    await createAndOpenWorkspace($('workspace-menu-name').value);
+    $('workspace-menu-name').value = '';
+    closeWorkspaceMenu();
+  } catch (error) { notify(error.message, 'toast', 'error'); }
+});
+$('workspace-menu-name')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); $('workspace-menu-create')?.click(); }
+});
 $('welcome-prompt')?.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); startFromWelcome(); }
 });

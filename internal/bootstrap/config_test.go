@@ -134,6 +134,17 @@ func TestProviderStreamIdleTimeoutValue(t *testing.T) {
 	}
 }
 
+func TestFillDefaultsDoesNotInventOutputDir(t *testing.T) {
+	cfg := Config{}
+	cfg.FillDefaults()
+	if cfg.OutputDir != "" {
+		t.Fatalf("OutputDir should stay empty until a workspace is chosen, got %q", cfg.OutputDir)
+	}
+	if cfg.ProjectDir == "" || cfg.Style != "default" {
+		t.Fatalf("other defaults missing: %#v", cfg)
+	}
+}
+
 func TestValidateBaseRejectsBadStreamIdleTimeout(t *testing.T) {
 	cfg := Config{
 		Provider:  "openrouter",

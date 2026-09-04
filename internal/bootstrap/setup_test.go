@@ -22,7 +22,7 @@ func TestValidateSetupRejectsIncompleteRequest(t *testing.T) {
 	}
 }
 
-func TestSaveSetupWritesSharedAndWorkspaceFiles(t *testing.T) {
+func TestSaveSetupWritesSharedLibraryOnly(t *testing.T) {
 	home := t.TempDir()
 	workspace := t.TempDir()
 	t.Setenv("HOME", home)
@@ -44,18 +44,11 @@ func TestSaveSetupWritesSharedAndWorkspaceFiles(t *testing.T) {
 	if provider.APIKey != "secret-key" || provider.BaseURL != "https://openrouter.ai/api/v1" {
 		t.Fatalf("saved provider = %#v", provider)
 	}
-	project, err := LoadConfigFile(ProjectConfigPath())
-	if err != nil {
-		t.Fatalf("load workspace config: %v", err)
-	}
-	if len(project.Providers) != 0 || project.Provider != "openrouter" || project.ModelName != "test-model" {
-		t.Fatalf("workspace config = %#v", project)
-	}
 	if _, err := os.Stat(filepath.Join(home, ".ainovel", "config.example.jsonc")); err != nil {
 		t.Fatalf("example config: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(workspace, ".ainovel", "config.json")); err != nil {
-		t.Fatalf("workspace config location: %v", err)
+	if _, err := os.Stat(filepath.Join(workspace, ".ainovel")); !os.IsNotExist(err) {
+		t.Fatal("setup should not create a cwd .ainovel directory")
 	}
 }
 

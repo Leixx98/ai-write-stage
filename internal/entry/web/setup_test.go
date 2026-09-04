@@ -54,12 +54,8 @@ func TestSetupHandlerValidatesAndPersistsRequest(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".ainovel", "models.json")); err != nil {
 		t.Fatalf("shared model library: %v", err)
 	}
-	project, err := bootstrap.LoadConfigFile(filepath.Join(workspace, ".ainovel", "config.json"))
-	if err != nil {
-		t.Fatalf("workspace config: %v", err)
-	}
-	if len(project.Providers) != 0 || project.Provider != "proxy" {
-		t.Fatalf("workspace config leaked providers: %#v", project)
+	if _, err := os.Stat(filepath.Join(workspace, ".ainovel")); !os.IsNotExist(err) {
+		t.Fatal("setup should not create a cwd .ainovel directory")
 	}
 }
 

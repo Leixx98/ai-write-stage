@@ -14,6 +14,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/eval"
 	"github.com/voocel/ainovel-cli/internal/rules"
 	buildversion "github.com/voocel/ainovel-cli/internal/version"
+	"github.com/voocel/ainovel-cli/internal/workspace"
 )
 
 var (
@@ -83,19 +84,28 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 		die("error: 不再支持命令行直接传入小说需求，请在 Web 工作台中输入")
 	}
 
-	// FillDefaults 必须先于资产加载:OutputDir 是运行时字段,默认值在此归一——
-	// 否则默认配置下 <书目录>/style/ 的本书级文风覆盖永远不会被加载。
 	cfg.FillDefaults()
-	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir))
-	// Prompt presets are a startup snapshot. The web settings page can save
-	// changes while this process is running, but active workers keep the prompt
-	// bundle they were built with; restart to apply a newly selected preset.
-	if overrides, err := assets.LoadPromptOverrides(cfg.OutputDir); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: load prompt preset: %v (using embedded prompts)\n", err)
-	} else {
-		assets.ApplyPromptOverrides(&bundle, overrides)
+	root, err := workspace.ResolveRoot()
+	if err != nil {
+		die("error: 解析软件目录失败: %v", err)
 	}
 	if opts.Headless {
+		name := strings.TrimSpace(opts.Workspace)
+		if name == "" {
+			name = workspace.LoadLast(root)
+		}
+		if name == "" {
+			die("error: headless 需要 --workspace 工作区名，或先在 Web 中打开过工作区")
+		}
+		info, err := workspace.Lookup(root, name)
+		if err != nil {
+			die("error: %v", err)
+		}
+		cfg, err = bootstrap.ApplyWorkspaceDir(cfg, info.Path)
+		if err != nil {
+			die("error: %v", err)
+		}
+		bundle := loadBookBundle(cfg)
 		prompt, err := loadPrompt(opts)
 		if err != nil {
 			die("error: %v", err)
@@ -108,14 +118,25 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 	if opts.Prompt != "" || opts.PromptFile != "" {
 		die("error: --prompt/--prompt-file 仅能在 --headless 模式下使用")
 	}
-	if err := web.Run(cfg, bundle, versionInfo(), web.Options{Listen: opts.Listen}); err != nil {
+	if err := web.Run(cfg, versionInfo(), web.Options{Listen: opts.Listen, Root: root, Workspace: opts.Workspace}); err != nil {
 		die("error: %v", err)
 	}
+}
+
+func loadBookBundle(cfg bootstrap.Config) assets.Bundle {
+	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir))
+	if overrides, err := assets.LoadPromptOverrides(cfg.OutputDir); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: load prompt preset: %v (using embedded prompts)\n", err)
+	} else {
+		assets.ApplyPromptOverrides(&bundle, overrides)
+	}
+	return bundle
 }
 
 type cliOptions struct {
 	Headless      bool
 	Listen        string
+	Workspace     string
 	Prompt        string
 	PromptFile    string
 	Version       bool
@@ -161,6 +182,12 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 			}
 			opts.Listen = strings.TrimSpace(argv[i+1])
 			i++
+		case "--workspace":
+			if i+1 >= len(argv) {
+				return opts, nil, fmt.Errorf("--workspace 缺少值")
+			}
+			opts.Workspace = strings.TrimSpace(argv[i+1])
+			i++
 		case "--prompt":
 			if i+1 >= len(argv) {
 				return opts, nil, fmt.Errorf("--prompt 缺少值")
@@ -180,10 +207,10 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 	if opts.Prompt != "" && opts.PromptFile != "" {
 		return opts, nil, fmt.Errorf("--prompt 和 --prompt-file 不能同时使用")
 	}
-	if opts.Version && (opts.Update || opts.Headless || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
+	if opts.Version && (opts.Update || opts.Headless || opts.Workspace != "" || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
 		return opts, nil, fmt.Errorf("version 不能与其他启动参数混用")
 	}
-	if opts.Update && (opts.Headless || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
+	if opts.Update && (opts.Headless || opts.Workspace != "" || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
 		return opts, nil, fmt.Errorf("update 不能与其他启动参数混用")
 	}
 	return opts, args, nil

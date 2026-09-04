@@ -74,9 +74,6 @@ func SaveSetup(request SetupRequest) (Config, error) {
 	if err := SaveModelLibrary(library); err != nil {
 		return Config{}, fmt.Errorf("save model library: %w", err)
 	}
-	if err := SaveWorkspaceConfig(ProjectConfigPath(), cfg); err != nil {
-		return Config{}, fmt.Errorf("save workspace config: %w", err)
-	}
 	_ = saveExampleConfig()
 	return cfg, nil
 }

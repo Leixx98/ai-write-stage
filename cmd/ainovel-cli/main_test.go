@@ -41,3 +41,13 @@ func TestParseCLIOptionsHeadlessPromptFile(t *testing.T) {
 		t.Fatalf("options = %#v, args = %#v", opts, args)
 	}
 }
+
+func TestParseCLIOptionsWorkspace(t *testing.T) {
+	opts, args, err := parseCLIOptions([]string{"--workspace", "边城", "--listen", "127.0.0.1:9000"})
+	if err != nil {
+		t.Fatalf("parseCLIOptions: %v", err)
+	}
+	if opts.Workspace != "边城" || opts.Listen != "127.0.0.1:9000" || len(args) != 0 {
+		t.Fatalf("options = %#v, args = %#v", opts, args)
+	}
+}

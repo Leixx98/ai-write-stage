@@ -21,6 +21,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/host/imp"
 	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
 	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/voocel/ainovel-cli/internal/workspace"
 )
 
 const (
@@ -56,6 +57,9 @@ func envelopeErr(w http.ResponseWriter, status, code int, err error) {
 }
 
 type v2Controller struct {
+	wb          *workbench
+	root        string
+	name        string
 	rt          *host.Host
 	st          *store.Store
 	images      *store.ImageStore
@@ -68,20 +72,43 @@ type v2Controller struct {
 }
 
 func newV2Controller(rt *host.Host) *v2Controller {
-	roots := rt.Roots()
-	st := roots.Facts
-	c := &v2Controller{rt: rt, st: st, images: roots.Images, imageConfig: roots.ImageConfig, comfy: roots.ComfyUI, tavern: roots.Tavern, chat: rt.NewGalgameGenerate()}
-	c.svc = rt.ImageService()
+	c := &v2Controller{}
+	if root, err := workspace.ResolveRoot(); err == nil {
+		c.root = root
+	}
+	c.initMachineStores()
+	if rt != nil {
+		c.attach(rt, "")
+	}
 	return c
 }
 
-func registerV2(mux *http.ServeMux, rt *host.Host) {
-	c := newV2Controller(rt)
+func registerV2(mux *http.ServeMux, c *v2Controller) {
 	mux.HandleFunc("/api/v2/", c.dispatch)
 }
 
 func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 	p := strings.TrimPrefix(r.URL.Path, "/api/v2/")
+	switch {
+	case p == "workspaces" && r.Method == http.MethodGet:
+		c.listWorkspaces(w, r)
+		return
+	case p == "workspaces" && r.Method == http.MethodPost:
+		c.createWorkspace(w, r)
+		return
+	case p == "workspaces/open" && r.Method == http.MethodPost:
+		c.openWorkspace(w, r)
+		return
+	case p == "state" && r.Method == http.MethodGet:
+		c.workspaceState(w, r)
+		return
+	case p == "replay" && r.Method == http.MethodGet:
+		c.replayEvents(w, r)
+		return
+	}
+	if isKnownBookAPI(p) && !c.requireHost(w) {
+		return
+	}
 	switch {
 	case p == "chapters":
 		c.readerChapters(w, r)
@@ -141,16 +168,6 @@ func (c *v2Controller) dispatch(w http.ResponseWriter, r *http.Request) {
 		c.job(w, r, strings.TrimPrefix(p, "image-jobs/"))
 	case strings.HasPrefix(p, "units/"):
 		c.unit(w, r, strings.TrimPrefix(p, "units/"))
-	case p == "state" && r.Method == http.MethodGet:
-		envelope(w, http.StatusOK, 0, map[string]any{"snapshot": c.rt.Snapshot(), "workspace_id": webWorkspaceID(c.rt.Dir())}, "")
-	case p == "replay" && r.Method == http.MethodGet:
-		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-		items, err := c.rt.ReplayQueue(after)
-		if err != nil {
-			envelopeErr(w, 500, codeConflict, err)
-			return
-		}
-		envelope(w, http.StatusOK, 0, items, "")
 	case p == "export" && r.Method == http.MethodPost:
 		c.exportBook(w, r)
 	case p == "settings/models":

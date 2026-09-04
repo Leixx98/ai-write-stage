@@ -18,6 +18,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/arbiter"
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
 	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/voocel/ainovel-cli/internal/errs"
 	"github.com/voocel/ainovel-cli/internal/flow"
 	"github.com/voocel/ainovel-cli/internal/galgame/play"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
@@ -103,6 +104,14 @@ const (
 // New 创建 Host。
 func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Host, error) {
 	cfg.FillDefaults()
+	if strings.TrimSpace(cfg.OutputDir) == "" {
+		return nil, fmt.Errorf("output dir is required: %w", errs.ErrConfig)
+	}
+	applied, err := bootstrap.ApplyWorkspaceDir(cfg, cfg.OutputDir)
+	if err != nil {
+		return nil, err
+	}
+	cfg = applied
 	if err := cfg.ValidateBase(); err != nil {
 		return nil, err
 	}
@@ -212,10 +221,10 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 		models:          models,
 		thinkingApplier: applyThinking,
 		writerRestore:   restore,
-		userRules:       userrules.NewService(store, models.Default, rules.DefaultOptions()),
+		userRules:       userrules.NewService(store, models.Default, rules.DefaultOptionsFor(cfg.OutputDir)),
 		usage:           usage,
 		usageCancel:     usageCancel,
-		configPath:      bootstrap.EffectiveConfigPath(),
+		configPath:      bootstrap.WorkspaceConfigPath(cfg.OutputDir),
 		logCleanup:      logCleanup,
 		fileLogErr:      fileLogErr,
 		events:          make(chan Event, 100),
@@ -331,7 +340,7 @@ func (h *Host) PrepareUserRules(rawPrompt string) error {
 	if err := h.refuseNewBookOverExisting(); err != nil {
 		return err
 	}
-	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptions())
+	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptionsFor(h.cfg.OutputDir))
 	snap, err := svc.Build(context.Background(), rawPrompt)
 	if err != nil {
 		return fmt.Errorf("用户规则快照落盘失败，无法继续: %w", err)
@@ -343,7 +352,7 @@ func (h *Host) PrepareUserRules(rawPrompt string) error {
 // ensureUserRules 在恢复路径确保快照存在；缺失时按
 // system_defaults + rules 文件生成。
 func (h *Host) ensureUserRules() {
-	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptions())
+	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptionsFor(h.cfg.OutputDir))
 	snap, err := svc.GetOrBuild(context.Background())
 	if err != nil {
 		slog.Warn("用户规则快照读取/生成失败，运行时将退到内置默认", "module", "rules", "err", err)

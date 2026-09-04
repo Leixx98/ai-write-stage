@@ -157,7 +157,8 @@ go build -o ainovel-cli ./cmd/ainovel-cli
 ./ainovel-cli              # Web 工作台（默认 127.0.0.1:8080，占用则顺延）
 ./ainovel-cli --web        # 兼容旧脚本，与无参数启动相同
 ./ainovel-cli --listen 0.0.0.0:8080  # 指定 Web 监听地址
-./ainovel-cli --headless --prompt "写一本东方玄幻长篇，主角从边陲小城起步"   # 无人值守
+./ainovel-cli --workspace 边城                 # 启动时打开指定工作区
+./ainovel-cli --headless --workspace 边城 --prompt "写一本东方玄幻长篇，主角从边陲小城起步"   # 无人值守
 ./ainovel-cli eval --help  # 离线评测入口
 ```
 
@@ -170,16 +171,16 @@ mkdir -p config workspace
 docker compose build
 docker compose up
 # 浏览器打开 http://localhost:8080
-docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
+docker compose run --rm ainovel --headless --workspace 悬疑短篇 --prompt "写一本悬疑短篇"
 ```
 
 首次运行会先打开 Web 配置页，保存模型配置后进入工作台。命令行不再接受小说需求参数，开书、干预和续写都在浏览器里完成。TUI 已移除，交互入口只有 Web。
 
-`--headless` 不执行首次配置；请先启动默认 Web 配置页完成配置。Headless 可用 `--prompt`、`--prompt-file <路径>` 或 `--prompt-file -` 从标准输入读取需求；不提供 prompt 时仅恢复当前目录已有会话。
+`--headless` 不执行首次配置；请先启动默认 Web 配置页完成配置。Headless 必须指定 `--workspace 名字`，或沿用上次在 Web 中打开过的工作区；都没有则报错退出。可用 `--prompt`、`--prompt-file <路径>` 或 `--prompt-file -` 从标准输入读取需求；不提供 prompt 时仅恢复该工作区已有会话。开发时可用环境变量 `AINOVEL_ROOT` 指定软件根目录（`go run` 会回退到当前目录）。
 
 ## Web 工作台
 
-顶栏六个页：小说、酒馆、API、设置、小说写作提示词、生图设置。首次进入或已有存稿时先显示欢迎页，跳过或开始创作后进入工作台。未指定 `--listen` 时默认 `127.0.0.1:8080`，被占用则自动顺延。
+顶栏六个页：小说、酒馆、API、设置、小说写作提示词、生图设置。欢迎页列出 `workspaces/` 下的工作区，可新建或选中后再开始创作 / 进入工作台；顶栏品牌旁可切换当前工作区。写作、导入或剧场等独占作业进行中不能切换。未指定 `--listen` 时默认 `127.0.0.1:8080`，被占用则自动顺延。
 
 ### 小说页
 
@@ -212,16 +213,18 @@ docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 
 ## 管理多本小说
 
-每本小说绑定到启动目录，产物落在 `{cwd}/output/novel/`。换目录启动 = 换一本，`cd` 回去启动 = 自动从最近 checkpoint 恢复。配置 `~/.ainovel/config.json` 全局共享，无需复制。
+每本小说是软件旁的一个命名工作区，目录为 `{软件根}/workspaces/<名字>/`。双击 exe 后扫描这些文件夹，在欢迎页或顶栏选择 / 新建 / 切换；文件夹名就是工作区名。上次打开的工作区记在 `{软件根}/.ainovel-last-workspace`，启动时若仍在则自动打开（引擎保持暂停，点「继续」才恢复）。全局模型库在 `~/.ainovel/models.json`；该书的模型/角色选择和规则在 `workspaces/<名字>/.ainovel/`，提示词覆盖仍在该书目录。
 
 ## 配置文件
 
-首次运行时，Web 配置页会生成配置文件 `~/.ainovel/config.json`。工作台的模型设置可新增或编辑 Provider、保存多个模型、设置上下文窗口并切换各角色使用的模型。
+首次运行时，Web 配置页会把模型库写到 `~/.ainovel/models.json`（API Key、Provider、模型目录，所有书共享）。打开某本命名工作区后，该书的默认模型和角色分配写到 `workspaces/<名字>/.ainovel/config.json`，书级规则在 `workspaces/<名字>/.ainovel/rules/`。
 
-配置文件查找顺序（后者覆盖前者）：
+配置分层：
 
-1. `~/.ainovel/config.json` — 全局配置
-2. `./.ainovel/config.json` — 项目级覆盖（可选）
+1. `~/.ainovel/models.json` — 全局模型库
+2. `~/.ainovel/rules/` — 全局写作规则（可选）
+3. `workspaces/<名字>/.ainovel/config.json` — 该书的模型/角色选择
+4. `workspaces/<名字>/.ainovel/rules/` — 该书规则（可选）
 
 ```jsonc
 {
@@ -242,7 +245,7 @@ docker compose run --rm ainovel --headless --prompt "写一本悬疑短篇"
 }
 ```
 
-> 覆盖规则：标量字段后者覆盖前者；`providers` 和 `roles` 按 key 合并；项目级 `.ainovel/` 是全局 `~/.ainovel/` 的镜像。该目录含密钥，已默认加入 `.gitignore`。
+> 模型库和密钥只在 `~/.ainovel/models.json`。书级 `config.json` 只存默认模型、角色分配、风格等选择，不含 API Key。
 
 上下文窗口按「模型专属值 → 旧顶层 `context_window` → 模型注册表 → 200K 兜底」的顺序解析，只影响本地上下文压缩时机，不改变远端 API 的真实请求限制。
 
@@ -367,16 +370,16 @@ Web 工作台的「酒馆」页分对话和剧场，共用同一舞台：
 
 - **风格预设**（`style` 字段）— `default` / `suspense` / `fantasy` / `romance`，可在 `<输出目录>/style/styles/` 或 `~/.ainovel/style/styles/` 新增自定义风格（文件名即风格名）
 - **去 AI 味基线** — 内置机械黑名单（commit 时确定性检查）+ 语义判据，无需配置即生效
-- **自定义规则**（`~/.ainovel/rules/` 全局 / `./.ainovel/rules/` 本书）— 用大白话写偏好即可（如「每章 3000 字左右」「主角别写成圣母」），系统会归一化为结构化约束，写作时自动遵循、提交时机械自检
+- **自定义规则**（`~/.ainovel/rules/` 全局 / `workspaces/<名字>/.ainovel/rules/` 本书）— 用大白话写偏好即可（如「每章 3000 字左右」「主角别写成圣母」），系统会归一化为结构化约束，写作时自动遵循、提交时机械自检
 
 > 本 fork 对文本质量的默认要求较为宽松，这些机制保留为可选项：对出图场景来说，规则目录里写清楚「画面感强的场景多给细节」往往比文学性约束更有价值。
 
 ## 输出结构
 
-所有创作数据保存在 `output/novel/` 目录中，中断后重新运行自动从上次进度续写：
+所有创作数据保存在 `workspaces/<名字>/` 目录中，中断后重新打开同一工作区即从上次进度续写：
 
 ```
-output/novel/
+workspaces/边城/
 ├── chapters/           # 终稿（Markdown）
 ├── summaries/          # 章节摘要（JSON）
 ├── drafts/             # 章节草稿（含逐 unit 工件）
@@ -397,7 +400,7 @@ output/novel/
 
 ## 断点恢复
 
-写一部长篇可能需要数小时甚至数天，崩溃、断网、Ctrl+C 都是常见情况。系统在**同一目录再次运行时自动恢复**，无需手动操作：
+写一部长篇可能需要数小时甚至数天，崩溃、断网、Ctrl+C 都是常见情况。系统在**再次打开同一工作区时自动恢复**，无需手动操作：
 
 1. 读取 `progress.json` + 最近 checkpoint + 待处理信号
 2. 精确到 step 级生成恢复指令

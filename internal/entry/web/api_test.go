@@ -84,7 +84,7 @@ func TestModelSettingsSelectRolePersistsWorkspaceWithoutSecrets(t *testing.T) {
 	if bytes.Contains(recorder.Body.Bytes(), []byte("super-secret")) {
 		t.Fatal("API response exposed API key")
 	}
-	stored, err := bootstrap.LoadConfigFile(bootstrap.ProjectConfigPath())
+	stored, err := bootstrap.LoadConfigFile(bootstrap.WorkspaceConfigPath(cfg.OutputDir))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,12 +35,27 @@ html.welcome-seen .welcome-screen { display:none; }
 .welcome-existing h2 { margin:8px 0 4px; font-size:22px; letter-spacing:0; }
 .welcome-existing p { margin:0 0 16px; color:var(--muted); }
 .welcome-existing button { min-width:132px; }
-@media (max-width:640px) { .welcome-screen { place-items:start center; padding:72px 18px 28px; } .welcome-features { grid-template-columns:1fr; gap:13px; } .welcome-rule { margin:20px 0; } .welcome-heading h1 { font-size:30px; } .welcome-prompt-row { grid-template-columns:1fr; } .welcome-prompt-row button { min-height:44px; } .welcome-mode { display:grid; gap:2px; } }
+.welcome-workspaces { margin:0 0 22px; }
+.welcome-workspace-list { display:grid; gap:6px; margin:0 0 12px; max-height:220px; overflow:auto; }
+.welcome-workspace-empty { color:var(--muted); font-size:13px; }
+.welcome-workspace-item { display:grid; gap:2px; width:100%; padding:10px 12px; text-align:left; color:var(--text); background:#15181b; border:1px solid var(--line); }
+.welcome-workspace-item.active { border-color:var(--accent); color:var(--accent); }
+.welcome-workspace-item small { color:var(--muted); font-size:12px; }
+.welcome-workspace-new { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.workspace-switcher { position:relative; display:inline-flex; align-items:center; }
+.workspace-switcher > button { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:5px 9px; color:var(--text); background:#23282e; border:1px solid var(--line); }
+.workspace-menu { position:absolute; top:calc(100% + 6px); left:0; z-index:30; min-width:260px; padding:8px; background:#15181b; border:1px solid var(--line); box-shadow:0 8px 24px #0006; }
+.workspace-menu-list { display:grid; gap:4px; max-height:240px; overflow:auto; }
+.workspace-menu-item { display:grid; gap:2px; width:100%; padding:8px 10px; text-align:left; color:var(--text); background:transparent; border:0; }
+.workspace-menu-item.active { color:var(--accent); }
+.workspace-menu-item small { color:var(--muted); font-size:12px; }
+.workspace-menu-new { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+@media (max-width:640px) { .welcome-screen { place-items:start center; padding:72px 18px 28px; } .welcome-features { grid-template-columns:1fr; gap:13px; } .welcome-rule { margin:20px 0; } .welcome-heading h1 { font-size:30px; } .welcome-prompt-row, .welcome-workspace-new { grid-template-columns:1fr; } .welcome-prompt-row button { min-height:44px; } .welcome-mode { display:grid; gap:2px; } }
 button, input, textarea, select { font:inherit; }
 button { border:1px solid transparent; border-radius:4px; padding:8px 13px; color:#17191b; background:var(--accent); cursor:pointer; transition:filter .15s, border-color .15s; }
 button:hover { filter:brightness(1.1); } button:disabled { opacity:.5; cursor:not-allowed; } button.danger { color:#ffe6e6; background:#542a2a; border-color:#774040; } button.small { padding:5px 9px; font-size:12px; } button.secondary { color:var(--text); background:#23282e; border-color:var(--line); }
 .topbar { height:58px; display:flex; align-items:center; gap:22px; padding:0 18px; border-bottom:1px solid var(--line); background:#15181b; }
-.brand { min-width:190px; white-space:nowrap; } .brand strong { color:var(--accent); letter-spacing:.04em; margin-right:14px; } .brand span { color:var(--muted); font-size:12px; }
+.brand { min-width:190px; display:flex; align-items:center; gap:10px; white-space:nowrap; } .brand strong { color:var(--accent); letter-spacing:.04em; } .brand span { color:var(--muted); font-size:12px; }
 .tabs { display:flex; align-self:stretch; gap:2px; overflow:auto; } .tab { border:0; border-bottom:2px solid transparent; border-radius:0; padding:0 12px; color:var(--muted); background:transparent; white-space:nowrap; } .tab:hover { color:var(--text); filter:none; } .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 .status { margin-left:auto; color:var(--good); font-weight:700; letter-spacing:.08em; white-space:nowrap; } .status.running { color:var(--accent); }
 .galgame-view { position:relative; min-height:calc(100vh - 58px); background:#090b0d; }

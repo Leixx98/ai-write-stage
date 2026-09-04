@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -34,52 +35,81 @@ func configDir() (string, error) {
 	return dir, nil
 }
 
-// ProjectConfigPath returns the only effective workspace config path.
-func ProjectConfigPath() string {
-	path := filepath.Join(configDirName, "config.json")
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	return abs
+// WorkspaceConfigPath 返回某本书目录下的书级配置路径。
+func WorkspaceConfigPath(dir string) string {
+	return filepath.Join(dir, configDirName, "config.json")
 }
 
-// EffectiveConfigPath is kept as the Host-facing name. It always points to
-// the workspace; runtime choices are never written to the shared library.
-func EffectiveConfigPath() string {
-	return ProjectConfigPath()
-}
-
-// LoadConfig loads the shared model library and the workspace's choices. A
-// new workspace gets a minimal config selecting the first library model.
+// LoadConfig loads the shared model library into an in-memory Config.
+// It does not create or read a cwd .ainovel directory; book-level choices
+// are applied later with ApplyWorkspaceDir when a named workspace is opened.
 func LoadConfig() (Config, error) {
 	library, err := LoadModelLibrary()
 	if err != nil {
 		return Config{}, fmt.Errorf("load shared model library: %w", err)
 	}
-	path := ProjectConfigPath()
+	provider, model, firstErr := library.FirstModel()
+	if firstErr != nil {
+		return Config{}, firstErr
+	}
+	return Config{
+		Provider:  provider,
+		ModelName: model.Name,
+		Providers: cloneProviders(library.Providers),
+		Roles:     map[string]RoleConfig{},
+		Style:     "default",
+	}, nil
+}
+
+// ApplyWorkspaceDir binds book-level choices to dir (workspaces/<name>/).
+// Missing .ainovel/config.json is created there from the current selection.
+func ApplyWorkspaceDir(cfg Config, dir string) (Config, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return cfg, fmt.Errorf("workspace dir is required")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return cfg, fmt.Errorf("workspace dir: %w", err)
+	}
+	dir = abs
+	cfg.OutputDir = dir
+	cfg.ProjectDir = dir
+	path := WorkspaceConfigPath(dir)
 	project, found, err := loadOptionalJSON(path)
 	if err != nil {
-		return Config{}, fmt.Errorf("load workspace config %s: %w", path, err)
+		return cfg, fmt.Errorf("load workspace config %s: %w", path, err)
 	}
 	if !found {
-		provider, model, firstErr := library.FirstModel()
-		if firstErr != nil {
-			return Config{}, firstErr
+		if err := SaveWorkspaceConfig(path, cfg); err != nil {
+			return cfg, fmt.Errorf("create workspace config: %w", err)
 		}
-		project = Config{
-			Provider: provider, ModelName: model.Name,
-			Roles: map[string]RoleConfig{}, Style: "default",
-		}
-		if err := SaveWorkspaceConfig(path, project); err != nil {
-			return Config{}, fmt.Errorf("create workspace config: %w", err)
-		}
+		return cfg, nil
 	}
 	if len(project.Providers) > 0 {
-		return Config{}, fmt.Errorf("workspace config must not contain providers; manage them in %s", DefaultModelLibraryPath())
+		return cfg, fmt.Errorf("workspace config must not contain providers; manage them in %s", DefaultModelLibraryPath())
 	}
-	project.Providers = cloneProviders(library.Providers)
-	return project, nil
+	if project.Provider != "" {
+		cfg.Provider = project.Provider
+	}
+	if project.ModelName != "" {
+		cfg.ModelName = project.ModelName
+	}
+	if project.Style != "" {
+		cfg.Style = project.Style
+	}
+	if project.ReasoningEffort != "" {
+		cfg.ReasoningEffort = project.ReasoningEffort
+	}
+	if project.ContextWindow > 0 {
+		cfg.ContextWindow = project.ContextWindow
+	}
+	if project.Roles != nil {
+		cfg.Roles = project.Roles
+	}
+	cfg.Budget = project.Budget
+	cfg.Notify = project.Notify
+	return cfg, nil
 }
 
 // loadOptionalJSON 读取一个可选的配置文件：

@@ -26,11 +26,10 @@ func setupLibrary(t *testing.T) string {
 	return home
 }
 
-func TestLoadConfigCreatesWorkspaceFromFirstLibraryModel(t *testing.T) {
+func TestLoadConfigDoesNotCreateCwdDotDir(t *testing.T) {
 	setupLibrary(t)
-	workspace := t.TempDir()
-	t.Chdir(workspace)
-
+	cwd := t.TempDir()
+	t.Chdir(cwd)
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("load config: %v", err)
@@ -41,25 +40,54 @@ func TestLoadConfigCreatesWorkspaceFromFirstLibraryModel(t *testing.T) {
 	if len(cfg.Providers) != 2 || cfg.Providers["preferred"].APIKey != "secret" {
 		t.Fatalf("runtime providers not populated from library: %#v", cfg.Providers)
 	}
+	if _, err := os.Stat(filepath.Join(cwd, ".ainovel")); !os.IsNotExist(err) {
+		t.Fatalf("LoadConfig should not create cwd .ainovel, err=%v", err)
+	}
+}
 
-	stored, err := LoadConfigFile(filepath.Join(workspace, ".ainovel", "config.json"))
+func TestApplyWorkspaceDirCreatesBookConfig(t *testing.T) {
+	setupLibrary(t)
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	book := t.TempDir()
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = ApplyWorkspaceDir(cfg, book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abs, err := filepath.Abs(book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OutputDir != abs || cfg.ProjectDir != abs {
+		t.Fatalf("dirs = %q / %q, want %q", cfg.OutputDir, cfg.ProjectDir, abs)
+	}
+	stored, err := LoadConfigFile(WorkspaceConfigPath(book))
 	if err != nil {
 		t.Fatalf("load stored workspace config: %v", err)
 	}
 	if len(stored.Providers) != 0 {
 		t.Fatalf("workspace config leaked shared providers: %#v", stored.Providers)
 	}
+	if _, err := os.Stat(filepath.Join(cwd, ".ainovel")); !os.IsNotExist(err) {
+		t.Fatal("book config should not be written to cwd")
+	}
 }
 
-func TestLoadConfigUsesIndependentWorkspaceSelection(t *testing.T) {
+func TestApplyWorkspaceDirUsesSavedSelection(t *testing.T) {
 	setupLibrary(t)
-	workspace := t.TempDir()
-	t.Chdir(workspace)
-	if err := SaveWorkspaceConfig(ProjectConfigPath(), Config{Provider: "other", ModelName: "other-model", Style: "default"}); err != nil {
+	book := t.TempDir()
+	if err := SaveWorkspaceConfig(WorkspaceConfigPath(book), Config{Provider: "other", ModelName: "other-model", Style: "default"}); err != nil {
 		t.Fatal(err)
 	}
-
 	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = ApplyWorkspaceDir(cfg, book)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,17 +96,21 @@ func TestLoadConfigUsesIndependentWorkspaceSelection(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsProvidersInWorkspace(t *testing.T) {
+func TestApplyWorkspaceDirRejectsProviders(t *testing.T) {
 	setupLibrary(t)
-	t.Chdir(t.TempDir())
+	book := t.TempDir()
 	legacy := Config{
 		Provider: "preferred", ModelName: "first-model",
 		Providers: map[string]ProviderConfig{"preferred": {APIKey: "duplicate"}},
 	}
-	if err := SaveConfig(ProjectConfigPath(), legacy); err != nil {
+	if err := SaveConfig(WorkspaceConfigPath(book), legacy); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadConfig(); err == nil {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyWorkspaceDir(cfg, book); err == nil {
 		t.Fatal("workspace providers should be rejected")
 	}
 }
@@ -93,24 +125,28 @@ func TestLoadConfigRequiresModelLibrary(t *testing.T) {
 	}
 }
 
-func TestEffectiveConfigPathAlwaysUsesWorkspace(t *testing.T) {
-	t.Chdir(t.TempDir())
-	want, _ := filepath.Abs(filepath.Join(".ainovel", "config.json"))
-	if got := EffectiveConfigPath(); got != want {
-		t.Fatalf("effective config path = %q, want %q", got, want)
+func TestWorkspaceConfigPathUsesBookDir(t *testing.T) {
+	book := t.TempDir()
+	want := filepath.Join(book, ".ainovel", "config.json")
+	if got := WorkspaceConfigPath(book); got != want {
+		t.Fatalf("workspace config path = %q, want %q", got, want)
 	}
 }
 
 func TestCorruptWorkspaceConfigFailsLoud(t *testing.T) {
 	setupLibrary(t)
-	t.Chdir(t.TempDir())
-	if err := os.MkdirAll(".ainovel", 0o755); err != nil {
+	book := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(book, ".ainovel"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(".ainovel", "config.json"), []byte(`{"model":,}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(book, ".ainovel", "config.json"), []byte(`{"model":,}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadConfig(); err == nil {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyWorkspaceDir(cfg, book); err == nil {
 		t.Fatal("corrupt workspace config should fail")
 	}
 }

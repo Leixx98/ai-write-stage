@@ -13,7 +13,7 @@ func TestNovelWorkbenchUsesActionButtons(t *testing.T) {
 	if bytes.Contains(data, []byte(`id="prompt"`)) || bytes.Contains(data, []byte(`id="send"`)) {
 		t.Fatal("novel page still has the command input")
 	}
-	for _, id := range []string{"pause", "action-other", "action-replan", "action-rewrite", "action-modal", "export-open", "export-options", "reader-open", "reopen-open"} {
+	for _, id := range []string{"pause", "action-other", "action-replan", "action-rewrite", "action-modal", "export-open", "export-options", "reader-open", "reopen-open", "welcome-workspace-list", "welcome-workspace-create", "workspace-switcher", "workspace-current"} {
 		if !bytes.Contains(data, []byte(`id="`+id+`"`)) {
 			t.Fatalf("missing %s", id)
 		}
@@ -28,7 +28,7 @@ func TestExportMenuOpensAboveButton(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, needle := range []string{"closeExportMenu", "toggleExportMenu", "data-export"} {
+	for _, needle := range []string{"closeExportMenu", "toggleExportMenu", "data-export", "openWorkspace", "createAndOpenWorkspace"} {
 		if !bytes.Contains(script, []byte(needle)) {
 			t.Fatalf("app.js missing %s", needle)
 		}
@@ -37,7 +37,7 @@ func TestExportMenuOpensAboveButton(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(css, []byte(".export-options")) || !bytes.Contains(css, []byte("bottom:calc(100% + 6px)")) {
+	if !bytes.Contains(css, []byte(".export-options")) || !bytes.Contains(css, []byte("bottom:calc(100% + 6px)")) || !bytes.Contains(css, []byte(".workspace-switcher")) || !bytes.Contains(css, []byte(".welcome-workspace-list")) {
 		t.Fatal("export menu should open above the button")
 	}
 }

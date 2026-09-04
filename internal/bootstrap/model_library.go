@@ -11,7 +11,7 @@ import (
 const modelLibraryVersion = 1
 
 // ModelLibrary is the shared provider and model catalog. Workspace choices
-// live in .ainovel/config.json and are deliberately not stored here.
+// live in workspaces/<name>/.ainovel/config.json and are deliberately not stored here.
 type ModelLibrary struct {
 	Version       int                       `json:"version"`
 	ProviderOrder []string                  `json:"provider_order"`

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -284,7 +283,7 @@ func (c *Config) ValidateBase() error {
 	// 默认 provider 必须有凭证
 	pc, ok := c.Providers[c.Provider]
 	if !ok {
-		return fmt.Errorf("provider %q 未在 providers 中配置凭证；若在 ./.ainovel/config.json 里覆盖了 provider，需同时声明 providers.%s（含 api_key/base_url），不能只改顶层 provider: %w", c.Provider, c.Provider, errs.ErrConfig)
+		return fmt.Errorf("provider %q 未在 ~/.ainovel/models.json 中配置凭证: %w", c.Provider, errs.ErrConfig)
 	}
 	if pc.RequiresAPIKey(c.Provider) && pc.APIKey == "" {
 		return fmt.Errorf("provider %q has no api_key configured: %w", c.Provider, errs.ErrConfig)
@@ -425,13 +424,10 @@ func (c *Config) DefaultProviderConfig() ProviderConfig {
 	return c.Providers[c.Provider]
 }
 
-// FillDefaults 填充默认值。
+// FillDefaults 填充默认值。OutputDir 必须由调用方选定工作区后写入，不再默认 output/novel。
 func (c *Config) FillDefaults() {
 	if c.ProjectDir == "" {
 		c.ProjectDir, _ = os.Getwd()
-	}
-	if c.OutputDir == "" {
-		c.OutputDir = filepath.Join("output", "novel")
 	}
 	if c.Providers == nil {
 		c.Providers = make(map[string]ProviderConfig)

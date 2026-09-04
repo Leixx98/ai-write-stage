@@ -86,3 +86,30 @@ func TestDefaultOptions_ScansProjectRulesFromDotAinovel(t *testing.T) {
 		t.Errorf("来源标签应为 project:book.md，得到 %q", got.Label)
 	}
 }
+
+func TestDefaultOptionsForUsesBookDirNotCwd(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	book := t.TempDir()
+	rulesDir := filepath.Join(book, ".ainovel", "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "book.md"), []byte("本书规则"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(cwd, ".ainovel", "rules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cwd, ".ainovel", "rules", "cwd.md"), []byte("启动目录规则"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := DefaultOptionsFor(book)
+	if opts.ProjectRulesDir != rulesDir {
+		t.Fatalf("ProjectRulesDir = %q, want %q", opts.ProjectRulesDir, rulesDir)
+	}
+	srcs := RawFileSources(opts)
+	if len(srcs) != 1 || srcs[0].Label != "project:book.md" || !strings.Contains(srcs[0].Text, "本书规则") {
+		t.Fatalf("book rules should follow workspace dir, got %+v", srcs)
+	}
+}

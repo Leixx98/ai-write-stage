@@ -61,7 +61,7 @@ const homeRulesReadme = `这里放全局写作偏好，跨所有书生效。
 
 常见 AI 套句、疲劳词的机械基线已内置，开箱即用，不写也没关系。
 
-加载优先级（高 → 低）：./.ainovel/rules/*.md（本书） > ~/.ainovel/rules/*.md（这里） > 内置默认
+加载优先级（高 → 低）：workspaces/<名字>/.ainovel/rules/*.md（本书） > ~/.ainovel/rules/*.md（这里） > 内置默认
 `
 
 // EnsureHomeRulesDir 尽力创建 ~/.ainovel/rules/ 目录并写入 README.txt 引导，
@@ -84,17 +84,16 @@ func ensureRulesDirAt(dir string) error {
 }
 
 // DefaultOptions 根据当前工作目录构造常用 LoadOptions。
-//
-// 适合 Host 启动时调用一次，让用户规则服务复用同一份来源配置。
-// 解析 cwd 失败时 ProjectRulesDir 留空（扫描会跳过该来源）。
-//
-// 路径语义：ProjectRulesDir 绑定 **当前工作目录（cwd）** 而非 outputDir。
-// 用户 cd 到不同目录启动写不同的书，./.ainovel/rules/ 自然跟着 cwd 走；如需跨书共享，
-// 放 ~/.ainovel/rules/ 全局目录即可（其下所有 .md 都会被加载）。
 func DefaultOptions() LoadOptions {
 	cwd, _ := os.Getwd()
+	return DefaultOptionsFor(cwd)
+}
+
+// DefaultOptionsFor 把本书规则绑到指定书目录（workspaces/<名字>/.ainovel/rules/）。
+// 跨书共享仍走 ~/.ainovel/rules/。
+func DefaultOptionsFor(projectDir string) LoadOptions {
 	return LoadOptions{
 		HomeRulesDir:    DefaultHomeRulesDir(),
-		ProjectRulesDir: DefaultProjectRulesDir(cwd),
+		ProjectRulesDir: DefaultProjectRulesDir(projectDir),
 	}
 }
