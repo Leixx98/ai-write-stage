@@ -464,11 +464,26 @@ $('reopen-open')?.addEventListener('click', () => {
 });
 document.querySelectorAll('[data-action="close-reopen"]').forEach((element) => element.addEventListener('click', closeReopen));
 $('reopen-submit')?.addEventListener('click', submitReopen);
-async function exportBookEPUB() {
-  const button = qs('[data-action="export-book"]');
+function closeExportMenu() {
+  const menu = $('export-options');
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  $('export-open')?.setAttribute('aria-expanded', 'false');
+}
+function toggleExportMenu() {
+  const menu = $('export-options');
+  const button = $('export-open');
+  if (!menu || !button || button.disabled) return;
+  menu.hidden = !menu.hidden;
+  button.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+}
+async function exportBook(format) {
+  const kind = format === 'txt' ? 'txt' : 'epub';
+  const button = $('export-open');
+  closeExportMenu();
   if (button) button.disabled = true;
   try {
-    const response = await fetch('/api/v2/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const response = await fetch('/api/v2/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format: kind }) });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.msg || response.statusText || `HTTP ${response.status}`);
@@ -478,19 +493,35 @@ async function exportBookEPUB() {
     const link = document.createElement('a');
     link.href = url;
     const encodedName = response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-    link.download = encodedName ? decodeURIComponent(encodedName.replace(/\+/g, ' ')) : 'novel.epub';
+    link.download = encodedName ? decodeURIComponent(encodedName.replace(/\+/g, ' ')) : (kind === 'txt' ? 'novel.txt' : 'novel.epub');
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    notify('EPUB 已导出，可在手机阅读器中打开。', 'toast', 'success');
+    notify(kind === 'txt' ? 'TXT 已导出。' : 'EPUB 已导出，可在手机阅读器中打开。', 'toast', 'success');
   } catch (error) {
     notify(`导出失败：${error.message}`, 'toast', 'error');
   } finally {
     if (button) button.disabled = false;
   }
 }
-qs('[data-action="export-book"]')?.addEventListener('click', exportBookEPUB);
+$('export-open')?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  toggleExportMenu();
+});
+document.querySelectorAll('[data-export]').forEach((element) => {
+  element.addEventListener('click', (event) => {
+    event.stopPropagation();
+    exportBook(element.getAttribute('data-export'));
+  });
+});
+document.addEventListener('click', (event) => {
+  const wrap = $('export-menu');
+  if (wrap && !wrap.contains(event.target)) closeExportMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeExportMenu();
+});
 streamView.addEventListener('scroll', () => { streamAutoFollow = isNearBottom(streamView); }, { passive: true });
 window.addEventListener('beforeunload', () => {
   eventSource?.close();

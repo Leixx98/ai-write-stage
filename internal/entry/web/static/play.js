@@ -16,6 +16,7 @@
     const status = $('galgame-play-status');
     if (status) status.hidden = !on;
     window.Galgame?.syncSettingsMode?.(on);
+    window.ImageGeneration?.applyVisibility?.();
     if (on) {
       Promise.resolve(loadPlays()).then(() => {
         if (isPlayMode() && character() && !playState.play) window.Galgame?.openSettings?.();

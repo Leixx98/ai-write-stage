@@ -192,7 +192,27 @@ func webWorkspaceID(dir string) string {
 }
 
 func (c *v2Controller) exportBook(w http.ResponseWriter, r *http.Request) {
-	result, err := exp.Run(r.Context(), exp.Deps{Store: c.st}, exp.Options{Format: exp.FormatEPUB, Overwrite: true})
+	format := exp.FormatEPUB
+	if r.Body != nil {
+		var req struct {
+			Format string `json:"format"`
+		}
+		err := decodeBody(r, &req)
+		if err != nil && err != io.EOF {
+			envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("invalid export request"))
+			return
+		}
+		switch strings.ToLower(strings.TrimSpace(req.Format)) {
+		case "", "epub":
+			format = exp.FormatEPUB
+		case "txt":
+			format = exp.FormatTXT
+		default:
+			envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("不支持的导出格式 %q", req.Format))
+			return
+		}
+	}
+	result, err := exp.Run(r.Context(), exp.Deps{Store: c.st}, exp.Options{Format: format, Overwrite: true})
 	if err != nil {
 		envelopeErr(w, http.StatusUnprocessableEntity, codeInvalidRequest, err)
 		return
@@ -203,7 +223,11 @@ func (c *v2Controller) exportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filename := filepath.Base(result.Path)
-	w.Header().Set("Content-Type", "application/epub+zip")
+	contentType := "application/epub+zip"
+	if format == exp.FormatTXT {
+		contentType = "text/plain; charset=utf-8"
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)

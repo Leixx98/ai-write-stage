@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ainovel Web Workbench</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=tavern-image-off-v1">
   <link rel="stylesheet" href="/static/reader.css">
 </head>
-<body>
+<body data-image-chat-enabled="false" data-image-play-enabled="false">
   <section id="welcome" class="welcome-screen" aria-labelledby="welcome-title">
     <button id="welcome-skip" class="welcome-skip" type="button">跳过欢迎页</button>
     <div class="welcome-content">
@@ -83,7 +83,13 @@
       </div>
       <div class="controls-group controls-output">
         <button id="reopen-open" type="button" hidden>完结后续写</button>
-        <button id="export-book" class="secondary" type="button" data-action="export-book">导出 EPUB</button>
+        <div id="export-menu" class="export-menu">
+          <button id="export-open" class="secondary" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="export-options">导出</button>
+          <div id="export-options" class="export-options" hidden role="menu">
+            <button type="button" role="menuitem" data-export="txt" title="仅导出正文文字">TXT</button>
+            <button type="button" role="menuitem" data-export="epub" title="导出图文 EPUB">EPUB</button>
+          </div>
+        </div>
         <button id="reader-open" class="secondary" type="button">沉浸式阅读</button>
       </div>
     </footer>
@@ -217,10 +223,10 @@
   <div id="reopen-modal" class="node-modal" hidden><div class="node-modal-backdrop" data-action="close-reopen"></div><section class="node-modal-card"><div class="inspector-title"><strong>继续已完结的故事</strong><button class="small" data-action="close-reopen" type="button">关闭</button></div><label>续写方向<textarea id="reopen-direction" rows="5" placeholder="描述新卷主题、时间跨度或主角的新目标"></textarea></label><div class="modal-actions"><button id="reopen-submit" type="button">重开并继续</button></div><div id="reopen-message" class="notice"></div></section></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
-  <script src="/static/app.js?v=toast-feedback-v1"></script>
-  <script src="/static/image-generation.js?v=image-generation-v2"></script>
-  <script src="/static/galgame.js?v=image-generation-v2"></script>
-  <script src="/static/play.js?v=image-generation-v2"></script>
+  <script src="/static/app.js?v=export-menu-v1"></script>
+  <script src="/static/image-generation.js?v=image-generation-v3"></script>
+  <script src="/static/galgame.js?v=image-generation-v3"></script>
+  <script src="/static/play.js?v=image-generation-v3"></script>
   <script src="/static/model-settings.js"></script>
   <script src="/static/settings.js"></script>
   <script src="/static/prompts.js"></script>
