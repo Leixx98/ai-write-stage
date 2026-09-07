@@ -46,10 +46,20 @@ func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Eve
 		Analyze:       h.importCaller("analyze"),
 		Synthesize:    h.importCaller("synthesize"),
 		Prompts: imp.Prompts{
-			Segment:    h.bundle.Prompts.ImportSegment,
-			Analyze:    h.bundle.Prompts.ImportAnalyze,
-			Synthesize: h.bundle.Prompts.ImportSynthesize,
-			Range:      h.bundle.Prompts.ImportRange,
+			Segment:     h.bundle.Prompts.ImportSegment,
+			Analyze:     h.bundle.Prompts.ImportAnalyze,
+			AnalyzeDeep: h.bundle.Prompts.ImportAnalyzeDeep,
+			Synthesize:  h.bundle.Prompts.ImportSynthesize,
+			Range:       h.bundle.Prompts.ImportRange,
+		},
+		OnStream: func(clear bool, text string) {
+			if clear {
+				h.emitStream(StreamEvent{Kind: StreamEventClear})
+				return
+			}
+			if text != "" {
+				h.emitStream(StreamEvent{Kind: StreamEventText, Text: text})
+			}
 		},
 	}
 	ch, err := imp.Run(ctx, deps, opts)

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ainovel Web Workbench</title>
-  <link rel="stylesheet" href="/static/style.css?v=workspace-picker-v1">
+  <link rel="stylesheet" href="/static/style.css?v=import-form-v3">
   <link rel="stylesheet" href="/static/reader.css">
 </head>
 <body data-image-chat-enabled="false" data-image-play-enabled="false">
@@ -143,6 +143,7 @@
           <label>角色<select id="galgame-play-character-select"></select></label>
           <label>剧场局<select id="galgame-play-select"></select></label>
           <label>局名<input id="galgame-play-name" placeholder="剧场局名称"></label>
+          <label>剧场模式<select id="galgame-play-density"><option value="compact">精简（适合小模型）</option><option value="rich">丰满（适合大模型）</option></select></label>
           <label class="wide">用户身份<textarea id="galgame-play-persona" rows="2" placeholder="你在这部剧里的名字或身份"></textarea></label>
           <label class="wide">剧情预设<textarea id="galgame-play-premise" rows="6" placeholder="输入剧情方向。其他角色可以直接写在预设里。"></textarea></label>
           <div class="button-row"><button id="galgame-new-play" type="button">新建剧场</button><button id="galgame-save-play" type="button">保存设置</button><button id="galgame-start-play" type="button">开始写作</button><button id="galgame-pause-play" type="button">暂停</button></div>
@@ -178,7 +179,7 @@
     <div id="models-msg" class="notice"></div>
   </section></main>
 
-  <main id="app-settings" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>设置</h1><p>交互式导入与写作要求。</p></div><button data-action="save-workflow">保存写作要求</button></div><section class="import-wizard"><div class="subheading"><div><h2>导入已有小说</h2><span id="import-state" class="job-status">空闲</span></div><button id="import-refresh" class="small" type="button">刷新状态</button></div><div class="form-grid"><label class="wide">服务端本地路径<input id="import-source-path" placeholder="D:\books\novel.txt"><small class="field-help">请输入运行 ainovel 服务的机器上的绝对路径。浏览器文件选择器不能提供可信绝对路径，因此这里不会伪装成文件上传。</small></label><label>故事状态<select id="import-story-status"><option value="undetermined">未定</option><option value="open">未完结</option><option value="closed">已完结</option></select></label><label class="switch-label"><input id="import-continue-after" type="checkbox"> 导入完成后继续写作</label><label class="wide">切分指导<textarea id="import-guidance" rows="3" placeholder="例如：将无标题序章并入第一章"></textarea></label></div><div class="button-row"><button id="import-start" type="button">开始导入</button><button id="import-confirm" type="button" hidden>确认当前切分</button><button id="import-resegment" type="button" hidden>按新指导重新切分</button><button id="import-resolve-open" type="button" hidden>选择未完结并恢复</button><button id="import-resolve-closed" type="button" hidden>选择已完结并恢复</button><button id="import-cancel" class="danger" type="button" hidden>取消导入</button></div><div id="import-resume" class="notice"></div><pre id="import-preview" class="import-preview" hidden></pre><div id="import-history" class="import-history"><span class="muted">暂无导入进度</span></div></section><div class="form-grid writing-settings"><label class="wide"><span class="field-title">写作要求</span><div class="preset-toolbar"><select id="writing-rules-preset" aria-label="写作要求预设"><option>默认要求</option></select><button type="button" class="small" data-action="save-writing-rules">覆盖保存</button><button type="button" class="small" data-action="save-writing-rules-as">另存为</button><button type="button" class="small" data-action="default-writing-rules">恢复默认</button></div><textarea id="writing-rules" rows="9"></textarea><small class="field-help">保存后会立即更新 Host 的用户规则，并参与后续规划和写作。</small></label></div><div id="settings-msg" class="notice"></div></section></main>
+  <main id="app-settings" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>设置</h1><p>交互式导入与写作要求。</p></div></div><section class="import-wizard"><div class="subheading"><div><h2>导入已有小说</h2><span id="import-state" class="job-status">空闲</span></div><div class="heading-actions"><button id="import-cancel-settings" class="danger" type="button" hidden>取消导入</button><button id="import-open" type="button">打开导入</button></div></div></section><section class="writing-settings"><div class="writing-settings-head"><h2>写作要求</h2><button data-action="save-workflow" type="button">保存写作要求</button></div><div class="preset-toolbar"><select id="writing-rules-preset" aria-label="写作要求预设"><option>默认要求</option></select><button type="button" class="small" data-action="save-writing-rules">覆盖保存</button><button type="button" class="small" data-action="save-writing-rules-as">另存为</button><button type="button" class="small" data-action="default-writing-rules">恢复默认</button></div><textarea id="writing-rules" rows="9"></textarea><small class="field-help">保存后会立即更新 Host 的用户规则，并参与后续规划和写作。</small></section><div id="settings-msg" class="notice"></div></section></main>
 
   <main id="prompts" class="view settings-view"><section class="settings-panel"><div class="section-heading"><div><h1>写作提示词</h1><p>配置架构师、章节规划师、写作者和编辑的提示词模板。</p></div></div><div class="preset-toolbar prompt-preset-toolbar"><label class="preset-label" for="prompt-preset">提示词组合</label><select id="prompt-preset" aria-label="提示词组合"><option>默认配置</option></select><button type="button" class="small" data-action="save-prompts">覆盖保存</button><button type="button" class="small" data-action="save-prompts-as">另存为</button><button type="button" class="small" data-action="default-prompts">恢复默认</button></div><small class="field-help prompt-preset-help">提示词会在 ainovel 启动时加载；保存或切换组合后请重启程序，新的提示词才会用于后续小说写作。</small><div id="prompt-editors" class="prompt-editors"></div><div id="prompts-msg" class="notice"></div></section></main>
 
@@ -230,14 +231,49 @@
   <div id="node-modal" class="node-modal" hidden><div class="node-modal-backdrop" data-action="close-node"></div><section class="node-modal-card"><div class="inspector-title"><div><strong id="modal-node-title"></strong><small id="modal-node-subtitle"></small></div><button class="small" data-action="close-node">关闭</button></div><div id="modal-field-editor" class="node-field-editor"></div><div class="modal-actions"><button data-action="save-node-fields">应用字段</button></div></section></div>
   <div id="action-modal" class="node-modal" hidden><div class="node-modal-backdrop" data-action="close-action"></div><section class="node-modal-card"><div class="inspector-title"><strong id="action-title">指令</strong><button class="small" data-action="close-action" type="button">关闭</button></div><p id="action-help" class="field-help"></p><label id="action-number-wrap" hidden><span id="action-number-label">从第几章起</span><input id="action-number" type="number" min="1" step="1"></label><label><span id="action-text-label">说明</span><textarea id="action-text" rows="5"></textarea></label><div class="modal-actions"><button id="action-submit" type="button">提交</button></div><div id="action-message" class="notice"></div></section></div>
   <div id="reopen-modal" class="node-modal" hidden><div class="node-modal-backdrop" data-action="close-reopen"></div><section class="node-modal-card"><div class="inspector-title"><strong>继续已完结的故事</strong><button class="small" data-action="close-reopen" type="button">关闭</button></div><label>续写方向<textarea id="reopen-direction" rows="5" placeholder="描述新卷主题、时间跨度或主角的新目标"></textarea></label><div class="modal-actions"><button id="reopen-submit" type="button">重开并继续</button></div><div id="reopen-message" class="notice"></div></section></div>
+  <div id="import-dialog" class="import-dialog" hidden>
+    <div class="import-dialog-backdrop" data-action="close-import"></div>
+    <section class="import-dialog-panel" role="dialog" aria-labelledby="import-dialog-title">
+      <header class="import-dialog-head">
+        <div class="import-dialog-head-title"><h2 id="import-dialog-title">导入已有小说</h2><span id="import-dialog-state" class="job-status">空闲</span></div>
+        <button id="import-dialog-close" class="small" type="button">关闭</button>
+      </header>
+      <div class="import-dialog-body">
+        <section class="import-dialog-form">
+          <div class="import-dialog-fields">
+            <label>服务端本地路径<input id="import-source-path" placeholder="D:\books\novel.txt"><small class="field-help">请输入运行 ainovel 服务的机器上的绝对路径。</small></label>
+            <label>故事状态<select id="import-story-status"><option value="undetermined">未定</option><option value="open">未完结</option><option value="closed">已完结</option></select></label>
+            <label>近窗章数<input id="import-deep-window" type="number" min="0" step="1" value="20"><small class="field-help">近窗只对最后 N 章做伏笔/时间线深提取；0 表示跳过。</small></label>
+            <label class="switch-label"><input id="import-continue-after" type="checkbox"> 导入完成后继续写作</label>
+            <label>切分指导<textarea id="import-guidance" rows="4" placeholder="例如：将无标题序章并入第一章"></textarea></label>
+          </div>
+          <div class="button-row">
+            <button id="import-start" type="button">开始导入</button>
+            <button id="import-confirm" type="button" hidden>确认当前切分</button>
+            <button id="import-resegment" type="button" hidden>按新指导重新切分</button>
+            <button id="import-resolve-open" type="button" hidden>选择未完结并恢复</button>
+            <button id="import-resolve-closed" type="button" hidden>选择已完结并恢复</button>
+            <button id="import-cancel" class="danger" type="button" hidden>取消导入</button>
+          </div>
+          <div id="import-resume" class="notice"></div>
+          <pre id="import-preview" class="import-preview" hidden></pre>
+          <div id="import-dialog-msg" class="notice"></div>
+        </section>
+        <section class="import-dialog-log">
+          <div class="import-dialog-pane"><h3>事件</h3><div id="import-events" class="scroll"></div></div>
+          <div class="import-dialog-pane"><h3>模型回复</h3><pre id="import-stream" class="scroll"></pre></div>
+        </section>
+      </div>
+    </section>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
   <script src="/static/app.js?v=export-menu-v1"></script>
   <script src="/static/image-generation.js?v=image-generation-v3"></script>
   <script src="/static/galgame.js?v=image-generation-v3"></script>
-  <script src="/static/play.js?v=image-generation-v3"></script>
+  <script src="/static/play.js?v=play-density-v1"></script>
   <script src="/static/model-settings.js"></script>
-  <script src="/static/settings.js"></script>
+  <script src="/static/settings.js?v=settings-layout-v1"></script>
   <script src="/static/prompts.js"></script>
   <script src="/static/comfyui.js?v=image-generation-v2"></script>
   <script src="/static/reader.js"></script>

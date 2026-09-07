@@ -30,11 +30,13 @@ func TestNextActionChain(t *testing.T) {
 		{"已切分待确认", Facts{WorkspaceReady: true, Segmented: true}, ActionAwaitConfirmation},
 		{"已确认待分析", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3}, ActionAnalyze},
 		{"分析未满", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 2}, ActionAnalyze},
-		{"分析齐待综合", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3}, ActionSynthesize},
-		{"综合后 uncertain 待裁定", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, Synthesized: true, StoryUncertain: true}, ActionAwaitStoryResolution},
-		{"uncertain 已裁定待发布", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, Synthesized: true, StoryUncertain: true, StoryResolved: true}, ActionPublish},
-		{"明确状态待发布", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, Synthesized: true}, ActionPublish},
-		{"全部一致", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, Synthesized: true, Published: true}, ActionDone},
+		{"轻提取齐待深提取", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3}, ActionAnalyzeDeep},
+		{"窗口0跳过深提取", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true}, ActionSynthesize},
+		{"深提取齐待综合", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true}, ActionSynthesize},
+		{"综合后 uncertain 待裁定", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true, Synthesized: true, StoryUncertain: true}, ActionAwaitStoryResolution},
+		{"uncertain 已裁定待发布", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true, Synthesized: true, StoryUncertain: true, StoryResolved: true}, ActionPublish},
+		{"明确状态待发布", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true, Synthesized: true}, ActionPublish},
+		{"全部一致", Facts{WorkspaceReady: true, Segmented: true, Confirmed: true, ExpectedChapters: 3, AnalyzedChapters: 3, DeepAnalyzed: true, Synthesized: true, Published: true}, ActionDone},
 		{"发布终态短路上游失鲜", Facts{Published: true}, ActionDone},
 	}
 	for _, c := range cases {
@@ -184,8 +186,8 @@ func TestResumeSummary(t *testing.T) {
 	if err := writeArtifact(ws, fileConfirmation, Digest(raw), Confirmation{Method: confirmMethodAuto, Chapters: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if got := ResumeSummary(st); !strings.Contains(got, "已分析 0/1 章") {
-		t.Fatalf("应提示分析进度，得 %q", got)
+	if got := ResumeSummary(st); !strings.Contains(got, "已轻提取 0/1 章") {
+		t.Fatalf("应提示轻提取进度，得 %q", got)
 	}
 }
 
@@ -231,6 +233,50 @@ func TestResumeStatusPublishedIsTerminal(t *testing.T) {
 	}
 	if got := ResumeSummary(st); got != "" {
 		t.Fatalf("已发布书不应提示未完成导入，得 %q", got)
+	}
+}
+
+func TestLoadStateLightThenDeepWindow(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "book.txt")
+	if err := os.WriteFile(src, []byte("第一章\n正文一\n第二章\n正文二\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws, _, err := Ingest(dir, src, Intent{DeepExtractChapters: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	norm, err := ws.LoadSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	units := buildSourceUnits(norm, 0)
+	seg, err := resolveSegmentation(norm, units, []BoundaryDecision{
+		{UnitID: units[0].ID, Kind: kindChapter, Title: units[0].Text},
+		{UnitID: units[2].ID, Kind: kindChapter, Title: units[2].Text},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeArtifact(ws, fileSegmentation, segmentInputDigest(Digest(norm), "", segmentPromptVersion), *seg); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := ws.readBytes(fileSegmentation)
+	if err := writeArtifact(ws, fileConfirmation, Digest(raw), Confirmation{Method: confirmMethodAuto, Chapters: 2}); err != nil {
+		t.Fatal(err)
+	}
+	writeLightFacts(t, ws, norm, seg, segmentInputDigest(Digest(norm), "", segmentPromptVersion), analyzePromptVersion, 1)
+	writeLightFacts(t, ws, norm, seg, segmentInputDigest(Digest(norm), "", segmentPromptVersion), analyzePromptVersion, 2)
+	f := mustLoadState(t, ws)
+	if f.AnalyzedChapters != 2 || f.DeepAnalyzed || NextAction(f) != ActionAnalyzeDeep {
+		t.Fatalf("轻提取齐且近窗未完成应深提取：%+v action=%s", f, NextAction(f))
+	}
+	if err := ws.writeJSON(fileIntent, Intent{Version: workspaceSchemaVersion, DeepExtractChapters: 0}); err != nil {
+		t.Fatal(err)
+	}
+	f = mustLoadState(t, ws)
+	if !f.DeepAnalyzed || NextAction(f) != ActionSynthesize {
+		t.Fatalf("窗口 0 应跳过深提取进入综合：%+v action=%s", f, NextAction(f))
 	}
 }
 

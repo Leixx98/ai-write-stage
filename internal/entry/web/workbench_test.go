@@ -83,6 +83,27 @@ func TestGalgameHidesImagePaneWhenSceneDisabled(t *testing.T) {
 	}
 }
 
+func TestPlaySettingsExposeDensity(t *testing.T) {
+	html, err := staticFiles.ReadFile("static/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{`id="galgame-play-density"`, `精简（适合小模型）`, `丰满（适合大模型）`} {
+		if !bytes.Contains(html, []byte(needle)) {
+			t.Fatalf("index.html missing %s", needle)
+		}
+	}
+	script, err := staticFiles.ReadFile("static/play.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{`galgame-play-density`, `density: fieldValue('galgame-play-density')`} {
+		if !bytes.Contains(script, []byte(needle)) {
+			t.Fatalf("play.js missing %s", needle)
+		}
+	}
+}
+
 func TestNovelOutlineRowsExpandInPlace(t *testing.T) {
 	script, err := staticFiles.ReadFile("static/app.js")
 	if err != nil {

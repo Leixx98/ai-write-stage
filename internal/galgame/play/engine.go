@@ -18,6 +18,7 @@ const (
 	StageWriting    = "writing"
 )
 
+type SpineFunc func(context.Context, SpineInput) (SpineOutput, error)
 type ArchitectFunc func(context.Context, ArchitectInput) (ArchitectOutput, error)
 type PlannerFunc func(context.Context, PlannerInput) (PlannerOutput, error)
 type WriterFunc func(context.Context, WriterInput) (WriterOutput, error)
@@ -27,6 +28,7 @@ type Config struct {
 	Store      *store.GalgameStore
 	PlayID     string
 	TextAhead  int
+	Spine      SpineFunc
 	Architect  ArchitectFunc
 	Planner    PlannerFunc
 	Writer     WriterFunc
@@ -37,6 +39,7 @@ type Engine struct {
 	store      *store.GalgameStore
 	playID     string
 	textAhead  int
+	spine      SpineFunc
 	architect  ArchitectFunc
 	planner    PlannerFunc
 	writer     WriterFunc
@@ -54,6 +57,7 @@ func New(cfg Config) *Engine {
 		store:      cfg.Store,
 		playID:     cfg.PlayID,
 		textAhead:  ahead,
+		spine:      cfg.Spine,
 		architect:  cfg.Architect,
 		planner:    cfg.Planner,
 		writer:     cfg.Writer,
@@ -115,7 +119,12 @@ func (e *Engine) Run(ctx context.Context) error {
 			return e.fail(err)
 		}
 		if outline.NextCard >= len(outline.Cards) {
-			if outline.CompleteAfterSegment && progress.WriteHead > 0 && outline.SegmentID != "" {
+			if err := e.ensureSpine(ctx); err != nil {
+				return e.fail(err)
+			}
+			if done, err := e.spineExhausted(); err != nil {
+				return e.fail(err)
+			} else if done && progress.WriteHead > 0 {
 				return e.complete()
 			}
 			if err := e.planNextSegment(ctx, progress); err != nil {
@@ -201,11 +210,93 @@ func (e *Engine) wait(ctx context.Context) error {
 	}
 }
 
+func (e *Engine) ensureSpine(ctx context.Context) error {
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return err
+	}
+	if len(spine.Stations) > 0 {
+		return nil
+	}
+	if e.spine == nil {
+		return fmt.Errorf("play spine is unavailable")
+	}
+	meta, err := e.store.LoadPlay(e.playID)
+	if err != nil {
+		return err
+	}
+	character, err := e.store.LoadCharacter(meta.CharacterID)
+	if err != nil {
+		return err
+	}
+	e.setStage(StagePlanning)
+	e.note(fmt.Sprintf("开始生成路线图 density=%s", store.NormalizePlayDensity(string(meta.Density))))
+	out, err := e.spine(ctx, SpineInput{
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density,
+	})
+	if err != nil {
+		return err
+	}
+	prepared := prepareSpine(out.Stations)
+	if err := validateSpineStations(prepared.Stations); err != nil {
+		return err
+	}
+	if err := e.store.SaveSpine(e.playID, prepared); err != nil {
+		return err
+	}
+	e.note(fmt.Sprintf("路线图已生成 stations=%d", len(prepared.Stations)))
+	return nil
+}
+
+func (e *Engine) spineExhausted() (bool, error) {
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return false, err
+	}
+	if len(spine.Stations) == 0 {
+		return false, nil
+	}
+	return !spineOpen(spine), nil
+}
+
 func (e *Engine) planNextSegment(ctx context.Context, progress store.PlayProgress) error {
 	if e.architect == nil || e.planner == nil {
 		return fmt.Errorf("play planner is unavailable")
 	}
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := e.planNextSegmentOnce(ctx, progress); err != nil {
+			lastErr = err
+			e.note(fmt.Sprintf("规划未通过 attempt=%d err=%s", attempt, err.Error()))
+			continue
+		}
+		return nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("play planning failed")
+	}
+	return lastErr
+}
+
+func (e *Engine) planNextSegmentOnce(ctx context.Context, progress store.PlayProgress) error {
 	meta, err := e.store.LoadPlay(e.playID)
+	if err != nil {
+		return err
+	}
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return err
+	}
+	station, _, ok := currentStation(spine)
+	if !ok {
+		return fmt.Errorf("no open station")
+	}
+	spine = activateStation(spine, station.ID)
+	if err := e.store.SaveSpine(e.playID, spine); err != nil {
+		return err
+	}
+	station, _, _ = currentStation(spine)
+	ledger, err := e.store.LoadLedger(e.playID)
 	if err != nil {
 		return err
 	}
@@ -217,44 +308,54 @@ func (e *Engine) planNextSegment(ctx context.Context, progress store.PlayProgres
 	if err != nil {
 		return err
 	}
-	recent := tailBeats(beats, 6)
-	lastGoal := ""
-	if prev, loadErr := e.store.LoadOutline(e.playID); loadErr == nil {
-		lastGoal = prev.Goal
-	}
+	profile := profileFor(meta.Density)
+	recent := tailBeats(beats, profile.RecentBeats)
+	lastStation := lastOpenStation(spine, station.ID)
 	e.setStage(StagePlanning)
-	e.note(fmt.Sprintf("开始规划下一段 last_goal=%s choices=%d", lastGoal, len(progress.ChoiceHistory)))
+	e.note(fmt.Sprintf("开始规划当前站 station=%s density=%s facts=%d last=%t", station.ID, store.NormalizePlayDensity(string(meta.Density)), len(ledger.Facts), lastStation))
 	arch, err := e.architect(ctx, ArchitectInput{
-		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona,
-		ChoiceHistory: progress.ChoiceHistory, RecentBeats: recent, LastGoal: lastGoal,
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density,
+		CurrentStation: station, RemainingStations: remainingStations(spine, station.ID),
+		Facts: ledger.Facts, ChoiceHistory: progress.ChoiceHistory, RecentBeats: recent,
 	})
 	if err != nil {
 		return err
 	}
+	arch.SegmentID = station.ID
 	e.setStage(StageStoryboard)
 	location := ""
 	if len(recent) > 0 {
 		location = recent[len(recent)-1].Location
 	}
-	plan, err := e.planner(ctx, PlannerInput{Architect: arch, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Location: location})
+	plan, err := e.planner(ctx, PlannerInput{
+		Architect: arch, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona,
+		Location: location, Density: meta.Density, CurrentStation: station, Facts: ledger.Facts, LastStation: lastStation,
+	})
 	if err != nil {
 		return err
 	}
-	if err := validatePlannerAgainstArchitect(plan, arch); err != nil {
+	plan.SegmentID = station.ID
+	plan.Cards = repairPlannerCards(plan.Cards, profile.FillEmptyCG)
+	if err := validateCardCount(len(plan.Cards), profile); err != nil {
+		return err
+	}
+	if err := validatePlannerAgainstArchitect(plan, arch, lastStation); err != nil {
+		return err
+	}
+	if err := similarChoice(progress.ChoiceHistory, plan.Cards); err != nil {
 		return err
 	}
 	outline := store.PlayOutline{
-		SegmentID: arch.SegmentID, Goal: arch.Goal, CompleteAfterSegment: arch.CompleteAfterSegment,
-		Notes: arch.Notes, Cards: plan.Cards, NextCard: 0,
+		SegmentID: station.ID, StationID: station.ID, Goal: arch.Goal, Notes: arch.Notes, Cards: plan.Cards, NextCard: 0,
 	}
 	if err := e.store.SaveOutline(e.playID, outline); err != nil {
 		return err
 	}
-	progress.SegmentID = arch.SegmentID
+	progress.SegmentID = station.ID
 	if err := e.store.SaveProgress(e.playID, progress); err != nil {
 		return err
 	}
-	e.note(fmt.Sprintf("规划完成 segment=%s cards=%d complete_after=%t", arch.SegmentID, len(plan.Cards), arch.CompleteAfterSegment))
+	e.note(fmt.Sprintf("规划完成 station=%s cards=%d last=%t", station.ID, len(plan.Cards), lastStation))
 	return nil
 }
 
@@ -356,8 +457,30 @@ func (e *Engine) writeNextBeat(ctx context.Context, progress store.PlayProgress,
 		return err
 	}
 	e.note(fmt.Sprintf("已写拍 ordinal=%d kind=%s cg=%s", beat.Ordinal, beat.Kind, beat.CG))
-	if outline.NextCard >= len(outline.Cards) && outline.CompleteAfterSegment {
-		return e.complete()
+	if outline.NextCard >= len(outline.Cards) {
+		if err := e.finishStation(outline.StationID); err != nil {
+			return err
+		}
+		if done, err := e.spineExhausted(); err != nil {
+			return err
+		} else if done {
+			return e.complete()
+		}
+	}
+	return nil
+}
+
+func (e *Engine) finishStation(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
+	}
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return err
+	}
+	if err := e.store.SaveSpine(e.playID, markStation(spine, id, store.StationDone)); err != nil {
+		return err
 	}
 	return nil
 }
@@ -432,8 +555,9 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 	if selected == nil {
 		return progress, fmt.Errorf("unknown choice_id %q", choiceID)
 	}
+	facts := normalizeFacts(selected.SetFacts)
 	progress.ChoiceHistory = append(progress.ChoiceHistory, store.PlayChoiceRecord{
-		Ordinal: beat.Ordinal, ChoiceID: selected.ID, Label: selected.Label,
+		Ordinal: beat.Ordinal, ChoiceID: selected.ID, Label: selected.Label, SetFacts: facts,
 	})
 	progress.GateOrdinal = 0
 	progress.SegmentID = ""
@@ -441,6 +565,26 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 		progress.PlayHead = beat.Ordinal
 	}
 	if err := e.store.SaveProgress(e.playID, progress); err != nil {
+		return progress, err
+	}
+	ledger, err := e.store.LoadLedger(e.playID)
+	if err != nil {
+		return progress, err
+	}
+	if err := e.store.SaveLedger(e.playID, applyFacts(ledger, facts)); err != nil {
+		return progress, err
+	}
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return progress, err
+	}
+	if stationID := strings.TrimSpace(beat.SegmentID); stationID != "" {
+		spine = markStation(spine, stationID, store.StationDone)
+	}
+	if selected.Ending {
+		spine = skipPending(spine)
+	}
+	if err := e.store.SaveSpine(e.playID, spine); err != nil {
 		return progress, err
 	}
 	if err := e.store.SaveOutline(e.playID, store.PlayOutline{}); err != nil {
@@ -458,7 +602,7 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 		}
 	}
 	e.Wake()
-	e.note(fmt.Sprintf("玩家选择 choice=%s label=%s gate=%d", selected.ID, selected.Label, beat.Ordinal))
+	e.note(fmt.Sprintf("玩家选择 choice=%s label=%s facts=%s ending=%t gate=%d", selected.ID, selected.Label, strings.Join(facts, ","), selected.Ending, beat.Ordinal))
 	return progress, nil
 }
 

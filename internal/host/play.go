@@ -88,6 +88,7 @@ func (h *Host) CreatePlay(meta storepkg.PlayMeta) (storepkg.PlayMeta, error) {
 		meta.ID = h.roots.Tavern.NewPlayID(character.Name, meta.Name, meta.CreatedAt)
 	}
 	meta.Status = storepkg.PlayIdle
+	meta.Density = storepkg.NormalizePlayDensity(string(meta.Density))
 	if err := h.roots.Tavern.SavePlay(meta); err != nil {
 		return storepkg.PlayMeta{}, err
 	}
@@ -120,6 +121,9 @@ func (h *Host) UpdatePlay(id string, update storepkg.PlayMeta) (storepkg.PlayMet
 	}
 	meta.UserPersona = strings.TrimSpace(update.UserPersona)
 	meta.ImageProfileID = strings.TrimSpace(update.ImageProfileID)
+	if update.Density != "" {
+		meta.Density = storepkg.NormalizePlayDensity(string(update.Density))
+	}
 	if err := h.roots.Tavern.SavePlay(meta); err != nil {
 		return storepkg.PlayMeta{}, err
 	}
@@ -333,7 +337,7 @@ func (h *Host) playHandle(id string) *play.Engine {
 func (h *Host) newPlayEngine(id string) *play.Engine {
 	cfg := play.Config{Store: h.roots.Tavern, PlayID: id, TextAhead: play.DefaultTextAhead, StartImage: h.startPlayImage}
 	if h.playArchitect != nil && h.playPlanner != nil && h.playWriter != nil {
-		cfg.Architect, cfg.Planner, cfg.Writer = h.playArchitect, h.playPlanner, h.playWriter
+		cfg.Spine, cfg.Architect, cfg.Planner, cfg.Writer = h.playSpine, h.playArchitect, h.playPlanner, h.playWriter
 		return play.New(cfg)
 	}
 	h.mu.Lock()
@@ -347,13 +351,19 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 	h.mu.Unlock()
 	writerProvider, writerModel, _ := h.models.CurrentSelection("writer")
 	writerWindow, _ := h.models.ResolveContextWindow(writerProvider, writerModel)
+	density := storepkg.PlayDensityCompact
+	if meta, err := h.roots.Tavern.LoadPlay(id); err == nil {
+		density = storepkg.NormalizePlayDensity(string(meta.Density))
+	}
 	gen := play.Generator{
 		ArchitectModel:    newUsageTrackedModel(h.models.ForRole("architect"), "galplay", record),
 		PlannerModel:      newUsageTrackedModel(h.models.ForRole("chapter_planner"), "galplay", record),
 		WriterModel:       newUsageTrackedModel(h.models.ForRole("writer"), "galplay", record),
+		SpinePrompt:       h.bundle.Prompts.PlaySpine,
 		ArchitectPrompt:   h.bundle.Prompts.PlayArchitect,
 		PlannerPrompt:     h.bundle.Prompts.PlayPlanner,
 		WriterPrompt:      h.bundle.Prompts.PlayWriter,
+		Density:           density,
 		ArchitectThinking: archThink,
 		PlannerThinking:   planThink,
 		WriterThinking:    writeThink,
@@ -362,7 +372,7 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 		ContextWindow:     writerWindow,
 		Sink:              h.roots.Tavern,
 	}
-	cfg.Architect, cfg.Planner, cfg.Writer = gen.Architect, gen.Planner, gen.Writer
+	cfg.Spine, cfg.Architect, cfg.Planner, cfg.Writer = gen.Spine, gen.Architect, gen.Planner, gen.Writer
 	return play.New(cfg)
 }
 

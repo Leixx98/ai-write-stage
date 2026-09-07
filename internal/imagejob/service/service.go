@@ -214,7 +214,7 @@ func (s *Service) Start(request imagejob.SceneImageRequest) (store.ImageJob, boo
 	}
 	for index := len(jobs) - 1; index >= 0; index-- {
 		existing := jobs[index]
-		if existing.Scene == request.Scene && existing.SceneID == request.SceneID && !TerminalStatus(existing.Status) {
+		if sameBusyIdentity(existing, request) && !TerminalStatus(existing.Status) {
 			return existing, false, ConflictError{Job: existing}
 		}
 	}
@@ -241,6 +241,25 @@ func (s *Service) Start(request imagejob.SceneImageRequest) (store.ImageJob, boo
 	s.notify(job, "", "")
 	s.launch(job, profile, provider)
 	return job, false, nil
+}
+
+// sameBusyIdentity matches the old per-unit lock: one in-flight job per
+// novel unit, chat message, or play beat. Scene+SceneID alone is too wide
+// for play/chat because SceneID is the play/session, not the beat/message.
+func sameBusyIdentity(existing store.ImageJob, request imagejob.SceneImageRequest) bool {
+	if existing.Scene != request.Scene {
+		return false
+	}
+	switch request.Scene {
+	case imagejob.SceneNovel:
+		return existing.Chapter == request.Chapter && existing.Ordinal == request.Ordinal
+	case imagejob.SceneChat:
+		return existing.SceneID == request.SceneID && existing.UnitID == request.UnitID
+	case imagejob.ScenePlay:
+		return existing.SceneID == request.SceneID && existing.Ordinal == request.Ordinal
+	default:
+		return existing.SceneID == request.SceneID
+	}
 }
 
 func validateRequest(request imagejob.SceneImageRequest) error {

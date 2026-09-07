@@ -59,21 +59,24 @@ func newTestPlay(t *testing.T, ahead int) (string, *store.GalgameStore, *Engine,
 	if err := tavern.SaveProgress(playID, store.PlayProgress{}); err != nil {
 		t.Fatal(err)
 	}
-	archCount := 0
 	engine := New(Config{
 		Store: tavern, PlayID: playID, TextAhead: ahead,
-		Architect: func(context.Context, ArchitectInput) (ArchitectOutput, error) {
-			archCount++
-			if archCount == 1 {
-				return ArchitectOutput{SegmentID: "meet", Goal: "重逢并做出选择", Notes: ""}, nil
-			}
-			return ArchitectOutput{SegmentID: "end", Goal: "收束", CompleteAfterSegment: true}, nil
+		Spine: func(context.Context, SpineInput) (SpineOutput, error) {
+			return SpineOutput{Stations: []store.PlayStation{
+				{ID: "meet", Pressure: "第一次必须表态"},
+				{ID: "cost", Pressure: "代价开始反噬"},
+				{ID: "end", Pressure: "必须做终局决定"},
+			}}, nil
+		},
+		Architect: func(_ context.Context, in ArchitectInput) (ArchitectOutput, error) {
+			return ArchitectOutput{SegmentID: in.CurrentStation.ID, Goal: in.CurrentStation.Pressure, Notes: ""}, nil
 		},
 		Planner: func(_ context.Context, in PlannerInput) (PlannerOutput, error) {
-			if in.Architect.CompleteAfterSegment {
+			if in.LastStation {
 				return PlannerOutput{SegmentID: in.Architect.SegmentID, Cards: []store.PlayBeatCard{
 					{Kind: store.BeatNarration, Location: "巷口", CG: store.PlayCGKeep, RequiredBeats: []string{"雨停"}},
 					{Kind: store.BeatDialogue, Speaker: "林晚", Location: "巷口", CG: store.PlayCGKeep, RequiredBeats: []string{"告别"}},
+					{Kind: store.BeatDialogue, Speaker: "林晚", Location: "巷口", CG: store.PlayCGKeep, RequiredBeats: []string{"余味"}},
 				}}, nil
 			}
 			return PlannerOutput{SegmentID: in.Architect.SegmentID, Cards: []store.PlayBeatCard{
@@ -81,8 +84,8 @@ func newTestPlay(t *testing.T, ahead int) (string, *store.GalgameStore, *Engine,
 				{Kind: store.BeatDialogue, Speaker: "林晚", Location: "车站", CG: store.PlayCGKeep, RequiredBeats: []string{"试探"}},
 				{Kind: store.BeatDialogue, Speaker: "林晚", Location: "车站", CG: store.PlayCGKeep, RequiredBeats: []string{"沉默"}},
 				{Kind: store.BeatChoice, Speaker: "林晚", Location: "车站", CG: store.PlayCGKeep, RequiredBeats: []string{"选择"}, Choices: []store.PlayChoice{
-					{ID: "stay", Label: "留下来", Consequence: "一起避雨"},
-					{ID: "leave", Label: "离开", Consequence: "各自走"},
+					{ID: "stay", Label: "留下来", Consequence: "一起避雨", SetFacts: []string{"stayed"}, Ending: true},
+					{ID: "leave", Label: "离开", Consequence: "各自走", SetFacts: []string{"left"}},
 				}},
 			}}, nil
 		},
@@ -131,8 +134,22 @@ func TestEngineStopsAtChoiceThenContinuesAfterChoose(t *testing.T) {
 		t.Fatal(err)
 	}
 	progress, _ = tavern.LoadProgress(playID)
-	if progress.WriteHead != 6 {
-		t.Fatalf("expected 6 beats, got %+v", progress)
+	if progress.WriteHead != 4 {
+		t.Fatalf("ending choice should complete without extra beats, got %+v", progress)
+	}
+	ledger, err := tavern.LoadLedger(playID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ledger.Facts) != 1 || ledger.Facts[0].ID != "stayed" {
+		t.Fatalf("facts = %+v", ledger.Facts)
+	}
+	spine, err := tavern.LoadSpine(playID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spineOpen(spine) {
+		t.Fatalf("ending should skip remaining stations: %+v", spine.Stations)
 	}
 }
 
@@ -272,7 +289,7 @@ func TestEngineWritesPlayRuntimeLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	for _, want := range []string{"剧场引擎启动", "开始规划下一段", "规划完成", "开始写拍", "已写拍", "等待玩家选项"} {
+	for _, want := range []string{"剧场引擎启动", "开始生成路线图", "开始规划当前站", "规划完成", "开始写拍", "已写拍", "等待玩家选项"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("runtime.log missing %q:\n%s", want, text)
 		}

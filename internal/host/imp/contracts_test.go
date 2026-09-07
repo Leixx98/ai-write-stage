@@ -11,7 +11,7 @@ import (
 )
 
 func TestStructuredContractsAreStrictReady(t *testing.T) {
-	for _, contract := range []llmcontract.Contract{segmentContract, analysisContract, rangeContract, synthesisContract} {
+	for _, contract := range []llmcontract.Contract{segmentContract, lightAnalysisContract, deepAnalysisContract, rangeContract, synthesisContract} {
 		if err := llmcontract.ValidateStrictReady(contract.Schema); err != nil {
 			t.Fatalf("%s: %v", contract.Name, err)
 		}

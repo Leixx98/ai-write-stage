@@ -75,6 +75,7 @@ type Host struct {
 	playArchitect   play.ArchitectFunc
 	playPlanner     play.PlannerFunc
 	playWriter      play.WriterFunc
+	playSpine       play.SpineFunc
 	playLog         *playLogBroker // 剧场日志增量按 play id 分发给 SSE 订阅者
 	imageSvc        *imagesvc.Service
 	closeOnce       sync.Once

@@ -21,7 +21,7 @@ func testDeps(st *store.Store, m callModel) Deps {
 		Segment:       c,
 		Analyze:       c,
 		Synthesize:    c,
-		Prompts:       Prompts{Segment: "seg", Analyze: "ana", Synthesize: "syn", Range: "range"},
+		Prompts:       Prompts{Segment: "seg", Analyze: "ana", AnalyzeDeep: "deep", Synthesize: "syn", Range: "range"},
 	}
 }
 
@@ -42,11 +42,10 @@ func TestRunEndToEnd(t *testing.T) {
 		boundaryFixture("L1", "", kindChapter, "第一章"),
 		boundaryFixture("L3", "", kindChapter, "第二章"),
 	)
-	ana := `{"chapters":[` + factsJSON(1, "第一章") + `,` + factsJSON(2, "第二章") + `]}`
 	syn := synthesisFixtureJSON(2, storyClosed)
-	m := &mockModel{responses: []string{seg, ana, syn}}
+	m := &mockModel{responses: []string{seg, lightBatchJSON(1, "第一章"), lightBatchJSON(2, "第二章"), syn}}
 
-	ch, err := Run(context.Background(), testDeps(st, m), Options{SourcePath: src, AutoConfirm: true, ContinueAfter: true})
+	ch, err := Run(context.Background(), testDeps(st, m), Options{SourcePath: src, AutoConfirm: true, ContinueAfter: true, DeepExtractChapters: intPtr(0)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -102,11 +101,10 @@ func TestRunSetsCompletionHold(t *testing.T) {
 		boundaryFixture("L1", "", kindChapter, "第一章"),
 		boundaryFixture("L3", "", kindChapter, "第二章"),
 	)
-	ana := `{"chapters":[` + factsJSON(1, "第一章") + `,` + factsJSON(2, "第二章") + `]}`
 	syn := synthesisFixtureJSON(2, storyClosed)
-	m := &mockModel{responses: []string{seg, ana, syn}}
+	m := &mockModel{responses: []string{seg, lightBatchJSON(1, "第一章"), lightBatchJSON(2, "第二章"), syn}}
 
-	ch, err := Run(context.Background(), testDeps(st, m), Options{SourcePath: src, AutoConfirm: true}) // 无 --continue
+	ch, err := Run(context.Background(), testDeps(st, m), Options{SourcePath: src, AutoConfirm: true, DeepExtractChapters: intPtr(0)}) // 无 --continue
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -121,6 +119,58 @@ func TestRunSetsCompletionHold(t *testing.T) {
 	}
 	if meta == nil || meta.AdvanceHold == nil {
 		t.Fatalf("导入完成应设置 boundary Hold，得 %+v", meta)
+	}
+}
+
+func TestRunLightThenDeepWindow(t *testing.T) {
+	dir := t.TempDir()
+	st := store.NewStore(dir)
+	if err := st.Init(); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(dir, "book.txt")
+	if err := os.WriteFile(src, []byte("第一章\n正文一\n第二章\n正文二\n第三章\n正文三\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seg := boundariesJSON(
+		boundaryFixture("L1", "", kindChapter, "第一章"),
+		boundaryFixture("L3", "", kindChapter, "第二章"),
+		boundaryFixture("L5", "", kindChapter, "第三章"),
+	)
+	syn := synthesisFixtureJSON(3, storyClosed)
+	m := &mockModel{responses: []string{
+		seg,
+		lightBatchJSON(1, "第一章"), lightBatchJSON(2, "第二章"), lightBatchJSON(3, "第三章"),
+		deepFactsJSON(),
+		syn,
+	}}
+	ch, err := Run(context.Background(), testDeps(st, m), Options{SourcePath: src, AutoConfirm: true, ContinueAfter: true, DeepExtractChapters: intPtr(1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ev := range ch {
+		if ev.Stage == StageError {
+			t.Fatalf("管线失败：%v", ev.Err)
+		}
+	}
+	draft, err := st.Drafts.LoadDraft(1)
+	if err != nil || draft == "" {
+		t.Fatalf("确认后应落下全书草稿：%v", err)
+	}
+	ws := OpenWorkspace(dir)
+	early, err := readArtifact[ChapterAnalysisPayload](ws, analysisPath(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(early.Payload.Facts.TimelineEvents) != 0 {
+		t.Fatal("早期章不应有时间线")
+	}
+	tail, err := readArtifact[ChapterAnalysisPayload](ws, analysisPath(3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail.Payload.Facts.TimelineEvents) == 0 || tail.Payload.DeepDigest == "" {
+		t.Fatalf("近窗章应有深提取：%+v", tail.Payload)
 	}
 }
 

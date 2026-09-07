@@ -69,15 +69,17 @@ type Hooks struct {
 // Request 定义一次直接结构化返回。Contract 是结构的单一来源，Validate 只处理
 // JSON Schema 无法表达的业务约束。
 type Request[T any] struct {
-	Contract         Contract
-	SystemPrompt     string
-	Payload          string
-	History          []agentcore.Message
-	Options          []agentcore.CallOption
-	CacheLastMessage string
-	Validate         func(*T) error
-	Agent            string
-	Hooks            Hooks
+	Contract          Contract
+	SystemPrompt      string
+	Payload           string
+	History           []agentcore.Message
+	Options           []agentcore.CallOption
+	CacheLastMessage  string
+	Validate          func(*T) error
+	Agent             string
+	Hooks             Hooks
+	MaxCorrections    int  // 0 = unlimited
+	CompactCorrection bool // skip replaying the failed raw JSON into the next turn
 }
 
 const promptCorrection = "上面的输出不符合 JSON Schema。请根据错误修正，并只输出完整 JSON 对象，不要解释或 Markdown 围栏。"
@@ -210,14 +212,25 @@ func executeLoop[T any](ctx context.Context, model any, req Request[T], generate
 		if req.Hooks.Correction != nil {
 			req.Hooks.Correction(correction)
 		}
+		if req.MaxCorrections > 0 && attempt >= req.MaxCorrections {
+			kind := FailureContract
+			if layer == "semantic" {
+				kind = FailureContract
+			}
+			return zero, &Failure{Kind: kind, Contract: req.Contract.Name, Raw: raw, Err: fmt.Errorf("纠偏已达 %d 次仍未通过（%s）：%w", req.MaxCorrections, layer, cause)}
+		}
 		hint := promptCorrection
 		if layer == "semantic" {
 			hint = semanticCorrection
 		}
-		messages = append(messages,
-			agentcore.Message{Role: agentcore.RoleAssistant, Content: []agentcore.ContentBlock{agentcore.TextBlock(raw)}},
-			agentcore.UserMsg(hint+"\n错误："+cause.Error()),
-		)
+		if req.CompactCorrection {
+			messages = append(messages, agentcore.UserMsg(hint+"\n错误："+cause.Error()))
+		} else {
+			messages = append(messages,
+				agentcore.Message{Role: agentcore.RoleAssistant, Content: []agentcore.ContentBlock{agentcore.TextBlock(raw)}},
+				agentcore.UserMsg(hint+"\n错误："+cause.Error()),
+			)
+		}
 	}
 }
 

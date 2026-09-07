@@ -9,6 +9,14 @@ import (
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
+type SpineOutput struct {
+	Stations []store.PlayStation `json:"stations"`
+}
+
+func (o *SpineOutput) Validate() error {
+	return validateSpineStations(o.Stations)
+}
+
 type ArchitectOutput struct {
 	SegmentID            string `json:"segment_id"`
 	Goal                 string `json:"goal"`
@@ -35,6 +43,7 @@ func (o *PlannerOutput) Validate() error {
 	if strings.TrimSpace(o.SegmentID) == "" {
 		return fmt.Errorf("segment_id is required")
 	}
+	o.Cards = repairPlannerCards(o.Cards, false)
 	if len(o.Cards) == 0 {
 		return fmt.Errorf("cards cannot be empty")
 	}
@@ -69,6 +78,9 @@ func validateCard(card store.PlayBeatCard, last bool) error {
 			if strings.TrimSpace(choice.ID) == "" || strings.TrimSpace(choice.Label) == "" {
 				return fmt.Errorf("choice id and label are required")
 			}
+			if len(normalizeFacts(choice.SetFacts)) == 0 {
+				return fmt.Errorf("choice %q needs set_facts", choice.ID)
+			}
 		}
 		return nil
 	}
@@ -90,13 +102,23 @@ func (o *WriterOutput) Validate() error {
 	return nil
 }
 
+var spineContract = llmcontract.Contract{
+	Name:        "play_spine",
+	Description: "Galgame 剧场本局路线图",
+	Schema: schema.Object(
+		schema.Property("stations", schema.Array("本局 3 到 6 个压力点", schema.Object(
+			schema.Property("id", schema.String("短英文或拼音标识")).Required(),
+			schema.Property("pressure", schema.String("这一站必须碰到的压力，不是剧情答案")).Required(),
+		))).Required(),
+	),
+}
+
 var architectContract = llmcontract.Contract{
 	Name:        "play_architect",
-	Description: "Galgame 剧场下一段方向",
+	Description: "Galgame 剧场当前站方向",
 	Schema: schema.Object(
-		schema.Property("segment_id", schema.String("本段短标识")).Required(),
-		schema.Property("goal", schema.String("本段要推进到的目标")).Required(),
-		schema.Property("complete_after_segment", schema.Bool("本段结束后是否收束全剧")).Required(),
+		schema.Property("segment_id", schema.String("必须等于当前站 id")).Required(),
+		schema.Property("goal", schema.String("本站要推进到的目标")).Required(),
 		schema.Property("notes", schema.String("给分镜规划的备注，可空字符串")).Required(),
 	),
 }
@@ -117,7 +139,9 @@ var plannerContract = llmcontract.Contract{
 			schema.Property("choices", schema.Array("仅 choice 拍填写，其它拍省略", schema.Object(
 				schema.Property("id", schema.String("选项 id")).Required(),
 				schema.Property("label", schema.String("玩家可见文案")).Required(),
-				schema.Property("consequence", schema.String("选后规划用的后果")).Required(),
+				schema.Property("consequence", schema.String("给人看的后果，可空")).Required(),
+				schema.Property("set_facts", schema.Array("选后写入账本的短 id", schema.String("事实 id"))).Required(),
+				schema.Property("ending", schema.Bool("选后是否直接收束全剧")).Required(),
 			))),
 		))).Required(),
 	),
@@ -132,7 +156,7 @@ var writerContract = llmcontract.Contract{
 	),
 }
 
-func validatePlannerAgainstArchitect(plan PlannerOutput, arch ArchitectOutput) error {
+func validatePlannerAgainstArchitect(plan PlannerOutput, arch ArchitectOutput, lastStation bool) error {
 	if err := plan.Validate(); err != nil {
 		return err
 	}
@@ -140,14 +164,41 @@ func validatePlannerAgainstArchitect(plan PlannerOutput, arch ArchitectOutput) e
 		return fmt.Errorf("planner segment_id %q != architect %q", plan.SegmentID, arch.SegmentID)
 	}
 	last := plan.Cards[len(plan.Cards)-1]
-	if arch.CompleteAfterSegment {
-		if last.Kind == store.BeatChoice {
-			return fmt.Errorf("complete segment cannot end with a choice")
-		}
+	if lastStation {
 		return nil
 	}
 	if last.Kind != store.BeatChoice {
-		return fmt.Errorf("open segment must end with a choice")
+		return fmt.Errorf("open station must end with a choice")
+	}
+	return nil
+}
+
+func repairPlannerCards(cards []store.PlayBeatCard, fillEmptyCG bool) []store.PlayBeatCard {
+	for i := range cards {
+		if string(cards[i].CG) == "choice" {
+			if cards[i].Kind != store.BeatChoice {
+				cards[i].Kind = store.BeatChoice
+			}
+			cards[i].CG = store.PlayCGKeep
+		}
+		if cards[i].Kind == store.BeatChoice && cards[i].CG != store.PlayCGNew && cards[i].CG != store.PlayCGKeep {
+			cards[i].CG = store.PlayCGKeep
+		}
+		if fillEmptyCG && cards[i].CG == "" {
+			cards[i].CG = store.PlayCGKeep
+		}
+		if cards[i].Kind == store.BeatChoice {
+			for j := range cards[i].Choices {
+				cards[i].Choices[j].SetFacts = normalizeFacts(cards[i].Choices[j].SetFacts)
+			}
+		}
+	}
+	return cards
+}
+
+func validateCardCount(n int, profile densityProfile) error {
+	if n < profile.MinCards || n > profile.MaxCards {
+		return fmt.Errorf("cards=%d not in %d..%d", n, profile.MinCards, profile.MaxCards)
 	}
 	return nil
 }

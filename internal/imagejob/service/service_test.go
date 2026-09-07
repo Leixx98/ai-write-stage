@@ -23,13 +23,19 @@ type blockingProvider struct {
 	info    imagejob.ProviderInfo
 	started chan struct{}
 	release chan struct{}
+	once    sync.Once
 }
 
 func (p *blockingProvider) Info() imagejob.ProviderInfo { return p.info }
 func (p *blockingProvider) ValidateProfile(profile imagejob.Profile) error { return imagejob.ValidateProfile(profile, p.info.Capabilities) }
 func (p *blockingProvider) Execute(ctx context.Context, _ imagejob.ProviderRequest, _ Reporter) ([]GeneratedOutput, error) {
-	close(p.started)
-	select { case <-p.release: return []GeneratedOutput{{Media: imagejob.MediaOutput{Kind: "image", MIME: "image/png"}, Data: []byte("png")}}, nil; case <-ctx.Done(): return nil, ctx.Err() }
+	p.once.Do(func() { close(p.started) })
+	select {
+	case <-p.release:
+		return []GeneratedOutput{{Media: imagejob.MediaOutput{Kind: "image", MIME: "image/png"}, Data: []byte("png")}}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 func (p *blockingProvider) Cancel(context.Context, string) error { return nil }
 func (p *blockingProvider) TestConnection(context.Context) error { return nil }
@@ -184,6 +190,71 @@ func TestDisablingSceneDoesNotCancelRunningJob(t *testing.T) {
 	if err := roots.ImageConfig.SaveSettings(settings); err != nil { t.Fatal(err) }
 	close(provider.release)
 	if finished := waitTerminal(t, roots, job.JobID); finished.Status != "completed" { t.Fatalf("job=%+v", finished) }
+}
+
+func TestPlayBeatsQueueWhileAnotherIsRunning(t *testing.T) {
+	provider := &blockingProvider{info: imagejob.ProviderInfo{ID: "blocking", Name: "Blocking", Enabled: true}, started: make(chan struct{}), release: make(chan struct{})}
+	service, roots := newGateway(t, provider)
+	saveProfile(t, roots, "default", "blocking")
+	settings := imagejob.DefaultSettings()
+	settings.Play = imagejob.SceneConfig{Enabled: true, AutoGenerate: true, DefaultProfileID: "default"}
+	if err := roots.ImageConfig.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	first, _, err := service.Start(imagejob.SceneImageRequest{Scene: imagejob.ScenePlay, SceneID: "play", Ordinal: 1, Text: "beat-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		t.Fatal("first play job did not start")
+	}
+	second, _, err := service.Start(imagejob.SceneImageRequest{Scene: imagejob.ScenePlay, SceneID: "play", Ordinal: 2, Text: "beat-2"})
+	if err != nil {
+		t.Fatalf("second play beat should queue, got %v", err)
+	}
+	if second.JobID == "" || second.JobID == first.JobID {
+		t.Fatalf("expected a new queued job, first=%q second=%q", first.JobID, second.JobID)
+	}
+	_, _, err = service.Start(imagejob.SceneImageRequest{Scene: imagejob.ScenePlay, SceneID: "play", Ordinal: 1, Text: "beat-1-retry", Force: true})
+	var conflict ConflictError
+	if !errors.As(err, &conflict) || conflict.Job.JobID != first.JobID {
+		t.Fatalf("same beat should stay busy, err=%v", err)
+	}
+	close(provider.release)
+	if finished := waitTerminal(t, roots, first.JobID); finished.Status != "completed" {
+		t.Fatalf("first job=%+v", finished)
+	}
+}
+
+func TestChatMessagesQueueWhileAnotherIsRunning(t *testing.T) {
+	provider := &blockingProvider{info: imagejob.ProviderInfo{ID: "blocking", Name: "Blocking", Enabled: true}, started: make(chan struct{}), release: make(chan struct{})}
+	service, roots := newGateway(t, provider)
+	saveProfile(t, roots, "default", "blocking")
+	settings := imagejob.DefaultSettings()
+	settings.Chat = imagejob.SceneConfig{Enabled: true, AutoGenerate: true, ChatPolicy: imagejob.ChatEveryReply, DefaultProfileID: "default"}
+	if err := roots.ImageConfig.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	first, _, err := service.Start(imagejob.SceneImageRequest{Scene: imagejob.SceneChat, SceneID: "session", UnitID: "msg-1", AssistantIndex: 1, Text: "one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		t.Fatal("first chat job did not start")
+	}
+	second, _, err := service.Start(imagejob.SceneImageRequest{Scene: imagejob.SceneChat, SceneID: "session", UnitID: "msg-2", AssistantIndex: 2, Text: "two"})
+	if err != nil {
+		t.Fatalf("second chat message should queue, got %v", err)
+	}
+	if second.JobID == first.JobID {
+		t.Fatal("expected a distinct chat job")
+	}
+	close(provider.release)
+	waitTerminal(t, roots, first.JobID)
 }
 
 func TestProviderCapabilityRejectsUnsupportedProfileFields(t *testing.T) {

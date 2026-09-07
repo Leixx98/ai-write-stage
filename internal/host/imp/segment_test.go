@@ -345,6 +345,21 @@ func (m *mockModel) Generate(_ context.Context, _ []agentcore.Message, _ []agent
 	}}, nil
 }
 
+func (m *mockModel) GenerateStream(ctx context.Context, msgs []agentcore.Message, tools []agentcore.ToolSpec, opts ...agentcore.CallOption) (<-chan agentcore.StreamEvent, error) {
+	resp, err := m.Generate(ctx, msgs, tools, opts...)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan agentcore.StreamEvent, 2)
+	text := resp.Message.TextContent()
+	if text != "" {
+		ch <- agentcore.StreamEvent{Type: agentcore.StreamEventTextDelta, Delta: text}
+	}
+	ch <- agentcore.StreamEvent{Type: agentcore.StreamEventDone, Message: resp.Message, StopReason: resp.Message.StopReason}
+	close(ch)
+	return ch, nil
+}
+
 // TestResolveSegmentationSingleLineChapters 守护 #9：无换行的单行段（锚点切分场景）整段即正文，
 // 单行/单行多章小说不应被误判"正文为空"拒绝。
 func TestResolveSegmentationSingleLineChapters(t *testing.T) {

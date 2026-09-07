@@ -16,6 +16,7 @@ const (
 	ActionSegment              Action = "segment"
 	ActionAwaitConfirmation    Action = "await_confirmation"
 	ActionAnalyze              Action = "analyze"
+	ActionAnalyzeDeep          Action = "analyze_deep"
 	ActionSynthesize           Action = "synthesize"
 	ActionAwaitStoryResolution Action = "await_story_resolution"
 	ActionPublish              Action = "publish"
@@ -29,7 +30,10 @@ type Facts struct {
 	Segmented        bool
 	Confirmed        bool
 	ExpectedChapters int // 切分确认的章节总数（阶段二起填充）
-	AnalyzedChapters int // 从第 1 章起连续、InputDigest 匹配的分析数（阶段三起填充）
+	AnalyzedChapters int // 从第 1 章起连续、InputDigest 匹配的轻提取数
+	DeepAnalyzed     bool
+	DeepWindow       int
+	DeepDone         int
 	Synthesized      bool
 	StoryUncertain   bool
 	StoryResolved    bool
@@ -52,6 +56,8 @@ func NextAction(f Facts) Action {
 		return ActionAwaitConfirmation
 	case f.AnalyzedChapters < f.ExpectedChapters:
 		return ActionAnalyze
+	case !f.DeepAnalyzed:
+		return ActionAnalyzeDeep
 	case !f.Synthesized:
 		return ActionSynthesize
 	case f.StoryUncertain && !f.StoryResolved:
@@ -134,6 +140,21 @@ func LoadState(w *Workspace) (Facts, error) {
 		return f, nil
 	}
 
+	in, iErr := w.LoadIntent()
+	if iErr != nil {
+		return f, fmt.Errorf("读取导入意图: %w", iErr)
+	}
+	f.DeepWindow = in.DeepExtractChapters
+	if f.DeepWindow <= 0 {
+		f.DeepAnalyzed = true
+	} else {
+		f.DeepDone = deepAnalyzedCount(w, seg, src, segArt.InputDigest, analyzePromptVersion, deepPromptVersion, f.DeepWindow)
+		f.DeepAnalyzed = deepAnalyzed(w, seg, src, segArt.InputDigest, analyzePromptVersion, deepPromptVersion, f.DeepWindow)
+	}
+	if !f.DeepAnalyzed {
+		return f, nil
+	}
+
 	// synthesis：绑定有序逐章事实。
 	facts, err := loadPriorFactsStrict(w, f.ExpectedChapters)
 	if err != nil {
@@ -163,8 +184,6 @@ func LoadState(w *Workspace) (Facts, error) {
 	}
 	if resolved {
 		f.StoryResolved = true
-	} else if in, iErr := w.LoadIntent(); iErr != nil {
-		return f, fmt.Errorf("读取导入意图: %w", iErr)
 	} else if in.StoryResolution != "" {
 		f.StoryResolved = true
 	}
@@ -224,7 +243,9 @@ func ResumeSummary(st *store.Store) string {
 	case ActionAwaitConfirmation:
 		state = fmt.Sprintf("已切分 %d 章，等待核对确认", f.ExpectedChapters)
 	case ActionAnalyze:
-		state = fmt.Sprintf("已分析 %d/%d 章", f.AnalyzedChapters, f.ExpectedChapters)
+		state = fmt.Sprintf("已轻提取 %d/%d 章", f.AnalyzedChapters, f.ExpectedChapters)
+	case ActionAnalyzeDeep:
+		state = fmt.Sprintf("已深提取 %d/%d 章（近窗）", f.DeepDone, f.DeepWindow)
 	case ActionSynthesize:
 		state = "逐章分析完成，待全书综合"
 	case ActionAwaitStoryResolution:

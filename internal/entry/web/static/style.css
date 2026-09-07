@@ -297,16 +297,47 @@ input, textarea, select { width:100%; color:var(--text); background:#101214; bor
 .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .field-title { display: block; margin-bottom: 6px; }
 .import-wizard { margin-bottom: 24px; padding: 16px; border: 1px solid var(--line); background: var(--panel2); }
-.import-wizard .form-grid { margin-bottom: 14px; }
-.import-preview { max-height: 320px; margin: 14px 0 0; padding: 12px; overflow: auto; border: 1px solid var(--line); background: #0d1013; color: #dce0e4; white-space: pre-wrap; }
-.import-history { display: grid; gap: 4px; max-height: 360px; margin-top: 14px; overflow: auto; }
-.import-history-item { display: grid; grid-template-columns: 76px 170px minmax(0,1fr); gap: 8px; padding: 7px 9px; border-left: 2px solid var(--line); background: #101214; }
-.import-history-item time { color: var(--muted); font-size: 12px; }
-.import-history-item strong { color: var(--accent); font-size: 12px; }
-.import-history-item small { grid-column: 3; color: var(--bad); }
-.import-history-item.error { border-left-color: var(--bad); }
+.import-wizard .subheading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0; }
+.import-wizard .heading-actions { align-items: center; }
+.import-preview { max-height: 220px; margin: 14px 0 0; padding: 12px; overflow: auto; border: 1px solid var(--line); background: #0d1013; color: #dce0e4; white-space: pre-wrap; }
+.import-dialog { position: fixed; inset: 0; z-index: 42; display: grid; place-items: center; }
+.import-dialog[hidden] { display: none; }
+.import-dialog-backdrop { position: absolute; inset: 0; background: #0009; }
+.import-dialog-panel { position: relative; width: min(1180px, calc(100vw - 28px)); height: min(860px, calc(100vh - 28px)); display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden; background: #151a1f; border: 1px solid var(--line); box-shadow: 0 18px 50px #000b; }
+.import-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.import-dialog-head h2 { margin: 0; font-size: 16px; }
+.import-dialog-head-title { display: flex; align-items: center; gap: 10px; }
+.import-dialog-head .job-status { margin: 0; }
+.import-dialog-body { display: grid; grid-template-columns: minmax(300px, 38%) minmax(0,1fr); min-height: 0; }
+.import-dialog-form { min-width: 0; min-height: 0; overflow: auto; padding: 16px; border-right: 1px solid var(--line); }
+.import-dialog-fields { display: grid; gap: 12px; margin-bottom: 16px; }
+.import-dialog-fields > label { display: grid; gap: 6px; min-width: 0; }
+.import-dialog-form input:not([type="checkbox"]),
+.import-dialog-form select,
+.import-dialog-form textarea { display: block; width: 100%; height: 40px; min-height: 40px; margin: 0; padding: 0 12px; box-sizing: border-box; appearance: none; -webkit-appearance: none; border: 1px solid var(--line); border-radius: 4px; background: #0d0f11; color: var(--text); font: 14px/40px inherit; }
+.import-dialog-form select { padding-right: 32px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%238f99a3' d='M1.2 1.2 6 6l4.8-4.8'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+.import-dialog-form input[type="number"] { -moz-appearance: textfield; }
+.import-dialog-form input[type="number"]::-webkit-inner-spin-button,
+.import-dialog-form input[type="number"]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
+.import-dialog-form textarea { height: 112px; min-height: 112px; padding: 10px 12px; line-height: 1.5; resize: vertical; }
+.import-dialog-form input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; accent-color: var(--accent); }
+.import-dialog-form .switch-label { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.import-dialog-form .field-help { margin: 0; }
+.import-dialog-form .button-row { flex-wrap: wrap; }
+.import-dialog-form .button-row button { min-height: 40px; }
+.import-dialog-log { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,1fr); min-width: 0; min-height: 0; }
+.import-dialog-pane { display: grid; grid-template-rows: auto minmax(0,1fr); gap: 8px; min-height: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.import-dialog-pane:last-child { border-bottom: 0; }
+.import-dialog-pane h3 { margin: 0; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.import-dialog-pane .scroll { height: auto; min-height: 0; margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; background: #0d0f11; }
+#import-events > div { padding: 7px 0; border-bottom: 1px solid #272c31; }
+#import-events > div:last-child { border-bottom: 0; }
+#import-stream { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; color: #dce0e4; }
+@media (max-width:800px) { .import-dialog-panel { width: 100vw; height: 100vh; max-height: none; } .import-dialog-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(240px,1fr); } .import-dialog-form { border-right: 0; border-bottom: 1px solid var(--line); } }
 .writing-settings { padding-top: 20px; border-top: 1px solid var(--line); }
-@media (max-width:800px) { .import-history-item { grid-template-columns: 64px 1fr; } .import-history-item span,.import-history-item small { grid-column: 1/-1; } }
+.writing-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.writing-settings-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.writing-settings #writing-rules { min-height: 220px; }
 .preset-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
 .preset-toolbar .preset-label { display: block; width: auto; color: var(--muted); white-space: nowrap; }
 .preset-toolbar select { min-width: 150px; flex: 1; }

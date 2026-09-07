@@ -36,15 +36,26 @@ type writerTurn struct {
 	Card store.PlayBeatCard `json:"card"`
 }
 
+type spineTurn struct {
+	Density store.PlayDensity `json:"density"`
+}
+
 type architectTurn struct {
-	ChoiceHistory []store.PlayChoiceRecord `json:"choice_history"`
-	RecentBeats   []PromptBeat             `json:"recent_beats"`
-	LastGoal      string                   `json:"last_goal,omitempty"`
+	Density           store.PlayDensity        `json:"density"`
+	CurrentStation    store.PlayStation        `json:"current_station"`
+	RemainingStations []store.PlayStation      `json:"remaining_stations"`
+	Facts             []store.PlayFact         `json:"facts"`
+	ChoiceHistory     []store.PlayChoiceRecord `json:"choice_history"`
+	RecentBeats       []PromptBeat             `json:"recent_beats"`
 }
 
 type plannerTurn struct {
-	Location  string          `json:"location,omitempty"`
-	Architect ArchitectOutput `json:"architect"`
+	Density        store.PlayDensity `json:"density"`
+	Location       string            `json:"location,omitempty"`
+	CurrentStation store.PlayStation `json:"current_station"`
+	Facts          []store.PlayFact  `json:"facts"`
+	LastStation    bool              `json:"last_station"`
+	Architect      ArchitectOutput   `json:"architect"`
 }
 
 func slimCharacter(character store.GalgameCharacter) PromptCharacter {
@@ -85,6 +96,18 @@ func attachStaticContext(prompt string, static any) (string, error) {
 	return system + "\n\n" + prompt, nil
 }
 
+func withDensityHint(prompt string, density store.PlayDensity) string {
+	hint := strings.TrimSpace(profileFor(density).PromptHint)
+	prompt = strings.TrimSpace(prompt)
+	if hint == "" {
+		return prompt
+	}
+	if prompt == "" {
+		return hint
+	}
+	return prompt + "\n\n" + hint
+}
+
 func sharedCard(character store.GalgameCharacter, premise, userPersona string) sharedStatic {
 	return sharedStatic{
 		Character:   slimCharacter(character),
@@ -113,8 +136,20 @@ func writerRequest(prompt string, in WriterInput) (string, string, error) {
 	return system, payload, nil
 }
 
+func spineRequest(prompt string, in SpineInput) (string, string, error) {
+	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
+	if err != nil {
+		return "", "", err
+	}
+	payload, err := marshalTurn(spineTurn{Density: store.NormalizePlayDensity(string(in.Density))})
+	if err != nil {
+		return "", "", err
+	}
+	return system, payload, nil
+}
+
 func architectRequest(prompt string, in ArchitectInput) (string, string, error) {
-	system, err := attachStaticContext(prompt, sharedCard(in.Character, in.Premise, in.UserPersona))
+	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
 	if err != nil {
 		return "", "", err
 	}
@@ -122,10 +157,21 @@ func architectRequest(prompt string, in ArchitectInput) (string, string, error) 
 	if history == nil {
 		history = []store.PlayChoiceRecord{}
 	}
+	facts := in.Facts
+	if facts == nil {
+		facts = []store.PlayFact{}
+	}
+	remaining := in.RemainingStations
+	if remaining == nil {
+		remaining = []store.PlayStation{}
+	}
 	payload, err := marshalTurn(architectTurn{
-		ChoiceHistory: history,
-		RecentBeats:   slimBeats(in.RecentBeats),
-		LastGoal:      strings.TrimSpace(in.LastGoal),
+		Density:           store.NormalizePlayDensity(string(in.Density)),
+		CurrentStation:    in.CurrentStation,
+		RemainingStations: remaining,
+		Facts:             facts,
+		ChoiceHistory:     history,
+		RecentBeats:       slimBeats(in.RecentBeats),
 	})
 	if err != nil {
 		return "", "", err
@@ -134,11 +180,22 @@ func architectRequest(prompt string, in ArchitectInput) (string, string, error) 
 }
 
 func plannerRequest(prompt string, in PlannerInput) (string, string, error) {
-	system, err := attachStaticContext(prompt, sharedCard(in.Character, in.Premise, in.UserPersona))
+	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
 	if err != nil {
 		return "", "", err
 	}
-	payload, err := marshalTurn(plannerTurn{Location: strings.TrimSpace(in.Location), Architect: in.Architect})
+	facts := in.Facts
+	if facts == nil {
+		facts = []store.PlayFact{}
+	}
+	payload, err := marshalTurn(plannerTurn{
+		Density:        store.NormalizePlayDensity(string(in.Density)),
+		Location:       strings.TrimSpace(in.Location),
+		CurrentStation: in.CurrentStation,
+		Facts:          facts,
+		LastStation:    in.LastStation,
+		Architect:      in.Architect,
+	})
 	if err != nil {
 		return "", "", err
 	}

@@ -44,30 +44,38 @@ func TestUpdatePlayPersistsImageProfileWithoutResettingRuntimeState(t *testing.T
 	h := newPlayHost(t)
 	id := seedPlay(t, h, store.PlayPaused)
 	updated, err := h.UpdatePlay(id, store.PlayMeta{
-		Name: "雨夜重逢", Premise: "在站台再次见面", UserPersona: "旅人", ImageProfileID: "cinematic",
+		Name: "雨夜重逢", Premise: "在站台再次见面", UserPersona: "旅人", ImageProfileID: "cinematic", Density: store.PlayDensityRich,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.ImageProfileID != "cinematic" || updated.Status != store.PlayPaused || updated.CharacterID != "linwan" {
+	if updated.ImageProfileID != "cinematic" || updated.Status != store.PlayPaused || updated.CharacterID != "linwan" || updated.Density != store.PlayDensityRich {
 		t.Fatalf("updated play = %#v", updated)
 	}
 	stored, err := h.roots.Tavern.LoadPlay(id)
-	if err != nil || stored.Name != "雨夜重逢" || stored.Premise != "在站台再次见面" || stored.UserPersona != "旅人" {
+	if err != nil || stored.Name != "雨夜重逢" || stored.Premise != "在站台再次见面" || stored.UserPersona != "旅人" || stored.Density != store.PlayDensityRich {
 		t.Fatalf("stored play = %#v, %v", stored, err)
 	}
 }
 
 func attachFakePlay(h *Host) {
-	h.playArchitect = func(context.Context, play.ArchitectInput) (play.ArchitectOutput, error) {
-		return play.ArchitectOutput{SegmentID: "meet", Goal: "见面"}, nil
+	h.playSpine = func(context.Context, play.SpineInput) (play.SpineOutput, error) {
+		return play.SpineOutput{Stations: []store.PlayStation{
+			{ID: "meet", Pressure: "第一次必须表态"},
+			{ID: "cost", Pressure: "代价开始反噬"},
+			{ID: "end", Pressure: "必须做终局决定"},
+		}}, nil
+	}
+	h.playArchitect = func(_ context.Context, in play.ArchitectInput) (play.ArchitectOutput, error) {
+		return play.ArchitectOutput{SegmentID: in.CurrentStation.ID, Goal: in.CurrentStation.Pressure}, nil
 	}
 	h.playPlanner = func(_ context.Context, in play.PlannerInput) (play.PlannerOutput, error) {
 		return play.PlannerOutput{SegmentID: in.Architect.SegmentID, Cards: []store.PlayBeatCard{
 			{Kind: store.BeatDialogue, Speaker: "林晚", Location: "站台", CG: store.PlayCGKeep, RequiredBeats: []string{"你好"}},
+			{Kind: store.BeatDialogue, Speaker: "林晚", Location: "站台", CG: store.PlayCGKeep, RequiredBeats: []string{"试探"}},
 			{Kind: store.BeatChoice, Speaker: "林晚", Location: "站台", CG: store.PlayCGKeep, RequiredBeats: []string{"选择"}, Choices: []store.PlayChoice{
-				{ID: "a", Label: "A", Consequence: "a"},
-				{ID: "b", Label: "B", Consequence: "b"},
+				{ID: "a", Label: "A", Consequence: "a", SetFacts: []string{"chose_a"}},
+				{ID: "b", Label: "B", Consequence: "b", SetFacts: []string{"chose_b"}},
 			}},
 		}}, nil
 	}

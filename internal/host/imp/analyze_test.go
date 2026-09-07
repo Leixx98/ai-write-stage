@@ -82,14 +82,22 @@ func TestPlanBatchInputBudgetCaps(t *testing.T) {
 func factsJSON(chapter int, title string) string {
 	f := map[string]any{
 		"chapter": chapter, "title": title, "summary": "摘要", "core_event": "核心事件",
-		"key_events": []string{"事件"}, "hook": nil, "scenes": []string{}, "characters": []string{},
-		"character_evidence": []any{}, "world_evidence": []any{}, "timeline_events": []any{},
-		"foreshadow_updates": []any{}, "relationship_changes": []any{}, "state_changes": []any{},
+		"key_events": []string{"事件"}, "characters": []string{}, "hook": nil,
 		"hook_type": "mystery", "dominant_strand": "quest",
 	}
 	data, _ := json.Marshal(f)
 	return string(data)
 }
+
+func lightBatchJSON(chapter int, title string) string {
+	return `{"chapters":[` + factsJSON(chapter, title) + `]}`
+}
+
+func deepFactsJSON() string {
+	return `{"timeline_events":[{"chapter":1,"time":"次日","event":"出发","characters":["甲"]}],"foreshadow_updates":[{"id":"f1","action":"plant","description":"旧剑"}],"relationship_changes":[],"state_changes":[{"chapter":1,"entity":"甲","field":"location","old_value":null,"new_value":"城门","reason":null}],"world_evidence":[]}`
+}
+
+func intPtr(n int) *int { return &n }
 
 func TestValidateBatchRejections(t *testing.T) {
 	_, seg := analyzeFixture(t, 2)
@@ -180,11 +188,15 @@ func TestAnalyzedChaptersInvalidatesOnUpstreamChange(t *testing.T) {
 	norm, seg := analyzeFixture(t, 2)
 	ws := &Workspace{dir: t.TempDir()}
 	m := &mockModel{responses: []string{
-		`{"chapters":[` + factsJSON(1, seg.Chapters[0].Title) + `,` + factsJSON(2, seg.Chapters[1].Title) + `]}`,
+		lightBatchJSON(1, seg.Chapters[0].Title),
+		lightBatchJSON(2, seg.Chapters[1].Title),
 	}}
 	budget := AnalyzeBudget{ContextBytes: 1 << 20, MaxOutputTokens: 1 << 20, PerChapterOutput: 10, PromptOverhead: 0}
 	if _, err := AnalyzeNext(context.Background(), m, "sys", ws, norm, seg, "segid-A", "v1", budget, callProfile{}); err != nil {
 		t.Fatalf("AnalyzeNext: %v", err)
+	}
+	if _, err := AnalyzeNext(context.Background(), m, "sys", ws, norm, seg, "segid-A", "v1", budget, callProfile{}); err != nil {
+		t.Fatalf("AnalyzeNext 第 2 章: %v", err)
 	}
 	if got := analyzedChapters(ws, seg, norm, "segid-A", "v1"); got != 2 {
 		t.Fatalf("同身份/版本应认 2 章，得 %d", got)
@@ -194,5 +206,77 @@ func TestAnalyzedChaptersInvalidatesOnUpstreamChange(t *testing.T) {
 	}
 	if got := analyzedChapters(ws, seg, norm, "segid-A", "v2"); got != 0 {
 		t.Fatalf("prompt 版本变化应使分析全部失效，得 %d", got)
+	}
+}
+
+func writeLightFacts(t *testing.T, ws *Workspace, norm []byte, seg *Segmentation, segID, version string, chapter int) {
+	t.Helper()
+	i := chapter - 1
+	digest := chapterInputDigest(segID, version, seg, norm, i)
+	var f ImportedChapterFacts
+	if err := json.Unmarshal([]byte(factsJSON(chapter, seg.Chapters[i].Title)), &f); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeArtifact(ws, analysisPath(chapter), digest, ChapterAnalysisPayload{BatchStart: chapter, BatchEnd: chapter, Facts: f}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAnalyzeDeepWindowMergesIntoLightFacts(t *testing.T) {
+	norm, seg := analyzeFixture(t, 3)
+	ws := OpenWorkspace(t.TempDir())
+	for c := 1; c <= 3; c++ {
+		writeLightFacts(t, ws, norm, seg, "segid", "light", c)
+	}
+	m := &mockModel{responses: []string{deepFactsJSON()}}
+	budget := AnalyzeBudget{MaxOutputTokens: 1000}
+	done, err := AnalyzeDeepNext(context.Background(), m, "sys", ws, norm, seg, "segid", "light", "deep", 1, budget, callProfile{})
+	if err != nil {
+		t.Fatalf("AnalyzeDeepNext: %v", err)
+	}
+	if done != 1 {
+		t.Fatalf("近窗 1 应只处理 1 章，得 %d", done)
+	}
+	if nextDeepChapter(ws, seg, norm, "segid", "light", "deep", 1) >= 0 {
+		t.Fatal("近窗 1 章深提取后应完成")
+	}
+	early, err := readArtifact[ChapterAnalysisPayload](ws, analysisPath(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(early.Payload.Facts.TimelineEvents) != 0 || early.Payload.DeepDigest != "" {
+		t.Fatalf("早期章不应有深字段：%+v", early.Payload)
+	}
+	tail, err := readArtifact[ChapterAnalysisPayload](ws, analysisPath(3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tail.Payload.Facts.Summary == "" || len(tail.Payload.Facts.TimelineEvents) == 0 || tail.Payload.DeepDigest == "" {
+		t.Fatalf("近窗章应保留轻事实并合并深字段：%+v", tail.Payload)
+	}
+}
+
+func TestDeepWindowZeroSkips(t *testing.T) {
+	norm, seg := analyzeFixture(t, 2)
+	ws := OpenWorkspace(t.TempDir())
+	if nextDeepChapter(ws, seg, norm, "segid", "light", "deep", 0) >= 0 {
+		t.Fatal("窗口 0 应视为深提取完成")
+	}
+	if !deepAnalyzed(ws, seg, norm, "segid", "light", "deep", 0) {
+		t.Fatal("窗口 0 应为 DeepAnalyzed")
+	}
+}
+
+func TestAnalyzeNextIsSingleChapter(t *testing.T) {
+	norm, seg := analyzeFixture(t, 2)
+	ws := OpenWorkspace(t.TempDir())
+	m := &mockModel{responses: []string{lightBatchJSON(1, seg.Chapters[0].Title)}}
+	budget := AnalyzeBudget{ContextBytes: 1 << 20, MaxOutputTokens: 1 << 20, PerChapterOutput: 10}
+	done, err := AnalyzeNext(context.Background(), m, "sys", ws, norm, seg, "segid", "v1", budget, callProfile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done != 1 || analyzedChapters(ws, seg, norm, "segid", "v1") != 1 {
+		t.Fatalf("轻提取应每次只落 1 章，done=%d", done)
 	}
 }

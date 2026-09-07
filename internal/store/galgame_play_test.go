@@ -89,6 +89,33 @@ func TestActivePlayAndDelete(t *testing.T) {
 	}
 }
 
+func TestPlayDensitySpineAndLedger(t *testing.T) {
+	dir := t.TempDir()
+	tavern := Open(dir, dir).Tavern
+	id := "rain_night"
+	if err := tavern.SavePlay(PlayMeta{ID: id, Name: "雨夜", CharacterID: "c", Premise: "p", Density: "丰满"}); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := tavern.LoadPlay(id)
+	if err != nil || meta.Density != PlayDensityRich {
+		t.Fatalf("density = %+v %v", meta, err)
+	}
+	if err := tavern.SaveSpine(id, PlaySpine{Stations: []PlayStation{{ID: "meet", Pressure: "表态", Status: StationPending}}}); err != nil {
+		t.Fatal(err)
+	}
+	spine, err := tavern.LoadSpine(id)
+	if err != nil || len(spine.Stations) != 1 || spine.Stations[0].ID != "meet" {
+		t.Fatalf("spine = %+v %v", spine, err)
+	}
+	if err := tavern.SaveLedger(id, PlayLedger{Facts: []PlayFact{{ID: "stayed"}}}); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := tavern.LoadLedger(id)
+	if err != nil || len(ledger.Facts) != 1 || ledger.Facts[0].ID != "stayed" {
+		t.Fatalf("ledger = %+v %v", ledger, err)
+	}
+}
+
 func TestWriterSessionRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	tavern := Open(dir, dir).Tavern

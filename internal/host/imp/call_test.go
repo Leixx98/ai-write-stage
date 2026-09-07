@@ -26,6 +26,21 @@ func (f *flakyModel) Generate(ctx context.Context, msgs []agentcore.Message, too
 	return f.mockModel.Generate(ctx, msgs, tools, opts...)
 }
 
+func (f *flakyModel) GenerateStream(ctx context.Context, msgs []agentcore.Message, tools []agentcore.ToolSpec, opts ...agentcore.CallOption) (<-chan agentcore.StreamEvent, error) {
+	resp, err := f.Generate(ctx, msgs, tools, opts...)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan agentcore.StreamEvent, 2)
+	text := resp.Message.TextContent()
+	if text != "" {
+		ch <- agentcore.StreamEvent{Type: agentcore.StreamEventTextDelta, Delta: text}
+	}
+	ch <- agentcore.StreamEvent{Type: agentcore.StreamEventDone, Message: resp.Message, StopReason: resp.Message.StopReason}
+	close(ch)
+	return ch, nil
+}
+
 // fastRetryErr 可重试且退避极短（RetryAfter 命中 RetryHinter），保证测试快速。
 type fastRetryErr struct{}
 

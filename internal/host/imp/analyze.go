@@ -15,7 +15,7 @@ import (
 )
 
 // analysisSchemaVersion 是逐章事实 schema 版本，纳入 InputDigest。
-const analysisSchemaVersion = 2
+const analysisSchemaVersion = 3
 
 // ImportedCharacterFact / ImportedWorldFact 是用于全书综合的紧凑观察，不直接写正式角色或世界规则。
 // 至少携带章节号，使综合结果有稳定来源（RFC §9.1）。
@@ -56,11 +56,21 @@ type AnalysisBatchResult struct {
 	Chapters []ImportedChapterFacts `json:"chapters"`
 }
 
+// ImportedDeepFacts 是近窗深提取的增量字段，合并进已有轻事实。
+type ImportedDeepFacts struct {
+	TimelineEvents      []domain.TimelineEvent     `json:"timeline_events"`
+	ForeshadowUpdates   []domain.ForeshadowUpdate  `json:"foreshadow_updates"`
+	RelationshipChanges []domain.RelationshipEntry `json:"relationship_changes"`
+	StateChanges        []domain.StateChange       `json:"state_changes"`
+	WorldEvidence       []ImportedWorldFact        `json:"world_evidence,omitempty"`
+}
+
 // ChapterAnalysisPayload 是单章分析工件载荷；同批次章节记录相同 BatchStart/BatchEnd。
 type ChapterAnalysisPayload struct {
 	BatchStart int                  `json:"batch_start"`
 	BatchEnd   int                  `json:"batch_end"`
 	Facts      ImportedChapterFacts `json:"facts"`
+	DeepDigest string               `json:"deep_digest,omitempty"`
 }
 
 // AnalyzeBudget 是逐章分析的输入/输出双预算（RFC §9.2）。
@@ -258,6 +268,8 @@ func validateBatch(r *AnalysisBatchResult, seg *Segmentation, start, end int) er
 		if strings.TrimSpace(f.Summary) == "" || strings.TrimSpace(f.CoreEvent) == "" {
 			return fmt.Errorf("章 %d summary/core_event 不能为空", f.Chapter)
 		}
+		applyLightDefaults(&r.Chapters[i])
+		f = r.Chapters[i]
 		if !domain.ValidHookType(strings.ToLower(f.HookType)) {
 			return fmt.Errorf("章 %d hook_type 非法：%q", f.Chapter, f.HookType)
 		}
@@ -277,7 +289,113 @@ func validateBatch(r *AnalysisBatchResult, seg *Segmentation, start, end int) er
 	return nil
 }
 
-// AnalyzeNext 从第一份缺失分析起组一个批次并原子落盘，返回本次提交的章节数。
+func applyLightDefaults(f *ImportedChapterFacts) {
+	if strings.TrimSpace(f.HookType) == "" {
+		f.HookType = "mystery"
+	}
+	if strings.TrimSpace(f.DominantStrand) == "" {
+		f.DominantStrand = "quest"
+	}
+}
+
+func validateDeep(r *ImportedDeepFacts, chapter int) error {
+	for j, fu := range r.ForeshadowUpdates {
+		if fu.Action == "plant" && strings.TrimSpace(fu.Description) == "" {
+			return fmt.Errorf("章 %d foreshadow[%d] plant 需 description", chapter, j)
+		}
+	}
+	for i := range r.TimelineEvents {
+		if r.TimelineEvents[i].Chapter == 0 {
+			r.TimelineEvents[i].Chapter = chapter
+		}
+	}
+	for i := range r.RelationshipChanges {
+		if r.RelationshipChanges[i].Chapter == 0 {
+			r.RelationshipChanges[i].Chapter = chapter
+		}
+	}
+	for i := range r.StateChanges {
+		if r.StateChanges[i].Chapter == 0 {
+			r.StateChanges[i].Chapter = chapter
+		}
+	}
+	for i := range r.WorldEvidence {
+		if r.WorldEvidence[i].Chapter == 0 {
+			r.WorldEvidence[i].Chapter = chapter
+		}
+	}
+	return nil
+}
+
+func mergeDeepFacts(light ImportedChapterFacts, deep ImportedDeepFacts) ImportedChapterFacts {
+	light.TimelineEvents = deep.TimelineEvents
+	light.ForeshadowUpdates = deep.ForeshadowUpdates
+	light.RelationshipChanges = deep.RelationshipChanges
+	light.StateChanges = deep.StateChanges
+	if len(deep.WorldEvidence) > 0 {
+		light.WorldEvidence = deep.WorldEvidence
+	}
+	return light
+}
+
+func deepWindowStart(total, window int) int {
+	if window <= 0 {
+		return total
+	}
+	if window >= total {
+		return 0
+	}
+	return total - window
+}
+
+func deepInputDigest(lightDigest, deepPromptVersion string) string {
+	return Digest([]byte("deep\x00" + deepPromptVersion + "\x00" + lightDigest))
+}
+
+func nextDeepChapter(w *Workspace, seg *Segmentation, normalized []byte, segIdentity, lightVersion, deepVersion string, window int) int {
+	start := deepWindowStart(len(seg.Chapters), window)
+	for i := start; i < len(seg.Chapters); i++ {
+		a, err := readArtifact[ChapterAnalysisPayload](w, analysisPath(i+1))
+		if err != nil {
+			return i
+		}
+		lightD := chapterInputDigest(segIdentity, lightVersion, seg, normalized, i)
+		if a.InputDigest != lightD {
+			return i
+		}
+		if a.Payload.DeepDigest != deepInputDigest(lightD, deepVersion) {
+			return i
+		}
+	}
+	return -1
+}
+
+func deepAnalyzed(w *Workspace, seg *Segmentation, normalized []byte, segIdentity, lightVersion, deepVersion string, window int) bool {
+	return nextDeepChapter(w, seg, normalized, segIdentity, lightVersion, deepVersion, window) < 0
+}
+
+func deepAnalyzedCount(w *Workspace, seg *Segmentation, normalized []byte, segIdentity, lightVersion, deepVersion string, window int) int {
+	start := deepWindowStart(len(seg.Chapters), window)
+	if start >= len(seg.Chapters) {
+		return 0
+	}
+	n := 0
+	for i := start; i < len(seg.Chapters); i++ {
+		a, err := readArtifact[ChapterAnalysisPayload](w, analysisPath(i+1))
+		if err != nil {
+			break
+		}
+		lightD := chapterInputDigest(segIdentity, lightVersion, seg, normalized, i)
+		if a.InputDigest != lightD || a.Payload.DeepDigest != deepInputDigest(lightD, deepVersion) {
+			break
+		}
+		n++
+	}
+	return n
+}
+
+// AnalyzeNext 从第一份缺失轻提取起处理一章并落盘，返回本次提交的章节数。
+// 组批固定 1 章；截断时仍尝试打捞已完整的本章对象。
 // 截断即「失败 + 缩小重组批」（默认，§9.5）；批次已缩到单章仍截断则显式报告容量不足。
 func AnalyzeNext(ctx context.Context, m callModel, systemPrompt string, w *Workspace, normalized []byte, seg *Segmentation, segIdentity, promptVersion string, budget AnalyzeBudget, prof callProfile) (int, error) {
 	total := len(seg.Chapters)
@@ -286,11 +404,11 @@ func AnalyzeNext(ctx context.Context, m callModel, systemPrompt string, w *Works
 		return 0, nil
 	}
 	ledger := buildLedger(loadPriorFacts(w, start))
-	end := planBatch(seg.Chapters, start, len(ledger), budget)
+	end := start + 1
 
 	for {
 		payload := buildAnalyzePayload(normalized, seg, ledger, start, end)
-		res, err := callStructured[AnalysisBatchResult](ctx, m, analysisContract, systemPrompt, payload, budget.MaxOutputTokens, prof, func(r *AnalysisBatchResult) error {
+		res, err := callStructured[AnalysisBatchResult](ctx, m, lightAnalysisContract, systemPrompt, payload, budget.MaxOutputTokens, prof, func(r *AnalysisBatchResult) error {
 			return validateBatch(r, seg, start, end)
 		})
 		if err != nil {
@@ -351,7 +469,11 @@ func echoChapterFacts(prof callProfile, facts []ImportedChapterFacts) {
 // buildAnalyzePayload 组装批次输入：连续章节原文 + 批次前 ledger。
 func buildAnalyzePayload(normalized []byte, seg *Segmentation, ledger string, start, end int) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "请分析第 %d-%d 章，返回 {\"chapters\":[每章一个事实对象]}，数组顺序与章号一致。\n\n", start+1, end)
+	if end-start == 1 {
+		fmt.Fprintf(&b, "请分析第 %d 章，返回 {\"chapters\":[恰好一个事实对象]}。\n\n", start+1)
+	} else {
+		fmt.Fprintf(&b, "请分析第 %d-%d 章，返回 {\"chapters\":[每章一个事实对象]}，数组顺序与章号一致。\n\n", start+1, end)
+	}
 	if ledger != "" {
 		b.WriteString("## 连续性 ledger（参考）\n\n")
 		b.WriteString(ledger)
@@ -364,6 +486,63 @@ func buildAnalyzePayload(normalized []byte, seg *Segmentation, ledger string, st
 		b.WriteString("\n\n---\n\n")
 	}
 	return b.String()
+}
+
+func buildDeepPayload(normalized []byte, seg *Segmentation, ledger string, i int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "请深提取第 %d 章的时间线、伏笔、关系与状态变化。\n\n", i+1)
+	if ledger != "" {
+		b.WriteString("## 窗口内连续性 ledger（参考）\n\n")
+		b.WriteString(ledger)
+		b.WriteString("\n")
+	}
+	c := seg.Chapters[i]
+	fmt.Fprintf(&b, "## 第 %d 章：%s\n\n", c.Number, c.Title)
+	b.WriteString(seg.Content(normalized, i))
+	b.WriteString("\n")
+	return b.String()
+}
+
+// AnalyzeDeepNext 对近窗内第一份缺失深提取的章节补写世界状态，合并进已有轻事实。
+func AnalyzeDeepNext(ctx context.Context, m callModel, systemPrompt string, w *Workspace, normalized []byte, seg *Segmentation, segIdentity, lightVersion, deepVersion string, window int, budget AnalyzeBudget, prof callProfile) (int, error) {
+	idx := nextDeepChapter(w, seg, normalized, segIdentity, lightVersion, deepVersion, window)
+	if idx < 0 {
+		return 0, nil
+	}
+	windowStart := deepWindowStart(len(seg.Chapters), window)
+	prior := loadPriorFacts(w, idx)
+	if windowStart < len(prior) {
+		prior = prior[windowStart:]
+	} else if windowStart > 0 {
+		prior = nil
+	}
+	existing, err := readArtifact[ChapterAnalysisPayload](w, analysisPath(idx+1))
+	if err != nil {
+		return 0, fmt.Errorf("读取第 %d 章轻事实：%w", idx+1, err)
+	}
+	lightD := chapterInputDigest(segIdentity, lightVersion, seg, normalized, idx)
+	if existing.InputDigest != lightD {
+		return 0, fmt.Errorf("第 %d 章轻事实已失鲜，请先重做轻提取", idx+1)
+	}
+	payload := buildDeepPayload(normalized, seg, buildLedger(prior), idx)
+	deep, err := callStructured[ImportedDeepFacts](ctx, m, deepAnalysisContract, systemPrompt, payload, budget.MaxOutputTokens, prof, func(r *ImportedDeepFacts) error {
+		return validateDeep(r, seg.Chapters[idx].Number)
+	})
+	if err != nil {
+		return 0, err
+	}
+	merged := mergeDeepFacts(existing.Payload.Facts, deep)
+	art := ChapterAnalysisPayload{
+		BatchStart: existing.Payload.BatchStart,
+		BatchEnd:   existing.Payload.BatchEnd,
+		Facts:      merged,
+		DeepDigest: deepInputDigest(lightD, deepVersion),
+	}
+	if err := writeArtifact(w, analysisPath(idx+1), lightD, art); err != nil {
+		return 0, fmt.Errorf("落盘第 %d 章深提取：%w", idx+1, err)
+	}
+	prof.step(0, 0, "第 %d 章深提取完成：时间线 %d、伏笔 %d", merged.Chapter, len(merged.TimelineEvents), len(merged.ForeshadowUpdates))
+	return 1, nil
 }
 
 // salvagePrefix 从长度截断的批次响应中解析最大连续合法前缀（RFC §9.5）。

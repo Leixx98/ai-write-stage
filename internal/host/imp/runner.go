@@ -18,7 +18,8 @@ import (
 // prompt/schema 版本纳入各阶段 InputDigest；升级 prompt 契约时递增以自然失效下游工件。
 const (
 	segmentPromptVersion = "seg-v2" // v2：边界只落真实分隔处、标题逐字复制（配合标题回显校验）
-	analyzePromptVersion = "analyze-v1"
+	analyzePromptVersion = "analyze-light-v1"
+	deepPromptVersion    = "analyze-deep-v1"
 	confirmMethodAuto    = "auto_authorized"
 	confirmMethodUser    = "user_confirmed" // Explicit confirmation after reviewing the preview.
 )
@@ -26,10 +27,11 @@ const (
 // Prompts 是各语义函数的系统提示词。综合分两阶段：Synthesize 出全书 BookSynthesis，
 // Range 出长书连续区间 RangeDigest；两者输出结构不同，须各用对应提示词。
 type Prompts struct {
-	Segment    string
-	Analyze    string
-	Synthesize string
-	Range      string
+	Segment     string
+	Analyze     string
+	AnalyzeDeep string
+	Synthesize  string
+	Range       string
 }
 
 // RunBudgets 是各语义函数的输入/输出预算。第一版用保守常量；
@@ -131,6 +133,7 @@ type Deps struct {
 	Synthesize    Caller // range digest 与 book synthesis 同档位（同一综合阶段）
 	Prompts       Prompts
 	Budgets       RunBudgets
+	OnStream      func(clear bool, text string)
 }
 
 // budgetsFromDeps 按各语义函数自己的档位能力派生预算（RFC §9.2/§13.1）。
@@ -276,6 +279,9 @@ func (r *runner) profileFor(c Caller, stage Stage) callProfile {
 	prof.progress = func(current, total int, msg string) {
 		r.send(Event{Time: time.Now(), Stage: stage, Current: current, Total: total, Message: msg})
 	}
+	if r.deps.OnStream != nil {
+		prof.stream = r.deps.OnStream
+	}
 	return prof
 }
 
@@ -317,6 +323,46 @@ func (r *runner) applyGuidance() error {
 	return r.ws.writeAtomic(fileGuidance, []byte(g))
 }
 
+func (r *runner) applyDeepWindow() error {
+	if r.opts.DeepExtractChapters == nil || !r.ws.Active() {
+		return nil
+	}
+	in, err := r.ws.LoadIntent()
+	if err != nil {
+		return fmt.Errorf("读取导入意图: %w", err)
+	}
+	n := resolveDeepExtractChapters(r.opts.DeepExtractChapters)
+	if in.DeepExtractChapters == n {
+		return nil
+	}
+	in.DeepExtractChapters = n
+	return r.ws.writeJSON(fileIntent, in)
+}
+
+func materializeDrafts(st *store.Store, src []byte, seg *Segmentation) error {
+	for i, ch := range seg.Chapters {
+		if err := st.Drafts.SaveDraft(ch.Number, seg.Content(src, i)); err != nil {
+			return fmt.Errorf("落盘第 %d 章草稿：%w", ch.Number, err)
+		}
+	}
+	return nil
+}
+
+func (r *runner) materializeConfirmedDrafts() error {
+	if r.deps.Store == nil {
+		return nil
+	}
+	src, err := r.ws.LoadSource()
+	if err != nil {
+		return fmt.Errorf("读取导入源快照: %w", err)
+	}
+	segArt, err := readArtifact[Segmentation](r.ws, fileSegmentation)
+	if err != nil {
+		return fmt.Errorf("读取切分工件: %w", err)
+	}
+	return materializeDrafts(r.deps.Store, src, &segArt.Payload)
+}
+
 // checkSourceIdentity 拦截「工作区进行中却传入不同源文件」：ingest 只在无工作区时执行，
 // Without this comparison, importing B could silently resume and publish A without reading B.
 // Compare content digests so repeating the same source path remains resumable.
@@ -353,6 +399,10 @@ func (r *runner) run(ctx context.Context) {
 			r.fail("写入切分指导", err)
 			return
 		}
+		if err := r.applyDeepWindow(); err != nil {
+			r.fail("写入近窗章数", err)
+			return
+		}
 		facts, err := r.facts()
 		if err != nil {
 			r.fail("读取导入状态", err)
@@ -378,6 +428,8 @@ func (r *runner) run(ctx context.Context) {
 			}
 		case ActionAnalyze:
 			err = r.analyze(ctx)
+		case ActionAnalyzeDeep:
+			err = r.analyzeDeep(ctx)
 		case ActionSynthesize:
 			err = r.synthesize(ctx)
 		case ActionAwaitStoryResolution:
@@ -497,6 +549,10 @@ func (r *runner) confirm() bool {
 		r.fail("写确认工件", err)
 		return false
 	}
+	if err := r.materializeConfirmedDrafts(); err != nil {
+		r.fail("落盘章节正文", err)
+		return false
+	}
 	r.emit(StageAwaitingConfirmation, len(seg.Payload.Chapters), len(seg.Payload.Chapters), doneMsg, nil)
 	return true
 }
@@ -559,6 +615,9 @@ func (r *runner) analyze(ctx context.Context) error {
 	// 逐章 digest 只绑定本章正文，不含批次上下文与前序 ledger。若第 K 章因缺失/失配需重分析，
 	// 其后仍留着 digest 恰好匹配的旧工件会带着已失效的 ledger 被复用。开分析前清理越过新鲜前缀的尾部，
 	// 强制"重分析某章即失效其后全部分析"，之后前向分析不再产生陈旧尾部（RFC §9.6 / #4a）。
+	if err := r.materializeConfirmedDrafts(); err != nil {
+		return err
+	}
 	if err := discardAnalysesAfter(r.ws, analyzedChapters(r.ws, seg, src, segArt.InputDigest, analyzePromptVersion), total); err != nil {
 		return err
 	}
@@ -570,7 +629,7 @@ func (r *runner) analyze(ctx context.Context) error {
 		if start >= total {
 			break
 		}
-		r.emit(StageAnalyzing, start, total, fmt.Sprintf("分析第 %d 章起的连续批次...", start+1), nil)
+		r.emit(StageAnalyzing, start, total, fmt.Sprintf("轻提取第 %d/%d 章...", start+1, total), nil)
 		done, err := AnalyzeNext(ctx, r.deps.Analyze.Model, r.deps.Prompts.Analyze, r.ws, src, seg, segArt.InputDigest, analyzePromptVersion, r.deps.Budgets.Analyze, r.profileFor(r.deps.Analyze, StageAnalyzing))
 		if err != nil {
 			return err
@@ -579,7 +638,52 @@ func (r *runner) analyze(ctx context.Context) error {
 			break
 		}
 	}
-	r.emit(StageAnalyzing, total, total, "逐章事实提取完成", nil)
+	r.emit(StageAnalyzing, total, total, "全书轻提取完成", nil)
+	return nil
+}
+
+func (r *runner) analyzeDeep(ctx context.Context) error {
+	src, err := r.ws.LoadSource()
+	if err != nil {
+		return err
+	}
+	segArt, err := readArtifact[Segmentation](r.ws, fileSegmentation)
+	if err != nil {
+		return err
+	}
+	in, err := r.ws.LoadIntent()
+	if err != nil {
+		return fmt.Errorf("读取导入意图: %w", err)
+	}
+	window := in.DeepExtractChapters
+	if window <= 0 {
+		return nil
+	}
+	seg := &segArt.Payload
+	total := len(seg.Chapters)
+	span := window
+	if span > total {
+		span = total
+	}
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		idx := nextDeepChapter(r.ws, seg, src, segArt.InputDigest, analyzePromptVersion, deepPromptVersion, window)
+		if idx < 0 {
+			break
+		}
+		doneCount := deepAnalyzedCount(r.ws, seg, src, segArt.InputDigest, analyzePromptVersion, deepPromptVersion, window)
+		r.emit(StageAnalyzingDeep, doneCount, span, fmt.Sprintf("深提取第 %d 章（近窗 %d/%d）...", idx+1, doneCount+1, span), nil)
+		done, err := AnalyzeDeepNext(ctx, r.deps.Analyze.Model, r.deps.Prompts.AnalyzeDeep, r.ws, src, seg, segArt.InputDigest, analyzePromptVersion, deepPromptVersion, window, r.deps.Budgets.Analyze, r.profileFor(r.deps.Analyze, StageAnalyzingDeep))
+		if err != nil {
+			return err
+		}
+		if done == 0 {
+			break
+		}
+	}
+	r.emit(StageAnalyzingDeep, span, span, fmt.Sprintf("近窗深提取完成（%d 章）", span), nil)
 	return nil
 }
 

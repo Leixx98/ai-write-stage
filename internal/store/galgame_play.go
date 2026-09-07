@@ -40,30 +40,77 @@ const (
 	PlayCGKeep PlayCG = "keep"
 )
 
+type PlayDensity string
+
+const (
+	PlayDensityCompact PlayDensity = "compact"
+	PlayDensityRich    PlayDensity = "rich"
+)
+
+func NormalizePlayDensity(raw string) PlayDensity {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case string(PlayDensityRich), "full", "丰满":
+		return PlayDensityRich
+	default:
+		return PlayDensityCompact
+	}
+}
+
+type PlayStationStatus string
+
+const (
+	StationPending PlayStationStatus = "pending"
+	StationActive  PlayStationStatus = "active"
+	StationDone    PlayStationStatus = "done"
+	StationSkipped PlayStationStatus = "skipped"
+)
+
+type PlayStation struct {
+	ID       string            `json:"id"`
+	Pressure string            `json:"pressure"`
+	Status   PlayStationStatus `json:"status,omitempty"`
+}
+
+type PlaySpine struct {
+	Stations []PlayStation `json:"stations"`
+}
+
+type PlayFact struct {
+	ID string `json:"id"`
+}
+
+type PlayLedger struct {
+	Facts []PlayFact `json:"facts"`
+}
+
 type PlayChoice struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Consequence string `json:"consequence,omitempty"`
+	ID          string   `json:"id"`
+	Label       string   `json:"label"`
+	Consequence string   `json:"consequence,omitempty"`
+	SetFacts    []string `json:"set_facts,omitempty"`
+	Ending      bool     `json:"ending,omitempty"`
 }
 
 type PlayChoiceRecord struct {
-	Ordinal  int    `json:"ordinal"`
-	ChoiceID string `json:"choice_id"`
-	Label    string `json:"label,omitempty"`
+	Ordinal  int      `json:"ordinal"`
+	ChoiceID string   `json:"choice_id"`
+	Label    string   `json:"label,omitempty"`
+	SetFacts []string `json:"set_facts,omitempty"`
 }
 
 type PlayMeta struct {
-	ID             string     `json:"id"`
-	Name           string     `json:"name"`
-	CharacterID    string     `json:"character_id"`
-	Premise        string     `json:"premise"`
-	UserPersona    string     `json:"user_persona,omitempty"`
-	ImageProfileID string     `json:"image_profile_id,omitempty"`
-	Status         PlayStatus `json:"status"`
-	LastError      string     `json:"last_error,omitempty"`
-	Stage          string     `json:"stage,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID             string      `json:"id"`
+	Name           string      `json:"name"`
+	CharacterID    string      `json:"character_id"`
+	Premise        string      `json:"premise"`
+	UserPersona    string      `json:"user_persona,omitempty"`
+	ImageProfileID string      `json:"image_profile_id,omitempty"`
+	Density        PlayDensity `json:"density,omitempty"`
+	Status         PlayStatus  `json:"status"`
+	LastError      string      `json:"last_error,omitempty"`
+	Stage          string      `json:"stage,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 type PlayProgress struct {
@@ -87,6 +134,7 @@ type PlayBeatCard struct {
 
 type PlayOutline struct {
 	SegmentID            string         `json:"segment_id"`
+	StationID            string         `json:"station_id,omitempty"`
 	Goal                 string         `json:"goal,omitempty"`
 	CompleteAfterSegment bool           `json:"complete_after_segment,omitempty"`
 	Notes                string         `json:"notes,omitempty"`
@@ -141,6 +189,12 @@ func (s *GalgameStore) playBeatPath(id string, ordinal int) string {
 func (s *GalgameStore) playWriterSessionPath(id string) string {
 	return filepath.ToSlash(filepath.Join("galgame/plays", id, "writer_session.json"))
 }
+func (s *GalgameStore) playSpinePath(id string) string {
+	return filepath.ToSlash(filepath.Join("galgame/plays", id, "spine.json"))
+}
+func (s *GalgameStore) playLedgerPath(id string) string {
+	return filepath.ToSlash(filepath.Join("galgame/plays", id, "facts.json"))
+}
 
 func (s *GalgameStore) SavePlay(meta PlayMeta) error {
 	if !safeGalgameID(meta.ID) {
@@ -155,6 +209,7 @@ func (s *GalgameStore) SavePlay(meta PlayMeta) error {
 	if strings.TrimSpace(meta.Premise) == "" {
 		return fmt.Errorf("premise is required")
 	}
+	meta.Density = NormalizePlayDensity(string(meta.Density))
 	if meta.Status == "" {
 		meta.Status = PlayIdle
 	}
@@ -393,6 +448,66 @@ func (s *GalgameStore) LoadWriterSession(id string) (PlayWriterSession, error) {
 		session.Turns = []PlayWriterTurn{}
 	}
 	return session, nil
+}
+
+func (s *GalgameStore) SaveSpine(id string, spine PlaySpine) error {
+	if !safeGalgameID(id) {
+		return fmt.Errorf("invalid play id")
+	}
+	if spine.Stations == nil {
+		spine.Stations = []PlayStation{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.io.WriteJSON(s.playSpinePath(id), spine)
+}
+
+func (s *GalgameStore) LoadSpine(id string) (PlaySpine, error) {
+	if !safeGalgameID(id) {
+		return PlaySpine{}, fmt.Errorf("invalid play id")
+	}
+	var spine PlaySpine
+	err := s.io.ReadJSON(s.playSpinePath(id), &spine)
+	if os.IsNotExist(err) {
+		return PlaySpine{}, nil
+	}
+	if err != nil {
+		return PlaySpine{}, err
+	}
+	if spine.Stations == nil {
+		spine.Stations = []PlayStation{}
+	}
+	return spine, nil
+}
+
+func (s *GalgameStore) SaveLedger(id string, ledger PlayLedger) error {
+	if !safeGalgameID(id) {
+		return fmt.Errorf("invalid play id")
+	}
+	if ledger.Facts == nil {
+		ledger.Facts = []PlayFact{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.io.WriteJSON(s.playLedgerPath(id), ledger)
+}
+
+func (s *GalgameStore) LoadLedger(id string) (PlayLedger, error) {
+	if !safeGalgameID(id) {
+		return PlayLedger{}, fmt.Errorf("invalid play id")
+	}
+	var ledger PlayLedger
+	err := s.io.ReadJSON(s.playLedgerPath(id), &ledger)
+	if os.IsNotExist(err) {
+		return PlayLedger{}, nil
+	}
+	if err != nil {
+		return PlayLedger{}, err
+	}
+	if ledger.Facts == nil {
+		ledger.Facts = []PlayFact{}
+	}
+	return ledger, nil
 }
 
 type BoundPlayImage struct {

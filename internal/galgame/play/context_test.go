@@ -91,25 +91,27 @@ func systemCardPrefix(system string) string {
 	return system[:idx]
 }
 
-func TestArchitectRequestPutsChoiceHistoryBeforeLastGoal(t *testing.T) {
+func TestArchitectRequestPutsStationBeforeFacts(t *testing.T) {
 	system, user, err := architectRequest("规划", ArchitectInput{
-		Character:     testCharacter(),
-		Premise:       "雨夜",
-		UserPersona:   "旅人",
-		ChoiceHistory: []store.PlayChoiceRecord{{Ordinal: 3, ChoiceID: "stay", Label: "留下"}},
-		RecentBeats:   []store.PlayBeat{{Ordinal: 3, Text: "对峙", ImageJobID: "img"}},
-		LastGoal:      "逼问",
+		Character:      testCharacter(),
+		Premise:        "雨夜",
+		UserPersona:    "旅人",
+		CurrentStation: store.PlayStation{ID: "meet", Pressure: "第一次必须表态"},
+		Facts:          []store.PlayFact{{ID: "arrived"}},
+		ChoiceHistory:  []store.PlayChoiceRecord{{Ordinal: 3, ChoiceID: "stay", Label: "留下"}},
+		RecentBeats:    []store.PlayBeat{{Ordinal: 3, Text: "对峙", ImageJobID: "img"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(system, "情报员") || strings.Contains(system, "逼问") {
+	if !strings.Contains(system, "情报员") || strings.Contains(system, "第一次必须表态") {
 		t.Fatalf("static/dynamic mix: %s", system)
 	}
+	stationAt := strings.Index(user, "current_station")
+	factsAt := strings.Index(user, "facts")
 	choiceAt := strings.Index(user, "choice_history")
 	beatsAt := strings.Index(user, "recent_beats")
-	goalAt := strings.Index(user, "last_goal")
-	if choiceAt < 0 || beatsAt < 0 || goalAt < 0 || !(choiceAt < beatsAt && beatsAt < goalAt) {
+	if stationAt < 0 || factsAt < 0 || choiceAt < 0 || beatsAt < 0 || !(stationAt < factsAt && factsAt < choiceAt && choiceAt < beatsAt) {
 		t.Fatalf("turn field order: %s", user)
 	}
 	if strings.Contains(user, "img") || strings.Contains(user, "extensions") {

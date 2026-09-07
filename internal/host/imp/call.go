@@ -48,6 +48,8 @@ type callProfile struct {
 	progress func(current, total int, msg string)
 	// log 可选：导入专属日志（logs/import.log）；nil 回退默认 logger。
 	log *slog.Logger
+	// stream 可选：每次新调用先 clear=true，再追加模型吐词。
+	stream func(clear bool, text string)
 }
 
 func (p callProfile) logger() *slog.Logger {
@@ -149,13 +151,18 @@ func (p callProfile) callOptions(maxTokens int) []agentcore.CallOption {
 
 // callStructured 为导入层适配统一结构化执行器，并把通用失败映射为导入工件语义。
 func callStructured[T any](ctx context.Context, m callModel, contract llmcontract.Contract, systemPrompt, payload string, maxTokens int, prof callProfile, validate func(*T) error) (T, error) {
-	out, err := llmcontract.Execute(ctx, m, llmcontract.Request[T]{
-		Contract:     contract,
-		SystemPrompt: systemPrompt,
-		Payload:      payload,
-		Options:      prof.callOptions(maxTokens),
-		Validate:     validate,
-		Agent:        "import",
+	if prof.stream != nil {
+		prof.stream(true, "")
+	}
+	req := llmcontract.Request[T]{
+		Contract:          contract,
+		SystemPrompt:      systemPrompt,
+		Payload:           payload,
+		Options:           prof.callOptions(maxTokens),
+		Validate:          validate,
+		Agent:             "import",
+		MaxCorrections:    3,
+		CompactCorrection: true,
 		Hooks: llmcontract.Hooks{
 			Resolved: func(res llmcontract.Resolution) {
 				prof.logger().Debug("imp 结构化协议选择",
@@ -168,6 +175,9 @@ func callStructured[T any](ctx context.Context, m callModel, contract llmcontrac
 				prof.logger().Warn("imp 模型请求重试", "attempt", ev.Attempt, "delay", ev.Delay, "err", ev.Err)
 			},
 			Correction: func(ev llmcontract.Correction) {
+				if prof.stream != nil {
+					prof.stream(true, "")
+				}
 				prof.say("输出校验未通过（%s），带错误反馈进行第 %d 次重问", briefErr(ev.Err), ev.Attempt+1)
 				prof.logger().Warn("imp 结构化输出自愈", "attempt", ev.Attempt,
 					"layer", ev.Layer, "structured_mode", ev.Mode, "err", ev.Err)
@@ -176,8 +186,24 @@ func callStructured[T any](ctx context.Context, m callModel, contract llmcontrac
 				prof.logger().Info("imp JSON 已句法修复", "rules", ev.Rules,
 					"raw_chars", ev.RawChars, "body_chars", ev.BodyChars)
 			},
+			Stream: func(ev agentcore.StreamEvent) {
+				if prof.stream != nil && ev.Type == agentcore.StreamEventTextDelta && ev.Delta != "" {
+					prof.stream(false, ev.Delta)
+				}
+			},
 		},
-	})
+	}
+	var out T
+	var err error
+	if prof.stream != nil {
+		if sg, ok := m.(llmretry.StreamGenerator); ok {
+			out, err = llmcontract.ExecuteStream(ctx, sg, req)
+		} else {
+			out, err = llmcontract.Execute(ctx, m, req)
+		}
+	} else {
+		out, err = llmcontract.Execute(ctx, m, req)
+	}
 	if err == nil {
 		return out, nil
 	}

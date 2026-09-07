@@ -44,6 +44,13 @@ func writerHistoryMessages(turns []store.PlayWriterTurn) []agentcore.Message {
 	return out
 }
 
+func capWriterTurns(turns []store.PlayWriterTurn, max int) []store.PlayWriterTurn {
+	if max <= 0 || len(turns) <= max {
+		return turns
+	}
+	return turns[len(turns)-max:]
+}
+
 func compactWriterTurns(turns []store.PlayWriterTurn, system, payload string, window int) []store.PlayWriterTurn {
 	budget := writerHistoryBudget(window, system, payload)
 	if writerTurnsFit(turns, budget) {

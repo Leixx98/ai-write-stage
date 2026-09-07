@@ -326,10 +326,11 @@ func (c *v2Controller) importStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		SourcePath    string `json:"source_path"`
-		StoryStatus   string `json:"story_status"`
-		Guidance      string `json:"guidance"`
-		ContinueAfter bool   `json:"continue_after"`
+		SourcePath          string `json:"source_path"`
+		StoryStatus         string `json:"story_status"`
+		Guidance            string `json:"guidance"`
+		ContinueAfter       bool   `json:"continue_after"`
+		DeepExtractChapters *int   `json:"deep_extract_chapters"`
 	}
 	if err := decodeBody(r, &req); err != nil {
 		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, err)
@@ -354,7 +355,7 @@ func (c *v2Controller) importStart(w http.ResponseWriter, r *http.Request) {
 		envelopeErr(w, http.StatusBadRequest, codeInvalidRequest, fmt.Errorf("story status must be open, closed, or undetermined"))
 		return
 	}
-	if err := c.rt.StartImport(imp.Options{SourcePath: sourcePath, StoryResolution: storyStatus, Guidance: req.Guidance, ContinueAfter: req.ContinueAfter}); err != nil {
+	if err := c.rt.StartImport(imp.Options{SourcePath: sourcePath, StoryResolution: storyStatus, Guidance: req.Guidance, ContinueAfter: req.ContinueAfter, DeepExtractChapters: req.DeepExtractChapters}); err != nil {
 		envelopeErr(w, http.StatusConflict, codeConflict, err)
 		return
 	}

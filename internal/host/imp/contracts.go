@@ -29,43 +29,56 @@ var segmentContract = llmcontract.Contract{
 	),
 }
 
-var analysisContract = llmcontract.Contract{
-	Name:        "import_chapter_analysis",
-	Description: "提取连续章节的可追溯故事事实",
+var lightAnalysisContract = llmcontract.Contract{
+	Name:        "import_chapter_light",
+	Description: "提取单章摘要与大纲所需的轻量事实",
 	Schema: schema.Object(
-		schema.Property("chapters", schema.Array("与输入章号顺序一致的逐章事实", chapterFactsSchema())).Required(),
+		schema.Property("chapters", schema.Array("与输入章号顺序一致的逐章轻事实，通常恰好一章", lightChapterFactsSchema())).Required(),
 	),
 }
 
-func chapterFactsSchema() map[string]any {
-	characterEvidence := schema.Object(
-		schema.Property("chapter", schema.Int("证据所在章")).Required(),
-		schema.Property("name", schema.String("人物名")).Required(),
-		schema.Property("note", nullableString("人物事实；无则为 null")).Required(),
-	)
-	worldEvidence := schema.Object(
+var deepAnalysisContract = llmcontract.Contract{
+	Name:        "import_chapter_deep",
+	Description: "提取近窗章节的时间线、伏笔与世界状态",
+	Schema:      deepChapterFactsSchema(),
+}
+
+func worldEvidenceSchema() map[string]any {
+	return schema.Object(
 		schema.Property("chapter", schema.Int("证据所在章")).Required(),
 		schema.Property("category", nullableString("世界事实类别；无法归类时为 null")).Required(),
 		schema.Property("fact", schema.String("正文明确揭示的世界事实")).Required(),
 	)
-	timelineEvent := schema.Object(
+}
+
+func timelineEventSchema() map[string]any {
+	return schema.Object(
 		schema.Property("chapter", schema.Int("章号")).Required(),
 		schema.Property("time", schema.String("故事内时间")).Required(),
 		schema.Property("event", schema.String("事件")).Required(),
 		schema.Property("characters", stringList("相关人物")).Required(),
 	)
-	foreshadow := schema.Object(
+}
+
+func foreshadowSchema() map[string]any {
+	return schema.Object(
 		schema.Property("id", schema.String("复用 ledger 中的伏笔 ID")).Required(),
 		schema.Property("action", schema.Enum("伏笔动作", "plant", "advance", "resolve")).Required(),
 		schema.Property("description", nullableString("plant 时的伏笔说明；其他情况可为 null")).Required(),
 	)
-	relationship := schema.Object(
+}
+
+func relationshipSchema() map[string]any {
+	return schema.Object(
 		schema.Property("character_a", schema.String("人物 A")).Required(),
 		schema.Property("character_b", schema.String("人物 B")).Required(),
 		schema.Property("relation", schema.String("关系变化")).Required(),
 		schema.Property("chapter", schema.Int("章号")).Required(),
 	)
-	stateChange := schema.Object(
+}
+
+func stateChangeSchema() map[string]any {
+	return schema.Object(
 		schema.Property("chapter", schema.Int("章号")).Required(),
 		schema.Property("entity", schema.String("角色或实体")).Required(),
 		schema.Property("field", schema.String("发生变化的属性")).Required(),
@@ -73,23 +86,29 @@ func chapterFactsSchema() map[string]any {
 		schema.Property("new_value", schema.String("变化后状态")).Required(),
 		schema.Property("reason", nullableString("变化原因；正文未说明时为 null")).Required(),
 	)
+}
+
+func lightChapterFactsSchema() map[string]any {
 	return schema.Object(
 		schema.Property("chapter", schema.Int("章号")).Required(),
 		schema.Property("title", schema.String("章节标题")).Required(),
 		schema.Property("summary", schema.String("本章概要")).Required(),
 		schema.Property("key_events", stringList("关键事件")).Required(),
 		schema.Property("core_event", schema.String("本章最关键的一件事")).Required(),
-		schema.Property("hook", nullableString("章末钩子；无则为 null")).Required(),
-		schema.Property("scenes", stringList("场景序列")).Required(),
 		schema.Property("characters", stringList("出场人物")).Required(),
-		schema.Property("character_evidence", schema.Array("人物证据", characterEvidence)).Required(),
-		schema.Property("world_evidence", schema.Array("世界事实证据", worldEvidence)).Required(),
-		schema.Property("timeline_events", schema.Array("时间线事件", timelineEvent)).Required(),
-		schema.Property("foreshadow_updates", schema.Array("伏笔增量", foreshadow)).Required(),
-		schema.Property("relationship_changes", schema.Array("关系变化", relationship)).Required(),
-		schema.Property("state_changes", schema.Array("状态变化", stateChange)).Required(),
+		schema.Property("hook", nullableString("章末钩子；无则为 null")).Required(),
 		schema.Property("hook_type", schema.Enum("章末钩子类型", domain.HookTypes()...)).Required(),
 		schema.Property("dominant_strand", schema.Enum("主导叙事线", domain.DominantStrands()...)).Required(),
+	)
+}
+
+func deepChapterFactsSchema() map[string]any {
+	return schema.Object(
+		schema.Property("timeline_events", schema.Array("时间线事件", timelineEventSchema())).Required(),
+		schema.Property("foreshadow_updates", schema.Array("伏笔增量", foreshadowSchema())).Required(),
+		schema.Property("relationship_changes", schema.Array("关系变化", relationshipSchema())).Required(),
+		schema.Property("state_changes", schema.Array("状态变化", stateChangeSchema())).Required(),
+		schema.Property("world_evidence", schema.Array("世界事实证据", worldEvidenceSchema())).Required(),
 	)
 }
 

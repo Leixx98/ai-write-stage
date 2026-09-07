@@ -18,6 +18,21 @@ type Options struct {
 	// AcceptSegmentation explicitly confirms the reviewed preview for the current split without persisting intent.
 	// Unlike --yes, it may accept a split containing deterministic recovery notes.
 	AcceptSegmentation bool
+	// DeepExtractChapters is the near-window size for expensive world-state extraction.
+	// nil uses DefaultDeepExtractChapters; 0 skips deep extract.
+	DeepExtractChapters *int
+}
+
+const DefaultDeepExtractChapters = 20
+
+func resolveDeepExtractChapters(n *int) int {
+	if n == nil {
+		return DefaultDeepExtractChapters
+	}
+	if *n < 0 {
+		return DefaultDeepExtractChapters
+	}
+	return *n
 }
 
 // intent 从 Options 抽取需持久化的用户授权。
@@ -27,6 +42,7 @@ func (o Options) intent() Intent {
 		AutoConfirm:         o.AutoConfirm,
 		StoryResolution:     o.StoryResolution,
 		ContinueAfterImport: o.ContinueAfter,
+		DeepExtractChapters: resolveDeepExtractChapters(o.DeepExtractChapters),
 	}
 }
 
@@ -38,6 +54,7 @@ const (
 	StageSegmenting           Stage = "segmenting"
 	StageAwaitingConfirmation Stage = "awaiting_confirmation"
 	StageAnalyzing            Stage = "analyzing"
+	StageAnalyzingDeep        Stage = "analyzing_deep"
 	StageSynthesizing         Stage = "synthesizing"
 	StageAwaitingStoryStatus  Stage = "awaiting_story_status"
 	StageValidating           Stage = "validating"

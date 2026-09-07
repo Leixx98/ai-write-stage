@@ -60,3 +60,38 @@ func TestPublishChapterHandlesStalePendingCommit(t *testing.T) {
 		t.Fatalf("命中残留应恰好调用 commit 一次，得 %d 次", spy.calls)
 	}
 }
+
+func TestCommitArgsOmitsEmptyDeepFields(t *testing.T) {
+	light := ImportedChapterFacts{Chapter: 1, Title: "一", Summary: "s", CoreEvent: "c", HookType: "mystery", DominantStrand: "quest"}
+	args := commitArgs(1, light)
+	for _, key := range []string{"timeline_events", "foreshadow_updates", "relationship_changes", "state_changes"} {
+		if _, ok := args[key]; ok {
+			t.Fatalf("轻事实不应提交 %s", key)
+		}
+	}
+	deep := light
+	deep.TimelineEvents = []domain.TimelineEvent{{Chapter: 1, Time: "夜", Event: "走"}}
+	if _, ok := commitArgs(1, deep)["timeline_events"]; !ok {
+		t.Fatal("近窗深字段应随 commit 写出")
+	}
+}
+
+func TestMaterializeDraftsWritesAllChapters(t *testing.T) {
+	st := store.NewStore(t.TempDir())
+	if err := st.Init(); err != nil {
+		t.Fatal(err)
+	}
+	norm, seg := analyzeFixture(t, 2)
+	if err := materializeDrafts(st, norm, seg); err != nil {
+		t.Fatal(err)
+	}
+	for i, ch := range seg.Chapters {
+		got, err := st.Drafts.LoadDraft(ch.Number)
+		if err != nil {
+			t.Fatalf("第 %d 章草稿：%v", ch.Number, err)
+		}
+		if got != seg.Content(norm, i) {
+			t.Fatalf("第 %d 章草稿应等于切分正文", ch.Number)
+		}
+	}
+}

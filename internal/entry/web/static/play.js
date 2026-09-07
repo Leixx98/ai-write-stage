@@ -59,6 +59,7 @@
       setField('galgame-play-premise', play.premise || '');
       setField('galgame-play-persona', play.user_persona || '');
       setField('galgame-play-image-profile', play.image_profile_id || '');
+      setField('galgame-play-density', play.density === 'rich' ? 'rich' : 'compact');
     }
     if (isPlayMode()) $('galgame-session-name').textContent = play?.name || '剧场';
     renderPlayBuffer();
@@ -485,6 +486,7 @@
     setField('galgame-play-premise', '');
     setField('galgame-play-persona', '');
     setField('galgame-play-image-profile', '');
+    setField('galgame-play-density', 'compact');
     const select = $('galgame-play-select');
     if (select) select.value = '';
     renderPlayForm();
@@ -525,6 +527,7 @@
         name: fieldValue('galgame-play-name') || `${character().name || '角色'} 剧场`,
         character_id: character().id,
         premise,
+        density: fieldValue('galgame-play-density') || 'compact',
         user_persona: fieldValue('galgame-play-persona'),
         image_profile_id: fieldValue('galgame-play-image-profile'),
       }) });
@@ -547,6 +550,7 @@
       const updated = await api(`/api/v2/galgame/plays/${encodeURIComponent(playState.play.id)}`, { method: 'PUT', body: JSON.stringify({
         name: fieldValue('galgame-play-name'),
         premise: fieldValue('galgame-play-premise'),
+        density: fieldValue('galgame-play-density') || 'compact',
         user_persona: fieldValue('galgame-play-persona'),
         image_profile_id: fieldValue('galgame-play-image-profile'),
       }) });

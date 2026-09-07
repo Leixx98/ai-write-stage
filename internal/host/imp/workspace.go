@@ -46,6 +46,7 @@ type Intent struct {
 	AutoConfirm         bool   `json:"auto_confirm,omitempty"`
 	StoryResolution     string `json:"story_resolution,omitempty"` // open / closed
 	ContinueAfterImport bool   `json:"continue_after_import,omitempty"`
+	DeepExtractChapters int    `json:"deep_extract_chapters,omitempty"`
 }
 
 // 工作区标准工件相对路径。
