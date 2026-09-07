@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/errs"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/errs"
 )
 
 // Store is the novel-facts composition root. Image jobs and tavern sessions

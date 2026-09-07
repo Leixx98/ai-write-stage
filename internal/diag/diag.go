@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 // ── 诊断阈值 ─────────────────────────────────────────────

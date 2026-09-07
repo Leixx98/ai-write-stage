@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 const (

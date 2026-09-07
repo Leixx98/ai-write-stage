@@ -6,7 +6,7 @@
 // EPUB 适合手机阅读器，TXT 继续保留给脚本和纯文本场景。
 package exp
 
-import "github.com/voocel/ainovel-cli/internal/store"
+import "github.com/Leixx98/ai-write-stage/internal/store"
 
 // Format 标识导出格式。
 type Format string

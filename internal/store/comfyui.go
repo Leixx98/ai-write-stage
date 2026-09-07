@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/comfyui"
+	"github.com/Leixx98/ai-write-stage/internal/comfyui"
 )
 
 type ComfyUIStore struct {

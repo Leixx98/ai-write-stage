@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/models"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/models"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
 )
 
 // recentSampleCap 是滑动窗大小：只保留每个 role 最近 N 次调用的 (cacheRead, input)

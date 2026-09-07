@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 // ChapterCommitter 是发布章节所需的最小接口，由 tools.CommitChapterTool 满足。

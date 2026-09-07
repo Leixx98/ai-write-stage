@@ -1,6 +1,6 @@
 package play
 
-import "github.com/voocel/ainovel-cli/internal/store"
+import "github.com/Leixx98/ai-write-stage/internal/store"
 
 type densityProfile struct {
 	MinCards    int

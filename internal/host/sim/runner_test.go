@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 type scriptedLLM struct {

@@ -3,8 +3,8 @@ package host
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestReplayStreamEventSupportsStructuredAndLegacyPayloads(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/flow"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/flow"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 type gateRecorder struct {

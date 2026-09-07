@@ -3,7 +3,7 @@ package store
 import (
 	"os"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 type SimulationStore struct{ io *IO }

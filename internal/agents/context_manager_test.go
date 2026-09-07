@@ -3,7 +3,7 @@ package agents
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
 )
 
 func TestRoleContextWindowUsesConfiguredProviderAlias(t *testing.T) {

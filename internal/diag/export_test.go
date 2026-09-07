@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // sentinel 是一段绝不该出现在导出里的"小说正文"。

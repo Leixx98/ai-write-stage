@@ -17,11 +17,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Leixx98/ai-write-stage/internal/agents/guard"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/subagent"
-	"github.com/voocel/ainovel-cli/internal/agents/guard"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // editorStopAfterToolResult 与 build.go 中 editor 的配置保持同一判据。

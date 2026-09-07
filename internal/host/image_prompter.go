@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
 )
 
 // GenerateImagePrompt calls the Prompter role. The system prompt comes from

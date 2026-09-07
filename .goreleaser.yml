@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
+project_name: ai-write-stage
 
 before:
   hooks:
@@ -8,9 +9,9 @@ before:
     - go test -count=1 ./...
 
 builds:
-  - id: ainovel-cli
-    main: ./cmd/ainovel-cli
-    binary: ainovel-cli
+  - id: ai-write-stage
+    main: ./cmd/ai-write-stage
+    binary: ai-write-stage
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -27,9 +28,9 @@ builds:
       - arm64
 
 archives:
-  - id: ainovel-cli-archive
+  - id: ai-write-stage-archive
     ids:
-      - ainovel-cli
+      - ai-write-stage
     formats:
       - tar.gz
     format_overrides:
@@ -72,5 +73,5 @@ changelog:
 
 release:
   github:
-    owner: voocel
-    name: ainovel-cli
+    owner: Leixx98
+    name: ai-write-stage

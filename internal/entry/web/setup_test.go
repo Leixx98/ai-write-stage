@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
 )
 
 func TestSetupHandlerServesPageAndPresets(t *testing.T) {

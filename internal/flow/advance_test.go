@@ -3,7 +3,7 @@ package flow
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 func TestStartsForwardChapter(t *testing.T) {

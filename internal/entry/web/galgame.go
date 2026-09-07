@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/galgame"
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/galgame"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func galgameID(prefix string) string { return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano()) }

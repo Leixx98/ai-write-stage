@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 type playLogSink struct {

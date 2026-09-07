@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/host/imp"
+	"github.com/Leixx98/ai-write-stage/internal/host/imp"
 )
 
 func TestImportSessionTransitionsAndBoundedHistory(t *testing.T) {

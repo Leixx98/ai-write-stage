@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	"github.com/Leixx98/ai-write-stage/internal/llmretry"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/llmretry"
 	"github.com/voocel/litellm"
 )
 

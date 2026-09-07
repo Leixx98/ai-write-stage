@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Leixx98/ai-write-stage/internal/galgame"
+	imagesvc "github.com/Leixx98/ai-write-stage/internal/imagejob/service"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/galgame"
-	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 func TestImportGalgameCharacterNormalizesAndSavesCard(t *testing.T) {

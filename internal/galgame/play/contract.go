@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 type SpineOutput struct {

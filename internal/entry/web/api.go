@@ -14,14 +14,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/entry/startup"
-	"github.com/voocel/ainovel-cli/internal/galgame"
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/host/exp"
-	"github.com/voocel/ainovel-cli/internal/host/imp"
-	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
-	"github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/workspace"
+	"github.com/Leixx98/ai-write-stage/internal/entry/startup"
+	"github.com/Leixx98/ai-write-stage/internal/galgame"
+	"github.com/Leixx98/ai-write-stage/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/host/exp"
+	"github.com/Leixx98/ai-write-stage/internal/host/imp"
+	imagesvc "github.com/Leixx98/ai-write-stage/internal/imagejob/service"
+	"github.com/Leixx98/ai-write-stage/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/workspace"
 )
 
 const (

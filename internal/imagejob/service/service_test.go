@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 type fakeProvider struct {
@@ -27,7 +27,9 @@ type blockingProvider struct {
 }
 
 func (p *blockingProvider) Info() imagejob.ProviderInfo { return p.info }
-func (p *blockingProvider) ValidateProfile(profile imagejob.Profile) error { return imagejob.ValidateProfile(profile, p.info.Capabilities) }
+func (p *blockingProvider) ValidateProfile(profile imagejob.Profile) error {
+	return imagejob.ValidateProfile(profile, p.info.Capabilities)
+}
 func (p *blockingProvider) Execute(ctx context.Context, _ imagejob.ProviderRequest, _ Reporter) ([]GeneratedOutput, error) {
 	p.once.Do(func() { close(p.started) })
 	select {
@@ -182,14 +184,26 @@ func TestDisablingSceneDoesNotCancelRunningJob(t *testing.T) {
 	saveProfile(t, roots, "default", "blocking")
 	settings := imagejob.DefaultSettings()
 	settings.Novel = imagejob.SceneConfig{Enabled: true, AutoGenerate: true, DefaultProfileID: "default"}
-	if err := roots.ImageConfig.SaveSettings(settings); err != nil { t.Fatal(err) }
+	if err := roots.ImageConfig.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
 	job, _, err := service.Start(imagejob.SceneImageRequest{Scene: imagejob.SceneNovel, SceneID: "unit", UnitID: "unit", Chapter: 1, Ordinal: 1, Text: "text"})
-	if err != nil { t.Fatal(err) }
-	select { case <-provider.started: case <-time.After(time.Second): t.Fatal("provider did not start") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-provider.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider did not start")
+	}
 	settings.Novel.Enabled = false
-	if err := roots.ImageConfig.SaveSettings(settings); err != nil { t.Fatal(err) }
+	if err := roots.ImageConfig.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
 	close(provider.release)
-	if finished := waitTerminal(t, roots, job.JobID); finished.Status != "completed" { t.Fatalf("job=%+v", finished) }
+	if finished := waitTerminal(t, roots, job.JobID); finished.Status != "completed" {
+		t.Fatalf("job=%+v", finished)
+	}
 }
 
 func TestPlayBeatsQueueWhileAnotherIsRunning(t *testing.T) {
@@ -261,7 +275,9 @@ func TestProviderCapabilityRejectsUnsupportedProfileFields(t *testing.T) {
 	provider := &fakeProvider{info: imagejob.ProviderInfo{ID: "fake", Name: "Fake", Enabled: true}}
 	service, _ := newGateway(t, provider)
 	err := service.ValidateProfile(imagejob.Profile{ID: "bad", Name: "Bad", Provider: "fake", AspectRatio: "16:9", ImageCount: 1, TimeoutMS: 5000})
-	if err == nil { t.Fatal("unsupported aspect ratio was accepted") }
+	if err == nil {
+		t.Fatal("unsupported aspect ratio was accepted")
+	}
 }
 
 func TestImagePathUsesSceneIdentity(t *testing.T) {

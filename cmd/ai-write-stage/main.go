@@ -7,14 +7,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/entry/headless"
-	"github.com/voocel/ainovel-cli/internal/entry/web"
-	"github.com/voocel/ainovel-cli/internal/eval"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	buildversion "github.com/voocel/ainovel-cli/internal/version"
-	"github.com/voocel/ainovel-cli/internal/workspace"
+	"github.com/Leixx98/ai-write-stage/assets"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/entry/headless"
+	"github.com/Leixx98/ai-write-stage/internal/entry/web"
+	"github.com/Leixx98/ai-write-stage/internal/eval"
+	"github.com/Leixx98/ai-write-stage/internal/rules"
+	buildversion "github.com/Leixx98/ai-write-stage/internal/version"
+	"github.com/Leixx98/ai-write-stage/internal/workspace"
 )
 
 var (
@@ -227,8 +227,8 @@ func versionInfo() buildversion.Info {
 func runSelfUpdate(target string) error {
 	info := versionInfo()
 	result, err := buildversion.Update(context.Background(), buildversion.UpdateOptions{
-		Repo:           "voocel/ainovel-cli",
-		BinaryName:     "ainovel-cli",
+		Repo:           "Leixx98/ai-write-stage",
+		BinaryName:     "ai-write-stage",
 		TargetVersion:  target,
 		CurrentVersion: info.Version,
 	})
@@ -236,10 +236,10 @@ func runSelfUpdate(target string) error {
 		return err
 	}
 	if !result.Updated {
-		fmt.Printf("ainovel-cli 已是最新版本 %s\n", result.Version)
+		fmt.Printf("ai-write-stage 已是最新版本 %s\n", result.Version)
 		return nil
 	}
-	fmt.Printf("ainovel-cli 已更新到 %s\n", result.Version)
+	fmt.Printf("ai-write-stage 已更新到 %s\n", result.Version)
 	fmt.Printf("安装位置：%s\n", result.Path)
 	return nil
 }

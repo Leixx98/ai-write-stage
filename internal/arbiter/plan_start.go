@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
 )
 
 // PlanStartDecision 启动裁定:选规划师并产出(必要时扩充过的)任务文本。

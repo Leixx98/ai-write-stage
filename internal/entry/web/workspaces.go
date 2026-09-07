@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/workspace"
+	"github.com/Leixx98/ai-write-stage/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/workspace"
 )
 
 func (c *v2Controller) listWorkspaces(w http.ResponseWriter, r *http.Request) {

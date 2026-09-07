@@ -1,4 +1,4 @@
-module github.com/voocel/ainovel-cli
+module github.com/Leixx98/ai-write-stage
 
 go 1.25.5
 

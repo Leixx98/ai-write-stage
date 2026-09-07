@@ -7,10 +7,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/errs"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/errs"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // PlanChapterTool 保存章节构思，Agent 自主决定规划粒度。

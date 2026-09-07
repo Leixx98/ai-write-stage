@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/Leixx98/ai-write-stage/assets"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/host"
 )
 
 func (c *v2Controller) settingsModels(w http.ResponseWriter, r *http.Request) {

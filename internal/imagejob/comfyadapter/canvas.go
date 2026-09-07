@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/comfyui"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 )
 
 // BuildPromptSchema projects ComfyUI canvas fields into the generic prompt

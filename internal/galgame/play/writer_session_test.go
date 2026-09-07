@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestCompactWriterTurnsDropsOldestPairs(t *testing.T) {

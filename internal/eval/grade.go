@@ -3,8 +3,8 @@ package eval
 import (
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/diag"
-	"github.com/voocel/ainovel-cli/internal/stylestat"
+	"github.com/Leixx98/ai-write-stage/internal/diag"
+	"github.com/Leixx98/ai-write-stage/internal/stylestat"
 )
 
 // Outcome 是单个 case 的门禁结论。

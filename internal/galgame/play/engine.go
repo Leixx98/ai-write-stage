@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 const DefaultTextAhead = 8

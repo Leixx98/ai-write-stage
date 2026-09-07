@@ -12,7 +12,7 @@ import (
 const bookLockFile = ".ainovel.lock"
 
 // ErrBookInUse 表示同一小说目录已被另一个进程占用。
-var ErrBookInUse = errors.New("小说目录已被另一个 ainovel-cli 实例占用")
+var ErrBookInUse = errors.New("小说目录已被另一个 ai-write-stage 实例占用")
 
 // bookLease 在 Host 的完整生命周期内持有小说目录的跨进程独占权。
 // 锁文件会保留在目录中；真正的占用状态由操作系统管理，进程异常退出也会自动释放。

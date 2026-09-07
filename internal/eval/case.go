@@ -1,4 +1,4 @@
-// Package eval 是 ainovel-cli 的离线评测 harness。
+// Package eval 是 ai-write-stage 的离线评测 harness。
 //
 // 设计立足点：评测器（确定性诊断 diag、全书文体 stylestat、七维 rubric）项目里已经
 // 存在，eval 只做薄薄一层——批量驱动 case、采集产出、把 diag Finding 与 case 契约映射

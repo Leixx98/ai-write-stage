@@ -3,8 +3,8 @@ package host
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestCurrentUnitOrdinalUsesCompletedWritingUnits(t *testing.T) {

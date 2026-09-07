@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func (c *v2Controller) galgamePlays(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 func TestSaveAndLoadRunMeta(t *testing.T) {

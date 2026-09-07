@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 // projectWriterUnitContext turns the broad chapter context into one explicit

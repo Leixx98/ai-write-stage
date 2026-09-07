@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // SaveReviewTool 保存 Editor 的审阅结果。

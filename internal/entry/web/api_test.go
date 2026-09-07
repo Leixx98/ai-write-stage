@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/assets"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/comfyui"
+	"github.com/Leixx98/ai-write-stage/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestV2ControllerUsesHostStore(t *testing.T) {

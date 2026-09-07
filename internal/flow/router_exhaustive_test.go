@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 // expectKind 是规格层面的裁定结果：路由到谁、做什么类别的事。

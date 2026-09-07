@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/diag"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/stylestat"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/diag"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/stylestat"
 )
 
 // Collected 是一次运行产出的只读采集结果。全部来自已有评测器与事实层，eval 不自己重算。

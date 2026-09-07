@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 func TestParsePremiseSections(t *testing.T) {

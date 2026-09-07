@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/comfyui"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 )
 
 func TestFoundationMissingReturnsReadError(t *testing.T) {

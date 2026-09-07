@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/host/imp"
+	"github.com/Leixx98/ai-write-stage/internal/host/imp"
 )
 
 const importHistoryLimit int = 200

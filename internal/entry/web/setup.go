@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
 )
 
 type setupSaver func(bootstrap.SetupRequest) (bootstrap.Config, error)

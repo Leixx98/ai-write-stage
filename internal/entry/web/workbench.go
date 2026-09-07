@@ -10,11 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/workspace"
+	"github.com/Leixx98/ai-write-stage/assets"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/workspace"
 )
 
 var errWorkspaceBusy = errors.New("写作或独占作业进行中，请先暂停再切换工作区")

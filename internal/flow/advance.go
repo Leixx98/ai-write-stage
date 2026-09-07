@@ -3,7 +3,7 @@ package flow
 import (
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 // StartsForwardChapter 判断一条指令是否会开始尚未完成的正向新章。

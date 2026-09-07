@@ -14,13 +14,13 @@ import (
 
 func TestReleaseURL(t *testing.T) {
 	cases := map[string]string{
-		"":       "https://api.github.com/repos/voocel/ainovel-cli/releases/latest",
-		"latest": "https://api.github.com/repos/voocel/ainovel-cli/releases/latest",
-		"1.2.3":  "https://api.github.com/repos/voocel/ainovel-cli/releases/tags/v1.2.3",
-		"v1.2.3": "https://api.github.com/repos/voocel/ainovel-cli/releases/tags/v1.2.3",
+		"":       "https://api.github.com/repos/Leixx98/ai-write-stage/releases/latest",
+		"latest": "https://api.github.com/repos/Leixx98/ai-write-stage/releases/latest",
+		"1.2.3":  "https://api.github.com/repos/Leixx98/ai-write-stage/releases/tags/v1.2.3",
+		"v1.2.3": "https://api.github.com/repos/Leixx98/ai-write-stage/releases/tags/v1.2.3",
 	}
 	for target, want := range cases {
-		if got := releaseURL("voocel/ainovel-cli", target); got != want {
+		if got := releaseURL("Leixx98/ai-write-stage", target); got != want {
 			t.Fatalf("releaseURL(%q) = %q, want %q", target, got, want)
 		}
 	}
@@ -34,11 +34,11 @@ func TestSelectAsset(t *testing.T) {
 	rel := &release{
 		TagName: "v1.2.3",
 		Assets: []releaseAsset{
-			{Name: "ainovel-cli_v1.2.3_Windows_x86_64.zip", BrowserDownloadURL: "wrong"},
-			{Name: "ainovel-cli_v1.2.3" + suffix, BrowserDownloadURL: "right"},
+			{Name: "ai-write-stage_v1.2.3_Windows_x86_64.zip", BrowserDownloadURL: "wrong"},
+			{Name: "ai-write-stage_v1.2.3" + suffix, BrowserDownloadURL: "right"},
 		},
 	}
-	asset, err := selectAsset(rel, "ainovel-cli")
+	asset, err := selectAsset(rel, "ai-write-stage")
 	if err != nil {
 		t.Fatalf("selectAsset: %v", err)
 	}
@@ -49,9 +49,9 @@ func TestSelectAsset(t *testing.T) {
 
 func TestSelectChecksumAsset(t *testing.T) {
 	rel := &release{TagName: "v1.2.3", Assets: []releaseAsset{
-		{Name: "ainovel-cli_checksums.txt", BrowserDownloadURL: "checksum"},
+		{Name: "ai-write-stage_checksums.txt", BrowserDownloadURL: "checksum"},
 	}}
-	asset, err := selectChecksumAsset(rel, "ainovel-cli")
+	asset, err := selectChecksumAsset(rel, "ai-write-stage")
 	if err != nil {
 		t.Fatalf("selectChecksumAsset: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSelectChecksumAsset(t *testing.T) {
 
 func TestVerifyChecksum(t *testing.T) {
 	dir := t.TempDir()
-	archive := filepath.Join(dir, "ainovel-cli_1.2.3_Linux_x86_64.tar.gz")
+	archive := filepath.Join(dir, "ai-write-stage_1.2.3_Linux_x86_64.tar.gz")
 	content := []byte("release archive")
 	if err := os.WriteFile(archive, content, 0o644); err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestDownloadRejectsAssetSizeMismatch(t *testing.T) {
 
 func TestReplaceExecutable(t *testing.T) {
 	dir := t.TempDir()
-	dst := filepath.Join(dir, "ainovel-cli")
+	dst := filepath.Join(dir, "ai-write-stage")
 	src := filepath.Join(dir, "new")
 	if err := os.WriteFile(dst, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)

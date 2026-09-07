@@ -20,14 +20,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/arbiter"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/flow"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/tools"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/subagent"
-	"github.com/voocel/ainovel-cli/internal/arbiter"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/flow"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/tools"
 )
 
 // scriptedChatModel 按回调产出响应的最小 ChatModel。

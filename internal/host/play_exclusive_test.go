@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/galgame/play"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/play"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func newPlayHost(t *testing.T) *Host {

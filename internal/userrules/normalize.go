@@ -14,10 +14,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	"github.com/Leixx98/ai-write-stage/internal/rules"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/rules"
 )
 
 // normalizeMaxTokens 单次归一化的输出上限（思考 token 与 JSON 输出共享这一预算）。

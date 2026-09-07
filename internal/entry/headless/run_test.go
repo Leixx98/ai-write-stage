@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/host"
 )
 
 func TestWriteStreamEventFormatsAtEntryBoundary(t *testing.T) {

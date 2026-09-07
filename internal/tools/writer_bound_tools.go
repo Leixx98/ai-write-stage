@@ -7,9 +7,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Leixx98/ai-write-stage/internal/errs"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/errs"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // WriterContextTool binds novel_context to the chapter selected by the host.

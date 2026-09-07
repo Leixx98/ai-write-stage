@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmretry"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/llmretry"
 )
 
 // FailureKind 区分不可由同一次结构化反馈修复的失败边界。

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/Leixx98/ai-write-stage/internal/host"
 )
 
 type eventBroker struct {

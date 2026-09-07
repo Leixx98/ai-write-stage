@@ -132,7 +132,7 @@ func TestApplyResponseKeepsThinkingSnippetShort(t *testing.T) {
 
 func TestFormatLineIncludesCacheHit(t *testing.T) {
 	line := formatLine(Record{
-		TS: time.Date(2026, 8, 19, 8, 0, 0, 0, time.UTC),
+		TS:    time.Date(2026, 8, 19, 8, 0, 0, 0, time.UTC),
 		Event: EventFinish, Mode: ModePlay, Step: "play_writer", PlayID: "rain",
 		UsageInput: 1000, UsageOutput: 80, UsageCacheRead: 750, Streaming: true,
 		Message: "流式调用结束",

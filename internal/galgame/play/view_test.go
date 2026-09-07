@@ -3,7 +3,7 @@ package play
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestBuildViewBindsImageToCurrentNewBeat(t *testing.T) {

@@ -1,8 +1,8 @@
 package sim
 
 import (
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
 )
 
 func textList(description string) map[string]any {

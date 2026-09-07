@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/comfyui"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/imagejob/comfyadapter"
+	"github.com/Leixx98/ai-write-stage/internal/comfyui"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob/comfyadapter"
 )
 
 func comfyBaseURL(raw string) string {

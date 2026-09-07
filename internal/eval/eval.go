@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/assets"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
 )
 
-// Command 是 `ainovel-cli eval` 子命令入口，返回进程退出码：
+// Command 是 `ai-write-stage eval` 子命令入口，返回进程退出码：
 // 0=PASS/WARN，1=有 case FAIL，2=用法/配置错误。
 //
 // 清晰流程：加载配置 → 加载 case → 按 single/A-B 编排运行 → 采集 → 评分 → 聚合 → 报告。

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	"github.com/Leixx98/ai-write-stage/internal/llmretry"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/llmretry"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 const playMaxTokens = 16384

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
 	corecontext "github.com/voocel/agentcore/context"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // ---------------------------------------------------------------------------

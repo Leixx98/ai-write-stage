@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	buildversion "github.com/voocel/ainovel-cli/internal/version"
-	"github.com/voocel/ainovel-cli/internal/workspace"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	buildversion "github.com/Leixx98/ai-write-stage/internal/version"
+	"github.com/Leixx98/ai-write-stage/internal/workspace"
 )
 
 //go:embed static/*

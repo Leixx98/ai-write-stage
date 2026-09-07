@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/llm"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
 )
 
 func TestExtractJSON_StripsCodeFences(t *testing.T) {

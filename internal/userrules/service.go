@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/rules"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // Service 编排用户规则快照的生成与更新：归一化各来源 → 确定性合并 → 落盘。

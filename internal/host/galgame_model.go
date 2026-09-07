@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/galgame"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/galgame"
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
 )
 
 func (h *Host) NewGalgameGenerate() galgame.StreamFunc {

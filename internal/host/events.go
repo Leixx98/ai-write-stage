@@ -3,7 +3,7 @@ package host
 import (
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 // Event 是运行时消费者使用的结构化事件。

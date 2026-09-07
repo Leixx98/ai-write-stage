@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/galgame/play"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob/comfyadapter"
+	imagesvc "github.com/Leixx98/ai-write-stage/internal/imagejob/service"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/galgame/play"
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
-	"github.com/voocel/ainovel-cli/internal/imagejob"
-	"github.com/voocel/ainovel-cli/internal/imagejob/comfyadapter"
-	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
 )
 
 func (h *Host) playActiveError() error {

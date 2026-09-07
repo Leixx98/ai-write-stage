@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 const maxCharacterCardBytes = 4 << 20

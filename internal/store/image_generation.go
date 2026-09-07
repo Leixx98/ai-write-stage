@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 )
 
 type ImageJob struct {

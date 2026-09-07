@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/galgame/runlog"
+	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
 )
 
 // playLogTailBytes 是日志快照的尾部长上限。面板只看最近内容，全量没有意义。

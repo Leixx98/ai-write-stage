@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/tools"
+	"github.com/Leixx98/ai-write-stage/internal/tools"
 )
 
 // promptPresetDocument is the persisted web-workbench prompt configuration.

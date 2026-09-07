@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 type LLMChat interface {

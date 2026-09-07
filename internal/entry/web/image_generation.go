@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/imagejob"
+	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 )
 
 func (c *v2Controller) imageGenerationSettings(w http.ResponseWriter, r *http.Request) {

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	imagesvc "github.com/voocel/ainovel-cli/internal/imagejob/service"
-	"github.com/voocel/ainovel-cli/internal/store"
+	imagesvc "github.com/Leixx98/ai-write-stage/internal/imagejob/service"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string) {

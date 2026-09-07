@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/agents"
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/host/imp"
+	modelreg "github.com/Leixx98/ai-write-stage/internal/models"
+	"github.com/Leixx98/ai-write-stage/internal/tools"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/agents"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/host/imp"
-	modelreg "github.com/voocel/ainovel-cli/internal/models"
-	"github.com/voocel/ainovel-cli/internal/tools"
 )
 
 // ImportFrom 启动一次外部小说语义编译导入：ingest → segment → analyze → synthesize → publish。

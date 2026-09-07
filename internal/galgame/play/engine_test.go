@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func runEngine(t *testing.T, engine *Engine) (context.CancelFunc, <-chan error) {

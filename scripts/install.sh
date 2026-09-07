@@ -1,15 +1,15 @@
 #!/bin/sh
-# ainovel-cli 一键安装脚本
+# ai-write-stage 一键安装脚本
 #
-#   curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/main/scripts/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/v1.2.3/scripts/install.sh | sh -s -- v1.2.3
+#   curl -fsSL https://raw.githubusercontent.com/Leixx98/ai-write-stage/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Leixx98/ai-write-stage/v1.2.3/scripts/install.sh | sh -s -- v1.2.3
 #
 # 自定义安装目录： AINOVEL_INSTALL_DIR=~/.local/bin curl -fsSL ... | sh
 # 指定版本：AINOVEL_VERSION=v1.2.3 curl -fsSL ... | sh
 set -e
 
-REPO="voocel/ainovel-cli"
-BIN="ainovel-cli"
+REPO="Leixx98/ai-write-stage"
+BIN="ai-write-stage"
 DEST="${AINOVEL_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${AINOVEL_VERSION:-${1:-latest}}"
 

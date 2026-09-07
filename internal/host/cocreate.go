@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/bootstrap"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // 冷启动共创：从零澄清需求，产出整本书的创作指令。

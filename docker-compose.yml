@@ -1,6 +1,6 @@
 services:
   ainovel:
-    image: ghcr.io/voocel/ainovel-cli:latest
+    image: ghcr.io/leixx98/ai-write-stage:latest
     build:
       context: .
     environment:

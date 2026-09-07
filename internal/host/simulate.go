@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/host/sim"
+	"github.com/Leixx98/ai-write-stage/internal/host/sim"
 )
 
 // Simulate 读取 simulate 目录并生成或增量更新仿写画像。

@@ -3,7 +3,7 @@ package store
 import (
 	"os"
 
-	"github.com/voocel/ainovel-cli/internal/rules"
+	"github.com/Leixx98/ai-write-stage/internal/rules"
 )
 
 // UserRulesStore 管理本书归一化后的用户规则快照（meta/user_rules.json）。

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/domain"
 )
 
 const runtimeQueuePath = "meta/runtime/queue.jsonl"

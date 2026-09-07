@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
+	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/llm"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
 )
 
 // scriptedModel 按调用序号返回预设文本。

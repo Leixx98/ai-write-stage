@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"unicode"
 
+	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/llm"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
 )
 
 // writerBudgetModel applies a request-local output ceiling after accounting
