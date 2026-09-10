@@ -32,6 +32,7 @@ type ModelRegistry struct {
 func NewModelRegistry() *ModelRegistry {
 	r := &ModelRegistry{}
 	r.models = append(r.models, generatedModels...)
+	r.MergeModels(localModelOverrides)
 	return r
 }
 

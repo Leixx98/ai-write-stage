@@ -165,6 +165,18 @@ func Test_UsageTracker_PerModelAccumulates(t *testing.T) {
 	}
 }
 
+func Test_UsageTracker_DeepSeekFlashUsesRegistryPrice(t *testing.T) {
+	if _, ok := models.DefaultRegistry().Resolve("deepseek-flash"); !ok {
+		t.Fatal("deepseek-flash missing from registry")
+	}
+	tk := NewUsageTracker(nil, nil)
+	tk.accumulate("writer", "deepseek", "deepseek-flash", agentcore.Usage{Input: 1_000_000, Output: 1_000_000})
+	cost, _, _, _, _ := tk.Totals()
+	if cost < 0.74 || cost > 0.76 {
+		t.Fatalf("deepseek-flash cost = %v, want ~0.75", cost)
+	}
+}
+
 func Test_UsageTracker_RecordUsesActualUsageModel(t *testing.T) {
 	tk := NewUsageTracker(nil, nil)
 	tk.Record("writer", "", agentcore.Message{

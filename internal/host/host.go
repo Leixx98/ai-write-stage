@@ -1302,11 +1302,43 @@ func currentUnitOrdinal(drafts *storepkg.DraftStore, chapter int) int {
 	return writing.CompletedUnits
 }
 
-// fillContextStatus 填充上下文健康度信息。
-// 主循环无常驻 LLM 上下文；Worker 的上下文健康度经进度中继
-// (ProgressContext)进入 observer 的 per-agent 快照,由 Agents 面板展示。
-// 汇总字段留空,面板按 per-agent 数据渲染。
-func (h *Host) fillContextStatus(_ *RuntimeSnapshot) {}
+// fillContextStatus 把当前模型窗口和 Worker 上报的占用汇总到左栏。
+// 主循环无常驻 LLM 上下文；占用取 Tokens 最高的 agent 快照，窗口回落 ModelContextWindow。
+func (h *Host) fillContextStatus(snap *RuntimeSnapshot) {
+	if snap == nil {
+		return
+	}
+	window := snap.ModelContextWindow
+	best := AgentContextSnapshot{}
+	found := false
+	for _, agent := range snap.Agents {
+		ctx := agent.Context
+		if ctx.Tokens <= 0 && ctx.ContextWindow <= 0 {
+			continue
+		}
+		if !found || ctx.Tokens > best.Tokens {
+			best = ctx
+			found = true
+		}
+	}
+	if found {
+		if best.ContextWindow > 0 {
+			window = best.ContextWindow
+		}
+		snap.ContextTokens = best.Tokens
+		snap.ContextPercent = best.Percent
+		snap.ContextScope = best.Scope
+		snap.ContextStrategy = best.Strategy
+		snap.ContextActiveMessages = best.ActiveMessages
+		snap.ContextSummaryCount = best.SummaryMessages
+		snap.ContextCompactedCount = best.CompactedCount
+		snap.ContextKeptCount = best.KeptCount
+	}
+	if snap.ContextPercent <= 0 && window > 0 && snap.ContextTokens > 0 {
+		snap.ContextPercent = float64(snap.ContextTokens) / float64(window) * 100
+	}
+	snap.ContextWindow = window
+}
 
 // fillDetails 填充详情区:设定、角色、最近 commit/review/摘要。
 func (h *Host) fillDetails(snap *RuntimeSnapshot, progress *domain.Progress) {

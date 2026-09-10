@@ -85,6 +85,21 @@ const UI_TEXT = {
   noWorkflow: '未选择工作流', prompt: '提示词', comfyui: 'ComfyUI', latestOutput: '最新输出',
 };
 function ui(key, fallback = key) { return UI_TEXT[key] || fallback; }
+function formatExclusive(state = {}) {
+  return state.Exclusive || '空闲';
+}
+function formatContext(state = {}) {
+  const window = Number(state.ContextWindow || state.ModelContextWindow || 0);
+  const tokens = Number(state.ContextTokens || 0);
+  if (!window && !tokens) return '-';
+  const percent = window > 0 ? Math.round(Number(state.ContextPercent) || (tokens / window * 100)) : 0;
+  return window ? `${tokens}/${window}（${percent}%）` : String(tokens);
+}
+function formatCost(state = {}) {
+  const cost = Number(state.TotalCostUSD || 0);
+  if (!cost && Number(state.MissingAssistantUsage || 0) > 0) return '未统计';
+  return `$${cost.toFixed(4)}`;
+}
 
 function renderState(state = {}) {
   currentState = state;
@@ -108,7 +123,7 @@ function renderState(state = {}) {
   $('action-other').disabled = Boolean(state.Exclusive);
   $('action-replan').disabled = !novel || complete || Boolean(state.Exclusive);
   $('action-rewrite').disabled = !novel || complete || completed < 1 || Boolean(state.Exclusive);
-  const rows = [['运行状态', state.RuntimeState], ['占用', state.Exclusive], ['阶段', state.Phase], ['流程', state.Flow], [ui('chapter'), state.CurrentChapter], ['完成进度', `${state.CompletedCount ?? 0}/${state.TotalChapters ?? 0}`], ['字数', state.TotalWordCount], ['上下文', `${state.ContextTokens || 0}/${state.ContextWindow || 0}`], ['费用', `$${Number(state.TotalCostUSD || 0).toFixed(4)}`]];
+  const rows = [['运行状态', state.RuntimeState], ['占用', formatExclusive(state)], ['阶段', state.Phase], ['流程', state.Flow], [ui('chapter'), state.CurrentChapter], ['完成进度', `${state.CompletedCount ?? 0}/${state.TotalChapters ?? 0}`], ['字数', state.TotalWordCount], ['上下文', formatContext(state)], ['费用', formatCost(state)]];
   $('state').innerHTML = rows.map(([key, value]) => `<dt>${esc(key)}</dt><dd>${esc(value || '-')}</dd>`).join('');
   const chapters = (state.Outline || []).map((chapter) => {
     const number = Number(chapter.Chapter);

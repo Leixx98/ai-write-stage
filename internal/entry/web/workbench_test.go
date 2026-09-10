@@ -114,6 +114,40 @@ func TestPlaySettingsExposeDensity(t *testing.T) {
 	}
 }
 
+func TestNovelWorkbenchPutsEventsAboveState(t *testing.T) {
+	html, err := staticFiles.ReadFile("static/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsAt := bytes.Index(html, []byte(`class="panel events"`))
+	stateAt := bytes.Index(html, []byte(`class="panel state"`))
+	streamAt := bytes.Index(html, []byte(`class="panel stream"`))
+	if eventsAt < 0 || stateAt < 0 || streamAt < 0 || eventsAt > stateAt || stateAt > streamAt {
+		t.Fatal("novel page should place events above state, then stream")
+	}
+	if bytes.Contains(html, []byte(`class="center"`)) {
+		t.Fatal("stream should occupy the center column directly")
+	}
+	css, err := staticFiles.ReadFile("static/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{`.sidebar {`, `.panel.events, .panel.stream, .panel.detail`} {
+		if !bytes.Contains(css, []byte(needle)) {
+			t.Fatalf("style.css missing %s", needle)
+		}
+	}
+	script, err := staticFiles.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{"formatContext", "formatCost", "formatExclusive", "ModelContextWindow"} {
+		if !bytes.Contains(script, []byte(needle)) {
+			t.Fatalf("app.js missing %s", needle)
+		}
+	}
+}
+
 func TestNovelOutlineRowsExpandInPlace(t *testing.T) {
 	script, err := staticFiles.ReadFile("static/app.js")
 	if err != nil {

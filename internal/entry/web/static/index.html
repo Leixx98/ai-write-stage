@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ainovel Web Workbench</title>
-  <link rel="stylesheet" href="/static/style.css?v=import-form-v3">
+  <link rel="stylesheet" href="/static/style.css?v=workbench-layout-v1">
   <link rel="stylesheet" href="/static/reader.css">
 </head>
 <body data-image-chat-enabled="false" data-image-play-enabled="false">
@@ -76,11 +76,11 @@
 
   <main id="dashboard" class="view active-view">
     <div class="workspace">
-      <aside class="panel state"><h2>状态</h2><dl id="state"></dl></aside>
-      <section class="center">
+      <aside class="sidebar">
         <section class="panel events"><h2>事件</h2><div id="events" class="scroll"></div></section>
-        <section class="panel stream"><h2>流式输出</h2><pre id="stream" class="scroll"></pre></section>
-      </section>
+        <section class="panel state"><h2>状态</h2><dl id="state"></dl></section>
+      </aside>
+      <section class="panel stream"><h2>流式输出</h2><pre id="stream" class="scroll"></pre></section>
       <aside class="panel detail"><h2>详情</h2><div id="detail" class="scroll"></div><div class="image-slot"><span id="image-placeholder">单元图片预览</span><img id="unit-image" alt="当前单元图片" decoding="async" fetchpriority="low" hidden></div></aside>
     </div>
     <footer class="controls">
@@ -269,7 +269,7 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
-  <script src="/static/app.js?v=workspace-switch-v2"></script>
+  <script src="/static/app.js?v=workbench-layout-v1"></script>
   <script src="/static/image-generation.js?v=image-generation-v3"></script>
   <script src="/static/galgame.js?v=workspace-switch-v2"></script>
   <script src="/static/play.js?v=play-pacing-v2"></script>
