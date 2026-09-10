@@ -203,6 +203,60 @@ func TestOpenWorkspaceFollowsBookConfig(t *testing.T) {
 	}
 }
 
+func TestSwitchWorkspaceIsolatesTavern(t *testing.T) {
+	wb, _ := testWorkbench(t)
+	defer wb.close()
+	handler := newHandler(wb)
+	for _, name := range []string{"甲", "乙"} {
+		if _, err := workspace.Create(wb.root, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	open := httptest.NewRecorder()
+	handler.ServeHTTP(open, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces/open", bytes.NewBufferString(`{"name":"甲"}`)))
+	if open.Code != http.StatusOK {
+		t.Fatalf("open 甲 = %d %s", open.Code, open.Body.String())
+	}
+	createChar := httptest.NewRecorder()
+	handler.ServeHTTP(createChar, httptest.NewRequest(http.MethodPost, "/api/v2/galgame/characters", bytes.NewBufferString(`{"name":"林晚","description":"情报员"}`)))
+	if createChar.Code != http.StatusOK {
+		t.Fatalf("create character = %d %s", createChar.Code, createChar.Body.String())
+	}
+	oldID, _ := decodeEnvelope(t, createChar).Data.(map[string]any)["id"].(string)
+	if oldID == "" {
+		t.Fatal("created character missing id")
+	}
+	switchRec := httptest.NewRecorder()
+	handler.ServeHTTP(switchRec, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces/open", bytes.NewBufferString(`{"name":"乙"}`)))
+	if switchRec.Code != http.StatusOK {
+		t.Fatalf("open 乙 = %d %s", switchRec.Code, switchRec.Body.String())
+	}
+	list := httptest.NewRecorder()
+	handler.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/v2/galgame/characters", nil))
+	if list.Code != http.StatusOK {
+		t.Fatalf("list after switch = %d %s", list.Code, list.Body.String())
+	}
+	if items, _ := decodeEnvelope(t, list).Data.([]any); len(items) != 0 {
+		t.Fatalf("new workspace still listed old characters: %#v", items)
+	}
+	stalePlay := httptest.NewRecorder()
+	handler.ServeHTTP(stalePlay, httptest.NewRequest(http.MethodPost, "/api/v2/galgame/plays", bytes.NewBufferString(`{"name":"旧局","character_id":"`+oldID+`","premise":"旧角色"}`)))
+	if stalePlay.Code == http.StatusCreated || stalePlay.Code == http.StatusOK {
+		t.Fatalf("play with previous workspace character succeeded: %s", stalePlay.Body.String())
+	}
+	fresh := httptest.NewRecorder()
+	handler.ServeHTTP(fresh, httptest.NewRequest(http.MethodPost, "/api/v2/galgame/characters", bytes.NewBufferString(`{"name":"新角色","description":"新工作区"}`)))
+	if fresh.Code != http.StatusOK {
+		t.Fatalf("create character in new workspace = %d %s", fresh.Code, fresh.Body.String())
+	}
+	newID, _ := decodeEnvelope(t, fresh).Data.(map[string]any)["id"].(string)
+	play := httptest.NewRecorder()
+	handler.ServeHTTP(play, httptest.NewRequest(http.MethodPost, "/api/v2/galgame/plays", bytes.NewBufferString(`{"name":"新局","character_id":"`+newID+`","premise":"新工作区开局"}`)))
+	if play.Code != http.StatusCreated {
+		t.Fatalf("create play in new workspace = %d %s", play.Code, play.Body.String())
+	}
+}
+
 func TestBookAPIsRequireWorkspace(t *testing.T) {
 	wb, _ := testWorkbench(t)
 	defer wb.close()

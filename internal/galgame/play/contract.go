@@ -156,18 +156,23 @@ var writerContract = llmcontract.Contract{
 	),
 }
 
-func validatePlannerAgainstArchitect(plan PlannerOutput, arch ArchitectOutput, lastStation bool) error {
+func validatePlannerAgainstArchitect(plan PlannerOutput, arch ArchitectOutput, lastStation bool, pacing store.PlayPacing) error {
 	if err := plan.Validate(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(plan.SegmentID) != strings.TrimSpace(arch.SegmentID) {
 		return fmt.Errorf("planner segment_id %q != architect %q", plan.SegmentID, arch.SegmentID)
 	}
-	last := plan.Cards[len(plan.Cards)-1]
-	if lastStation {
+	pure := store.NormalizePlayPacing(string(pacing)) == store.PlayPacingPure
+	for i, card := range plan.Cards {
+		if card.Kind == store.BeatChoice && pure {
+			return fmt.Errorf("cards[%d]: pure pacing cannot include choice", i)
+		}
+	}
+	if lastStation || pure {
 		return nil
 	}
-	if last.Kind != store.BeatChoice {
+	if plan.Cards[len(plan.Cards)-1].Kind != store.BeatChoice {
 		return fmt.Errorf("open station must end with a choice")
 	}
 	return nil
@@ -196,7 +201,7 @@ func repairPlannerCards(cards []store.PlayBeatCard, fillEmptyCG bool) []store.Pl
 	return cards
 }
 
-func validateCardCount(n int, profile densityProfile) error {
+func validateCardCount(n int, profile playProfile) error {
 	if n < profile.MinCards || n > profile.MaxCards {
 		return fmt.Errorf("cards=%d not in %d..%d", n, profile.MinCards, profile.MaxCards)
 	}

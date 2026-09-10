@@ -24,19 +24,29 @@ func TestPlannerValidateRequiresSetFacts(t *testing.T) {
 	}
 }
 
-func TestValidateCardCountFollowsDensity(t *testing.T) {
-	compact := profileFor(store.PlayDensityCompact)
-	if err := validateCardCount(2, compact); err == nil {
-		t.Fatal("compact should reject 2 cards")
+func TestValidateCardCountFollowsPacing(t *testing.T) {
+	choice := profileFor(store.PlayDensityCompact, store.PlayPacingChoice)
+	if err := validateCardCount(2, choice); err == nil {
+		t.Fatal("choice should reject 2 cards")
 	}
-	if err := validateCardCount(4, compact); err != nil {
+	if err := validateCardCount(4, choice); err != nil {
 		t.Fatal(err)
 	}
-	rich := profileFor(store.PlayDensityRich)
-	if err := validateCardCount(4, rich); err == nil {
-		t.Fatal("rich should reject 4 cards")
+	if err := validateCardCount(6, choice); err != nil {
+		t.Fatal(err)
 	}
-	if err := validateCardCount(7, rich); err != nil {
+	story := profileFor(store.PlayDensityRich, store.PlayPacingStory)
+	if err := validateCardCount(6, story); err == nil {
+		t.Fatal("story should reject 6 cards")
+	}
+	if err := validateCardCount(12, story); err != nil {
+		t.Fatal(err)
+	}
+	pure := profileFor(store.PlayDensityCompact, store.PlayPacingPure)
+	if err := validateCardCount(4, pure); err == nil {
+		t.Fatal("pure should reject 4 cards")
+	}
+	if err := validateCardCount(7, pure); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -48,10 +58,20 @@ func TestValidatePlannerAgainstArchitectLastStation(t *testing.T) {
 		{Kind: store.BeatDialogue, CG: store.PlayCGKeep},
 		{Kind: store.BeatDialogue, CG: store.PlayCGKeep},
 	}}
-	if err := validatePlannerAgainstArchitect(plan, arch, true); err != nil {
+	if err := validatePlannerAgainstArchitect(plan, arch, true, store.PlayPacingChoice); err != nil {
 		t.Fatal(err)
 	}
-	if err := validatePlannerAgainstArchitect(plan, arch, false); err == nil {
+	if err := validatePlannerAgainstArchitect(plan, arch, false, store.PlayPacingChoice); err == nil {
 		t.Fatal("open station needs a choice")
+	}
+	if err := validatePlannerAgainstArchitect(plan, arch, false, store.PlayPacingPure); err != nil {
+		t.Fatal(err)
+	}
+	plan.Cards[2] = store.PlayBeatCard{Kind: store.BeatChoice, CG: store.PlayCGKeep, Choices: []store.PlayChoice{
+		{ID: "a", Label: "A", SetFacts: []string{"left"}},
+		{ID: "b", Label: "B", SetFacts: []string{"stayed"}},
+	}}
+	if err := validatePlannerAgainstArchitect(plan, arch, false, store.PlayPacingPure); err == nil {
+		t.Fatal("pure pacing cannot include choice")
 	}
 }

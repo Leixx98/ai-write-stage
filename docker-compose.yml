@@ -9,5 +9,5 @@ services:
       - ./config:/root/.ainovel
       - ./workspace:/workspace
     ports:
-      - "127.0.0.1:8080:8080"
-    command: ["--listen", "0.0.0.0:8080"]
+      - "127.0.0.1:5688:5688"
+    command: ["--listen", "0.0.0.0:5688"]

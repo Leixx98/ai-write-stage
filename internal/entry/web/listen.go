@@ -10,7 +10,7 @@ import (
 
 const listenPortAttempts = 20
 
-var defaultListenAddr = "127.0.0.1:8080"
+var defaultListenAddr = "127.0.0.1:5688"
 
 func openListener(addr string) (net.Listener, string, error) {
 	addr = strings.TrimSpace(addr)

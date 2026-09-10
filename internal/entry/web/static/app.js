@@ -347,6 +347,9 @@ function resetWorkspaceViews() {
   streamNeedsRebuild = true;
   flushStreamRender();
   connect();
+  window.Galgame?.resetForWorkspace?.();
+  window.GalgamePlay?.resetForWorkspace?.();
+  if ($('galgame')?.classList.contains('active-view')) window.Galgame?.load();
 }
 async function openWorkspace(name, { notifySuccess = true } = {}) {
   const trimmed = String(name || '').trim();

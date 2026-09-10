@@ -38,10 +38,12 @@ type writerTurn struct {
 
 type spineTurn struct {
 	Density store.PlayDensity `json:"density"`
+	Pacing  store.PlayPacing  `json:"pacing"`
 }
 
 type architectTurn struct {
 	Density           store.PlayDensity        `json:"density"`
+	Pacing            store.PlayPacing         `json:"pacing"`
 	CurrentStation    store.PlayStation        `json:"current_station"`
 	RemainingStations []store.PlayStation      `json:"remaining_stations"`
 	Facts             []store.PlayFact         `json:"facts"`
@@ -51,6 +53,7 @@ type architectTurn struct {
 
 type plannerTurn struct {
 	Density        store.PlayDensity `json:"density"`
+	Pacing         store.PlayPacing  `json:"pacing"`
 	Location       string            `json:"location,omitempty"`
 	CurrentStation store.PlayStation `json:"current_station"`
 	Facts          []store.PlayFact  `json:"facts"`
@@ -96,8 +99,8 @@ func attachStaticContext(prompt string, static any) (string, error) {
 	return system + "\n\n" + prompt, nil
 }
 
-func withDensityHint(prompt string, density store.PlayDensity) string {
-	hint := strings.TrimSpace(profileFor(density).PromptHint)
+func withPlayHints(prompt string, density store.PlayDensity, pacing store.PlayPacing) string {
+	hint := strings.TrimSpace(profileFor(density, pacing).PromptHint)
 	prompt = strings.TrimSpace(prompt)
 	if hint == "" {
 		return prompt
@@ -137,11 +140,11 @@ func writerRequest(prompt string, in WriterInput) (string, string, error) {
 }
 
 func spineRequest(prompt string, in SpineInput) (string, string, error) {
-	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
+	system, err := attachStaticContext(withPlayHints(prompt, in.Density, in.Pacing), sharedCard(in.Character, in.Premise, in.UserPersona))
 	if err != nil {
 		return "", "", err
 	}
-	payload, err := marshalTurn(spineTurn{Density: store.NormalizePlayDensity(string(in.Density))})
+	payload, err := marshalTurn(spineTurn{Density: store.NormalizePlayDensity(string(in.Density)), Pacing: store.NormalizePlayPacing(string(in.Pacing))})
 	if err != nil {
 		return "", "", err
 	}
@@ -149,7 +152,7 @@ func spineRequest(prompt string, in SpineInput) (string, string, error) {
 }
 
 func architectRequest(prompt string, in ArchitectInput) (string, string, error) {
-	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
+	system, err := attachStaticContext(withPlayHints(prompt, in.Density, in.Pacing), sharedCard(in.Character, in.Premise, in.UserPersona))
 	if err != nil {
 		return "", "", err
 	}
@@ -167,6 +170,7 @@ func architectRequest(prompt string, in ArchitectInput) (string, string, error) 
 	}
 	payload, err := marshalTurn(architectTurn{
 		Density:           store.NormalizePlayDensity(string(in.Density)),
+		Pacing:            store.NormalizePlayPacing(string(in.Pacing)),
 		CurrentStation:    in.CurrentStation,
 		RemainingStations: remaining,
 		Facts:             facts,
@@ -180,7 +184,7 @@ func architectRequest(prompt string, in ArchitectInput) (string, string, error) 
 }
 
 func plannerRequest(prompt string, in PlannerInput) (string, string, error) {
-	system, err := attachStaticContext(withDensityHint(prompt, in.Density), sharedCard(in.Character, in.Premise, in.UserPersona))
+	system, err := attachStaticContext(withPlayHints(prompt, in.Density, in.Pacing), sharedCard(in.Character, in.Premise, in.UserPersona))
 	if err != nil {
 		return "", "", err
 	}
@@ -190,6 +194,7 @@ func plannerRequest(prompt string, in PlannerInput) (string, string, error) {
 	}
 	payload, err := marshalTurn(plannerTurn{
 		Density:        store.NormalizePlayDensity(string(in.Density)),
+		Pacing:         store.NormalizePlayPacing(string(in.Pacing)),
 		Location:       strings.TrimSpace(in.Location),
 		CurrentStation: in.CurrentStation,
 		Facts:          facts,

@@ -97,8 +97,22 @@ func TestPlayDensitySpineAndLedger(t *testing.T) {
 		t.Fatal(err)
 	}
 	meta, err := tavern.LoadPlay(id)
-	if err != nil || meta.Density != PlayDensityRich {
-		t.Fatalf("density = %+v %v", meta, err)
+	if err != nil || meta.Density != PlayDensityRich || meta.Pacing != PlayPacingChoice {
+		t.Fatalf("density/pacing = %+v %v", meta, err)
+	}
+	if err := tavern.SavePlay(PlayMeta{ID: id, Name: "雨夜", CharacterID: "c", Premise: "p", Density: PlayDensityRich, Pacing: "剧情多"}); err != nil {
+		t.Fatal(err)
+	}
+	meta, err = tavern.LoadPlay(id)
+	if err != nil || meta.Pacing != PlayPacingStory {
+		t.Fatalf("pacing = %+v %v", meta, err)
+	}
+	if err := tavern.SavePlay(PlayMeta{ID: id, Name: "雨夜", CharacterID: "c", Premise: "p", Pacing: "纯剧情"}); err != nil {
+		t.Fatal(err)
+	}
+	meta, err = tavern.LoadPlay(id)
+	if err != nil || meta.Pacing != PlayPacingPure {
+		t.Fatalf("pure pacing = %+v %v", meta, err)
 	}
 	if err := tavern.SaveSpine(id, PlaySpine{Stations: []PlayStation{{ID: "meet", Pressure: "表态", Status: StationPending}}}); err != nil {
 		t.Fatal(err)

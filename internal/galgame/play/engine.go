@@ -230,9 +230,9 @@ func (e *Engine) ensureSpine(ctx context.Context) error {
 		return err
 	}
 	e.setStage(StagePlanning)
-	e.note(fmt.Sprintf("开始生成路线图 density=%s", store.NormalizePlayDensity(string(meta.Density))))
+	e.note(fmt.Sprintf("开始生成路线图 density=%s pacing=%s", store.NormalizePlayDensity(string(meta.Density)), store.NormalizePlayPacing(string(meta.Pacing))))
 	out, err := e.spine(ctx, SpineInput{
-		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density,
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density, Pacing: meta.Pacing,
 	})
 	if err != nil {
 		return err
@@ -308,13 +308,13 @@ func (e *Engine) planNextSegmentOnce(ctx context.Context, progress store.PlayPro
 	if err != nil {
 		return err
 	}
-	profile := profileFor(meta.Density)
+	profile := profileFor(meta.Density, meta.Pacing)
 	recent := tailBeats(beats, profile.RecentBeats)
 	lastStation := lastOpenStation(spine, station.ID)
 	e.setStage(StagePlanning)
-	e.note(fmt.Sprintf("开始规划当前站 station=%s density=%s facts=%d last=%t", station.ID, store.NormalizePlayDensity(string(meta.Density)), len(ledger.Facts), lastStation))
+	e.note(fmt.Sprintf("开始规划当前站 station=%s density=%s pacing=%s facts=%d last=%t", station.ID, store.NormalizePlayDensity(string(meta.Density)), store.NormalizePlayPacing(string(meta.Pacing)), len(ledger.Facts), lastStation))
 	arch, err := e.architect(ctx, ArchitectInput{
-		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density,
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density, Pacing: meta.Pacing,
 		CurrentStation: station, RemainingStations: remainingStations(spine, station.ID),
 		Facts: ledger.Facts, ChoiceHistory: progress.ChoiceHistory, RecentBeats: recent,
 	})
@@ -329,7 +329,7 @@ func (e *Engine) planNextSegmentOnce(ctx context.Context, progress store.PlayPro
 	}
 	plan, err := e.planner(ctx, PlannerInput{
 		Architect: arch, Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona,
-		Location: location, Density: meta.Density, CurrentStation: station, Facts: ledger.Facts, LastStation: lastStation,
+		Location: location, Density: meta.Density, Pacing: meta.Pacing, CurrentStation: station, Facts: ledger.Facts, LastStation: lastStation,
 	})
 	if err != nil {
 		return err
@@ -339,7 +339,7 @@ func (e *Engine) planNextSegmentOnce(ctx context.Context, progress store.PlayPro
 	if err := validateCardCount(len(plan.Cards), profile); err != nil {
 		return err
 	}
-	if err := validatePlannerAgainstArchitect(plan, arch, lastStation); err != nil {
+	if err := validatePlannerAgainstArchitect(plan, arch, lastStation, meta.Pacing); err != nil {
 		return err
 	}
 	if err := similarChoice(progress.ChoiceHistory, plan.Cards); err != nil {

@@ -28,7 +28,7 @@ func TestExportMenuOpensAboveButton(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, needle := range []string{"closeExportMenu", "toggleExportMenu", "data-export", "openWorkspace", "createAndOpenWorkspace"} {
+	for _, needle := range []string{"closeExportMenu", "toggleExportMenu", "data-export", "openWorkspace", "createAndOpenWorkspace", "Galgame?.resetForWorkspace", "GalgamePlay?.resetForWorkspace", "window.Galgame?.load()"} {
 		if !bytes.Contains(script, []byte(needle)) {
 			t.Fatalf("app.js missing %s", needle)
 		}
@@ -81,6 +81,16 @@ func TestGalgameHidesImagePaneWhenSceneDisabled(t *testing.T) {
 	if !bytes.Contains(script, []byte("ImageGeneration?.applyVisibility")) {
 		t.Fatal("play mode switch should refresh image visibility")
 	}
+	if !bytes.Contains(script, []byte("resetForWorkspace")) {
+		t.Fatal("play.js should reset theater state when the workspace changes")
+	}
+	galgame, err := staticFiles.ReadFile("static/galgame.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(galgame, []byte("resetForWorkspace")) || !bytes.Contains(galgame, []byte("if (galgameState.loaded) return")) {
+		t.Fatal("galgame.js should expose a workspace reset that clears the loaded cache")
+	}
 }
 
 func TestPlaySettingsExposeDensity(t *testing.T) {
@@ -88,7 +98,7 @@ func TestPlaySettingsExposeDensity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, needle := range []string{`id="galgame-play-density"`, `精简（适合小模型）`, `丰满（适合大模型）`} {
+	for _, needle := range []string{`id="galgame-play-density"`, `精简（适合小模型）`, `丰满（适合大模型）`, `id="galgame-play-pacing"`, `选择多（3–6 拍出选项）`, `剧情多（10–15 拍出选项）`, `纯剧情（不出选项）`} {
 		if !bytes.Contains(html, []byte(needle)) {
 			t.Fatalf("index.html missing %s", needle)
 		}
@@ -97,7 +107,7 @@ func TestPlaySettingsExposeDensity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, needle := range []string{`galgame-play-density`, `density: fieldValue('galgame-play-density')`} {
+	for _, needle := range []string{`galgame-play-density`, `density: fieldValue('galgame-play-density')`, `galgame-play-pacing`, `pacing: fieldValue('galgame-play-pacing')`} {
 		if !bytes.Contains(script, []byte(needle)) {
 			t.Fatalf("play.js missing %s", needle)
 		}

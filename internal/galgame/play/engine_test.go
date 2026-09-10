@@ -302,3 +302,61 @@ func TestEngineWritesPlayRuntimeLog(t *testing.T) {
 		t.Fatalf("galgame/runtime.log missing play index:\n%s", index)
 	}
 }
+
+func TestEnginePurePacingWritesThroughStations(t *testing.T) {
+	dir := t.TempDir()
+	tavern := store.Open(dir, dir).Tavern
+	char := store.GalgameCharacter{ID: "linwan", Name: "林晚", Description: "女主角"}
+	if err := tavern.SaveCharacter(char); err != nil {
+		t.Fatal(err)
+	}
+	playID := "rain_night"
+	if err := tavern.SavePlay(store.PlayMeta{ID: playID, Name: "雨夜", CharacterID: char.ID, Premise: "雨夜重逢", Pacing: store.PlayPacingPure, Status: store.PlayIdle}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tavern.SaveProgress(playID, store.PlayProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	cards := make([]store.PlayBeatCard, 6)
+	for i := range cards {
+		cards[i] = store.PlayBeatCard{Kind: store.BeatDialogue, Speaker: "林晚", Location: "巷口", CG: store.PlayCGKeep, RequiredBeats: []string{fmt.Sprintf("拍%d", i+1)}}
+	}
+	engine := New(Config{
+		Store: tavern, PlayID: playID, TextAhead: 20,
+		Spine: func(context.Context, SpineInput) (SpineOutput, error) {
+			return SpineOutput{Stations: []store.PlayStation{
+				{ID: "meet", Pressure: "第一次必须表态"},
+				{ID: "cost", Pressure: "代价开始反噬"},
+				{ID: "end", Pressure: "必须做终局决定"},
+			}}, nil
+		},
+		Architect: func(_ context.Context, in ArchitectInput) (ArchitectOutput, error) {
+			return ArchitectOutput{SegmentID: in.CurrentStation.ID, Goal: in.CurrentStation.Pressure}, nil
+		},
+		Planner: func(_ context.Context, in PlannerInput) (PlannerOutput, error) {
+			out := append([]store.PlayBeatCard(nil), cards...)
+			return PlannerOutput{SegmentID: in.Architect.SegmentID, Cards: out}, nil
+		},
+		Writer: func(_ context.Context, in WriterInput) (WriterOutput, error) {
+			text := "……"
+			if len(in.Card.RequiredBeats) > 0 {
+				text = in.Card.RequiredBeats[0]
+			}
+			return WriterOutput{Speaker: in.Card.Speaker, Text: text}, nil
+		},
+	})
+	runEngine(t, engine)
+	if err := waitUntil(context.Background(), func() bool {
+		meta, _ := tavern.LoadPlay(playID)
+		return meta.Status == store.PlayCompleted
+	}); err != nil {
+		t.Fatal(err)
+	}
+	progress, err := tavern.LoadProgress(playID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if progress.WriteHead != 18 || progress.GateOrdinal != 0 {
+		t.Fatalf("pure play should write through without a gate, got %+v", progress)
+	}
+}

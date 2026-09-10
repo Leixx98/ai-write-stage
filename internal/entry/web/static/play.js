@@ -60,6 +60,7 @@
       setField('galgame-play-persona', play.user_persona || '');
       setField('galgame-play-image-profile', play.image_profile_id || '');
       setField('galgame-play-density', play.density === 'rich' ? 'rich' : 'compact');
+      setField('galgame-play-pacing', play.pacing === 'story' || play.pacing === 'pure' ? play.pacing : 'choice');
     }
     if (isPlayMode()) $('galgame-session-name').textContent = play?.name || '剧场';
     renderPlayBuffer();
@@ -477,6 +478,18 @@
     else status.textContent = '';
   }
 
+  function resetForWorkspace() {
+    stopPlayPolling();
+    setLogOpen(false);
+    playState.plays = [];
+    playState.viewOrdinal = 0;
+    clearPlayDraft();
+    const select = $('galgame-play-select');
+    if (select) select.innerHTML = '<option value="">请先选择角色</option>';
+    hidePlayNav();
+    if (isPlayMode()) renderPlayBeat();
+  }
+
   function clearPlayDraft() {
     playState.play = null;
     playState.view = null;
@@ -487,6 +500,7 @@
     setField('galgame-play-persona', '');
     setField('galgame-play-image-profile', '');
     setField('galgame-play-density', 'compact');
+    setField('galgame-play-pacing', 'choice');
     const select = $('galgame-play-select');
     if (select) select.value = '';
     renderPlayForm();
@@ -528,6 +542,7 @@
         character_id: character().id,
         premise,
         density: fieldValue('galgame-play-density') || 'compact',
+        pacing: fieldValue('galgame-play-pacing') || 'choice',
         user_persona: fieldValue('galgame-play-persona'),
         image_profile_id: fieldValue('galgame-play-image-profile'),
       }) });
@@ -551,6 +566,7 @@
         name: fieldValue('galgame-play-name'),
         premise: fieldValue('galgame-play-premise'),
         density: fieldValue('galgame-play-density') || 'compact',
+        pacing: fieldValue('galgame-play-pacing') || 'choice',
         user_persona: fieldValue('galgame-play-persona'),
         image_profile_id: fieldValue('galgame-play-image-profile'),
       }) });
@@ -731,6 +747,7 @@
     isPlayMode,
     setMode: setPlayMode,
     load: loadPlays,
+    resetForWorkspace,
     onCharacterChange() {
       playState.play = null;
       playState.view = null;

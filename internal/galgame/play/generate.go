@@ -20,6 +20,7 @@ type SpineInput struct {
 	Premise     string
 	UserPersona string
 	Density     store.PlayDensity
+	Pacing      store.PlayPacing
 }
 
 type ArchitectInput struct {
@@ -27,6 +28,7 @@ type ArchitectInput struct {
 	Premise           string
 	UserPersona       string
 	Density           store.PlayDensity
+	Pacing            store.PlayPacing
 	CurrentStation    store.PlayStation
 	RemainingStations []store.PlayStation
 	Facts             []store.PlayFact
@@ -42,6 +44,7 @@ type PlannerInput struct {
 	UserPersona    string
 	Location       string
 	Density        store.PlayDensity
+	Pacing         store.PlayPacing
 	CurrentStation store.PlayStation
 	Facts          []store.PlayFact
 	LastStation    bool
@@ -63,6 +66,7 @@ type Generator struct {
 	PlannerPrompt     string
 	WriterPrompt      string
 	Density           store.PlayDensity
+	Pacing            store.PlayPacing
 	ArchitectThinking agentcore.ThinkingLevel
 	PlannerThinking   agentcore.ThinkingLevel
 	WriterThinking    agentcore.ThinkingLevel
@@ -93,13 +97,13 @@ func (g Generator) Planner(ctx context.Context, in PlannerInput) (PlannerOutput,
 	if err != nil {
 		return PlannerOutput{}, err
 	}
-	profile := profileFor(in.Density)
+	profile := profileFor(in.Density, in.Pacing)
 	return execute(ctx, g, g.PlannerModel, plannerContract, system, payload, nil, func(out *PlannerOutput) error {
 		out.Cards = repairPlannerCards(out.Cards, profile.FillEmptyCG)
 		if err := validateCardCount(len(out.Cards), profile); err != nil {
 			return err
 		}
-		return validatePlannerAgainstArchitect(*out, in.Architect, in.LastStation)
+		return validatePlannerAgainstArchitect(*out, in.Architect, in.LastStation, in.Pacing)
 	})
 }
 
@@ -113,7 +117,7 @@ func (g Generator) Writer(ctx context.Context, in WriterInput) (WriterOutput, er
 		return WriterOutput{}, err
 	}
 	compacted := compactWriterTurns(session.Turns, system, payload, g.ContextWindow)
-	compacted = capWriterTurns(compacted, profileFor(g.Density).WriterTurns)
+	compacted = capWriterTurns(compacted, profileFor(g.Density, g.Pacing).WriterTurns)
 	if len(compacted) != len(session.Turns) {
 		session.Turns = compacted
 		if err := g.saveWriterSession(session); err != nil {

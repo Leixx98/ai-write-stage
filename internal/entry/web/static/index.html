@@ -144,6 +144,7 @@
           <label>剧场局<select id="galgame-play-select"></select></label>
           <label>局名<input id="galgame-play-name" placeholder="剧场局名称"></label>
           <label>剧场模式<select id="galgame-play-density"><option value="compact">精简（适合小模型）</option><option value="rich">丰满（适合大模型）</option></select></label>
+          <label>剧场节奏<select id="galgame-play-pacing"><option value="choice">选择多（3–6 拍出选项）</option><option value="story">剧情多（10–15 拍出选项）</option><option value="pure">纯剧情（不出选项）</option></select></label>
           <label class="wide">用户身份<textarea id="galgame-play-persona" rows="2" placeholder="你在这部剧里的名字或身份"></textarea></label>
           <label class="wide">剧情预设<textarea id="galgame-play-premise" rows="6" placeholder="输入剧情方向。其他角色可以直接写在预设里。"></textarea></label>
           <div class="button-row"><button id="galgame-new-play" type="button">新建剧场</button><button id="galgame-save-play" type="button">保存设置</button><button id="galgame-start-play" type="button">开始写作</button><button id="galgame-pause-play" type="button">暂停</button></div>
@@ -268,10 +269,10 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
-  <script src="/static/app.js?v=export-menu-v1"></script>
+  <script src="/static/app.js?v=workspace-switch-v2"></script>
   <script src="/static/image-generation.js?v=image-generation-v3"></script>
-  <script src="/static/galgame.js?v=image-generation-v3"></script>
-  <script src="/static/play.js?v=play-density-v1"></script>
+  <script src="/static/galgame.js?v=workspace-switch-v2"></script>
+  <script src="/static/play.js?v=play-pacing-v2"></script>
   <script src="/static/model-settings.js"></script>
   <script src="/static/settings.js?v=settings-layout-v1"></script>
   <script src="/static/prompts.js"></script>

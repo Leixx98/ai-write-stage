@@ -27,11 +27,11 @@ go build -o ai-write-stage ./cmd/ai-write-stage
 ./ai-write-stage
 ```
 
-首次运行进入模型配置页，保存后进工作台。默认监听 `127.0.0.1:8080`，被占用则顺延。
+首次运行进入模型配置页，保存后进工作台。默认监听 `127.0.0.1:5688`，被占用则顺延。
 
 ```bash
 ./ai-write-stage                           # Web 工作台
-./ai-write-stage --listen 0.0.0.0:8080     # 指定地址
+./ai-write-stage --listen 0.0.0.0:5688     # 指定地址
 ./ai-write-stage --workspace 边城           # 打开已有工作区
 ./ai-write-stage --headless --workspace 边城 --prompt "写一本东方玄幻长篇"
 ./ai-write-stage eval --help
@@ -45,7 +45,7 @@ go build -o ai-write-stage ./cmd/ai-write-stage
 mkdir -p config workspace
 docker compose build
 docker compose up
-# 浏览器打开 http://localhost:8080
+# 浏览器打开 http://localhost:5688
 docker compose run --rm ainovel --headless --workspace 悬疑短篇 --prompt "写一本悬疑短篇"
 ```
 

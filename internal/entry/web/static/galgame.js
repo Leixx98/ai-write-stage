@@ -31,6 +31,16 @@
     if (play) play.hidden = !playMode;
   }
 
+  function resetForWorkspace() {
+    galgameState = { characters: [], sessions: [], character: null, session: null, selectedImageJobId: '', loaded: false };
+    closeGalgameSettings();
+    hideGalgameImage(isPlayMode() ? 'play' : '', true);
+    renderCharacterForm();
+    renderSessionForm();
+    renderGalgameSelectors();
+    renderGalgameDialogue();
+  }
+
   async function loadGalgame() {
     if (galgameState.loaded) return;
     galgameState.loaded = true;
@@ -533,6 +543,7 @@
   initGalgameUI();
   window.Galgame = {
     load: loadGalgame,
+    resetForWorkspace,
     getState: () => galgameState,
     showImage: showGalgameImage,
     hideImage: hideGalgameImage,

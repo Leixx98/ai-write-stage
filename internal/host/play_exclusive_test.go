@@ -44,16 +44,16 @@ func TestUpdatePlayPersistsImageProfileWithoutResettingRuntimeState(t *testing.T
 	h := newPlayHost(t)
 	id := seedPlay(t, h, store.PlayPaused)
 	updated, err := h.UpdatePlay(id, store.PlayMeta{
-		Name: "雨夜重逢", Premise: "在站台再次见面", UserPersona: "旅人", ImageProfileID: "cinematic", Density: store.PlayDensityRich,
+		Name: "雨夜重逢", Premise: "在站台再次见面", UserPersona: "旅人", ImageProfileID: "cinematic", Density: store.PlayDensityRich, Pacing: store.PlayPacingStory,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.ImageProfileID != "cinematic" || updated.Status != store.PlayPaused || updated.CharacterID != "linwan" || updated.Density != store.PlayDensityRich {
+	if updated.ImageProfileID != "cinematic" || updated.Status != store.PlayPaused || updated.CharacterID != "linwan" || updated.Density != store.PlayDensityRich || updated.Pacing != store.PlayPacingStory {
 		t.Fatalf("updated play = %#v", updated)
 	}
 	stored, err := h.roots.Tavern.LoadPlay(id)
-	if err != nil || stored.Name != "雨夜重逢" || stored.Premise != "在站台再次见面" || stored.UserPersona != "旅人" || stored.Density != store.PlayDensityRich {
+	if err != nil || stored.Name != "雨夜重逢" || stored.Premise != "在站台再次见面" || stored.UserPersona != "旅人" || stored.Density != store.PlayDensityRich || stored.Pacing != store.PlayPacingStory {
 		t.Fatalf("stored play = %#v, %v", stored, err)
 	}
 }

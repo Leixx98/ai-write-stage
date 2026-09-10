@@ -89,6 +89,7 @@ func (h *Host) CreatePlay(meta storepkg.PlayMeta) (storepkg.PlayMeta, error) {
 	}
 	meta.Status = storepkg.PlayIdle
 	meta.Density = storepkg.NormalizePlayDensity(string(meta.Density))
+	meta.Pacing = storepkg.NormalizePlayPacing(string(meta.Pacing))
 	if err := h.roots.Tavern.SavePlay(meta); err != nil {
 		return storepkg.PlayMeta{}, err
 	}
@@ -123,6 +124,9 @@ func (h *Host) UpdatePlay(id string, update storepkg.PlayMeta) (storepkg.PlayMet
 	meta.ImageProfileID = strings.TrimSpace(update.ImageProfileID)
 	if update.Density != "" {
 		meta.Density = storepkg.NormalizePlayDensity(string(update.Density))
+	}
+	if update.Pacing != "" {
+		meta.Pacing = storepkg.NormalizePlayPacing(string(update.Pacing))
 	}
 	if err := h.roots.Tavern.SavePlay(meta); err != nil {
 		return storepkg.PlayMeta{}, err
@@ -352,8 +356,10 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 	writerProvider, writerModel, _ := h.models.CurrentSelection("writer")
 	writerWindow, _ := h.models.ResolveContextWindow(writerProvider, writerModel)
 	density := storepkg.PlayDensityCompact
+	pacing := storepkg.PlayPacingChoice
 	if meta, err := h.roots.Tavern.LoadPlay(id); err == nil {
 		density = storepkg.NormalizePlayDensity(string(meta.Density))
+		pacing = storepkg.NormalizePlayPacing(string(meta.Pacing))
 	}
 	gen := play.Generator{
 		ArchitectModel:    newUsageTrackedModel(h.models.ForRole("architect"), "galplay", record),
@@ -364,6 +370,7 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 		PlannerPrompt:     h.bundle.Prompts.PlayPlanner,
 		WriterPrompt:      h.bundle.Prompts.PlayWriter,
 		Density:           density,
+		Pacing:            pacing,
 		ArchitectThinking: archThink,
 		PlannerThinking:   planThink,
 		WriterThinking:    writeThink,

@@ -56,6 +56,25 @@ func NormalizePlayDensity(raw string) PlayDensity {
 	}
 }
 
+type PlayPacing string
+
+const (
+	PlayPacingChoice PlayPacing = "choice"
+	PlayPacingStory  PlayPacing = "story"
+	PlayPacingPure   PlayPacing = "pure"
+)
+
+func NormalizePlayPacing(raw string) PlayPacing {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case string(PlayPacingStory), "剧情多":
+		return PlayPacingStory
+	case string(PlayPacingPure), "纯剧情":
+		return PlayPacingPure
+	default:
+		return PlayPacingChoice
+	}
+}
+
 type PlayStationStatus string
 
 const (
@@ -106,6 +125,7 @@ type PlayMeta struct {
 	UserPersona    string      `json:"user_persona,omitempty"`
 	ImageProfileID string      `json:"image_profile_id,omitempty"`
 	Density        PlayDensity `json:"density,omitempty"`
+	Pacing         PlayPacing  `json:"pacing,omitempty"`
 	Status         PlayStatus  `json:"status"`
 	LastError      string      `json:"last_error,omitempty"`
 	Stage          string      `json:"stage,omitempty"`
@@ -210,6 +230,7 @@ func (s *GalgameStore) SavePlay(meta PlayMeta) error {
 		return fmt.Errorf("premise is required")
 	}
 	meta.Density = NormalizePlayDensity(string(meta.Density))
+	meta.Pacing = NormalizePlayPacing(string(meta.Pacing))
 	if meta.Status == "" {
 		meta.Status = PlayIdle
 	}

@@ -117,6 +117,12 @@ func TestArchitectRequestPutsStationBeforeFacts(t *testing.T) {
 	if strings.Contains(user, "img") || strings.Contains(user, "extensions") {
 		t.Fatalf("volatile field leaked: %s", user)
 	}
+	if !strings.Contains(system, "精简") || !strings.Contains(system, "选择多") {
+		t.Fatalf("system missing play hints: %s", system)
+	}
+	if !strings.Contains(user, `"pacing":"choice"`) {
+		t.Fatalf("user missing default pacing: %s", user)
+	}
 }
 
 func TestPlannerRequestKeepsCharacterInSystem(t *testing.T) {
