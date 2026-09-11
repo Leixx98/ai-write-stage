@@ -5,11 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func writePromptSettings(t *testing.T, dir string, value any) {
 	t.Helper()
-	path := filepath.Join(dir, "meta", "web", "prompts.json")
+	path := filepath.Join(store.NovelDir(dir), "meta", "web", "prompts.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

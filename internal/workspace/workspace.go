@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 const (
@@ -197,7 +199,7 @@ func recognized(dir string) bool {
 	if hasProgress(dir) {
 		return true
 	}
-	if _, err := os.Stat(filepath.Join(dir, "meta")); err == nil {
+	if _, err := os.Stat(filepath.Join(store.NovelDir(dir), "meta")); err == nil {
 		return true
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".ainovel")); err == nil {
@@ -207,7 +209,7 @@ func recognized(dir string) bool {
 }
 
 func hasProgress(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, "meta", "progress.json"))
+	_, err := os.Stat(filepath.Join(store.NovelDir(dir), "meta", "progress.json"))
 	return err == nil
 }
 
@@ -226,7 +228,7 @@ func inspect(name, dir string) Info {
 }
 
 func readProgress(dir string) (novelName, phase string, completed int, ok bool) {
-	data, err := os.ReadFile(filepath.Join(dir, "meta", "progress.json"))
+	data, err := os.ReadFile(filepath.Join(store.NovelDir(dir), "meta", "progress.json"))
 	if err != nil {
 		return "", "", 0, false
 	}

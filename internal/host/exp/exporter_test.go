@@ -41,7 +41,7 @@ func newTestStore(t *testing.T, novelName string, completed []int) (*store.Store
 }
 
 func TestRun_HappyPath_DefaultsToNovelDir(t *testing.T) {
-	s, dir := newTestStore(t, "光斑", []int{1, 2, 3})
+	s, _ := newTestStore(t, "光斑", []int{1, 2, 3})
 	if err := s.Outline.SavePremise("光与影的故事。"); err != nil {
 		t.Fatalf("save premise: %v", err)
 	}
@@ -60,8 +60,8 @@ func TestRun_HappyPath_DefaultsToNovelDir(t *testing.T) {
 	if res.Chapters != 3 {
 		t.Errorf("Chapters = %d, want 3", res.Chapters)
 	}
-	if res.Path != filepath.Join(dir, "光斑.txt") {
-		t.Errorf("Path = %q, want default {dir}/光斑.txt", res.Path)
+	if res.Path != filepath.Join(s.Dir(), "光斑.txt") {
+		t.Errorf("Path = %q, want default {novel}/光斑.txt", res.Path)
 	}
 	data, err := os.ReadFile(res.Path)
 	if err != nil {
@@ -267,12 +267,12 @@ func TestRun_EPUB_FromExtension(t *testing.T) {
 }
 
 func TestRun_DefaultPathFollowsFormat(t *testing.T) {
-	s, dir := newTestStore(t, "光斑", []int{1})
+	s, _ := newTestStore(t, "光斑", []int{1})
 	res, err := Run(context.Background(), Deps{Store: s}, Options{Format: FormatEPUB})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	want := filepath.Join(dir, "光斑.epub")
+	want := filepath.Join(s.Dir(), "光斑.epub")
 	if res.Path != want {
 		t.Errorf("Path = %q want %q", res.Path, want)
 	}

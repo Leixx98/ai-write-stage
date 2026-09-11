@@ -386,7 +386,7 @@ func TestSaveReviewKeepsOutcomeWhenReviewArtifactWriteFails(t *testing.T) {
 		t.Fatalf("MarkChapterComplete: %v", err)
 	}
 	// 让目标文件路径成为目录，稳定触发原子 rename 失败。
-	if err := os.MkdirAll(filepath.Join(dir, "reviews", "03.json"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(s.Dir(), "reviews", "03.json"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 

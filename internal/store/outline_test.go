@@ -373,7 +373,7 @@ func TestOutlineFeedbackCorruptionIsNotSilentlyConsumed(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	path := filepath.Join(dir, outlineFeedbackFile)
+	path := filepath.Join(s.Dir(), outlineFeedbackFile)
 	if err := os.WriteFile(path, []byte("{\n"), 0o644); err != nil {
 		t.Fatalf("write corrupt feedback: %v", err)
 	}

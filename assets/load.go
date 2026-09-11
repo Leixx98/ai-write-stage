@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/store"
 	"github.com/Leixx98/ai-write-stage/internal/tools"
 )
 
@@ -33,7 +34,7 @@ func LoadPromptOverrides(outputDir string) (map[string]string, error) {
 	if strings.TrimSpace(outputDir) == "" {
 		return nil, nil
 	}
-	path := filepath.Join(outputDir, "meta", "web", "prompts.json")
+	path := filepath.Join(store.NovelDir(outputDir), "meta", "web", "prompts.json")
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil

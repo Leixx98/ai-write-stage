@@ -24,7 +24,7 @@ func writeSession(t *testing.T, rel string, msgs []agentcore.Message) string {
 
 func writeSessionAt(t *testing.T, dir, rel string, msgs []agentcore.Message) {
 	t.Helper()
-	path := filepath.Join(dir, "meta", "sessions", rel)
+	path := filepath.Join(store.NovelDir(dir), "meta", "sessions", rel)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestWriteExport_WritesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteExport: %v", err)
 	}
-	if want := filepath.Join(dir, filepath.FromSlash(ExportRelPath)); path != want {
+	if want := filepath.Join(s.Dir(), filepath.FromSlash(ExportRelPath)); path != want {
 		t.Errorf("路径不对：got %s want %s", path, want)
 	}
 	data, err := os.ReadFile(path)

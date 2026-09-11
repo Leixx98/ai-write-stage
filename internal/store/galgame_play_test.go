@@ -80,7 +80,7 @@ func TestActivePlayAndDelete(t *testing.T) {
 	if err := tavern.DeletePlay("run_play"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "galgame", "plays", "run_play")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, TavernDirName, "plays", "run_play")); !os.IsNotExist(err) {
 		t.Fatalf("play dir still exists: %v", err)
 	}
 	_, ok, err = tavern.ActivePlay()

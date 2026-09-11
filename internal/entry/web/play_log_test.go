@@ -30,7 +30,7 @@ func newPlayLogTestHost(t *testing.T) *host.Host {
 	}
 	cfg := bootstrap.Config{
 		Provider: "proxy", ModelName: "default-model", Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
-		OutputDir: filepath.Join(workspace, "output", "novel"), ProjectDir: workspace, Style: "default",
+		OutputDir: filepath.Join(workspace, "output"), ProjectDir: workspace, Style: "default",
 	}
 	rt, err := host.New(cfg, assets.Load("default", assets.DefaultLoadOptions(cfg.OutputDir)))
 	if err != nil {
@@ -70,7 +70,7 @@ func TestPlayLogStreamSendsSnapshotThenLiveIncrements(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 请求前写入的行只应出现在快照里，不得作为增量重放。
-	if err := tavern.AppendText("galgame/plays/play_1/runtime.log", "boot line"); err != nil {
+	if err := tavern.AppendText("plays/play_1/runtime.log", "boot line"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,7 +103,7 @@ func TestPlayLogStreamSendsSnapshotThenLiveIncrements(t *testing.T) {
 		t.Fatalf("snapshot events = %q", events)
 	}
 
-	if err := tavern.AppendText("galgame/plays/play_1/runtime.log", "live line"); err != nil {
+	if err := tavern.AppendText("plays/play_1/runtime.log", "live line"); err != nil {
 		t.Fatal(err)
 	}
 	live := readSSEData(t, reader)
@@ -111,7 +111,7 @@ func TestPlayLogStreamSendsSnapshotThenLiveIncrements(t *testing.T) {
 		t.Fatalf("live frame = %#v", live)
 	}
 
-	if err := tavern.AppendRaw("galgame/plays/play_1/stream.log", "delta"); err != nil {
+	if err := tavern.AppendRaw("plays/play_1/stream.log", "delta"); err != nil {
 		t.Fatal(err)
 	}
 	stream := readSSEData(t, reader)

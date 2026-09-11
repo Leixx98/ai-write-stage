@@ -13,7 +13,7 @@ import (
 
 func TestImportProfileValidatesSchemaAndMergesByFingerprint(t *testing.T) {
 	dir := t.TempDir()
-	st := store.NewStore(filepath.Join(dir, "output", "novel"))
+	st := store.NewStore(filepath.Join(dir, "output"))
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}

@@ -11,14 +11,15 @@ func TestParsePlayLogRel(t *testing.T) {
 		kind string
 		ok   bool
 	}{
-		{"galgame/plays/p1/runtime.log", "p1", "events", true},
-		{"galgame/plays/p1/stream.log", "p1", "stream", true},
-		{"galgame/plays/p1/calls.jsonl", "", "", false},
-		{"galgame/plays/p1/writer_session.json", "", "", false},
-		{"galgame/sessions/s1/runtime.log", "", "", false},
-		{"galgame/runtime.log", "", "", false},
-		{"galgame/plays//runtime.log", "", "", false},
-		{"galgame/plays/p1", "", "", false},
+		{"plays/p1/runtime.log", "p1", "events", true},
+		{"plays/p1/stream.log", "p1", "stream", true},
+		{"plays/p1/calls.jsonl", "", "", false},
+		{"plays/p1/writer_session.json", "", "", false},
+		{"sessions/s1/runtime.log", "", "", false},
+		{"runtime.log", "", "", false},
+		{"plays//runtime.log", "", "", false},
+		{"plays/p1", "", "", false},
+		{"galgame/plays/p1/runtime.log", "", "", false},
 		{"output/novel/meta/decisions.jsonl", "", "", false},
 	}
 	for _, tc := range cases {
@@ -35,10 +36,10 @@ func TestPlayLogBrokerRoutesByPlayAndSkipsForeignRels(t *testing.T) {
 	_, chB := b.subscribe("pB")
 	defer b.unsubscribe(idA)
 
-	b.observe("galgame/plays/pA/runtime.log", 0, 0, []byte("line-a\n"))
-	b.observe("galgame/plays/pB/stream.log", 1, 42, []byte("delta"))
-	b.observe("galgame/plays/pA/calls.jsonl", 0, 0, []byte(`{}`))
-	b.observe("galgame/sessions/s1/runtime.log", 0, 0, []byte("chat\n"))
+	b.observe("plays/pA/runtime.log", 0, 0, []byte("line-a\n"))
+	b.observe("plays/pB/stream.log", 1, 42, []byte("delta"))
+	b.observe("plays/pA/calls.jsonl", 0, 0, []byte(`{}`))
+	b.observe("sessions/s1/runtime.log", 0, 0, []byte("chat\n"))
 
 	select {
 	case item := <-chA:
@@ -66,7 +67,7 @@ func TestPlayLogBrokerFullBufferDoesNotBlockWriter(t *testing.T) {
 	_, ch := b.subscribe("pA")
 	// 慢消费者不取数据；写路径必须非阻塞（满则丢）。
 	for i := 0; i < playLogClientBuffer+16; i++ {
-		b.observe("galgame/plays/pA/stream.log", 0, int64(i), []byte("x"))
+		b.observe("plays/pA/stream.log", 0, int64(i), []byte("x"))
 	}
 	if len(ch) != playLogClientBuffer {
 		t.Fatalf("buffer = %d, want %d", len(ch), playLogClientBuffer)

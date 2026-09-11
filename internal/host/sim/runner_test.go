@@ -50,7 +50,7 @@ func TestRunnerGeneratesProfileThenSkipsUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st := store.NewStore(filepath.Join(dir, "output", "novel"))
+	st := store.NewStore(filepath.Join(dir, "output"))
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestRunnerIncrementallyAnalyzesNewAndChangedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st := store.NewStore(filepath.Join(dir, "output", "novel"))
+	st := store.NewStore(filepath.Join(dir, "output"))
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}

@@ -157,7 +157,7 @@ func TestRunLightThenDeepWindow(t *testing.T) {
 	if err != nil || draft == "" {
 		t.Fatalf("确认后应落下全书草稿：%v", err)
 	}
-	ws := OpenWorkspace(dir)
+	ws := OpenWorkspace(st.Dir())
 	early, err := readArtifact[ChapterAnalysisPayload](ws, analysisPath(1))
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +187,7 @@ func TestRunRejectsDifferentSource(t *testing.T) {
 	if err := os.WriteFile(a, []byte("第一章\n正文一\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Ingest(dir, a, Options{}.intent()); err != nil {
+	if _, _, err := Ingest(st.Dir(), a, Options{}.intent()); err != nil {
 		t.Fatalf("建立工作区：%v", err)
 	}
 	b := filepath.Join(dir, "b.txt")
@@ -317,7 +317,7 @@ func TestRunSavesFailureOnContractViolation(t *testing.T) {
 	if !failed {
 		t.Fatal("非法输出应以 StageError 结束")
 	}
-	ws := OpenWorkspace(dir)
+	ws := OpenWorkspace(st.Dir())
 	if !ws.has("failures/last-response.txt") {
 		t.Fatal("应保存最后一次原始模型响应")
 	}
@@ -375,7 +375,7 @@ func TestRunGuidanceResegments(t *testing.T) {
 	if !drain(ch2) {
 		t.Fatal("重识别后应再次停在切分确认")
 	}
-	ws := OpenWorkspace(dir)
+	ws := OpenWorkspace(st.Dir())
 	art, err := readArtifact[Segmentation](ws, fileSegmentation)
 	if err != nil {
 		t.Fatalf("读切分工件：%v", err)

@@ -129,7 +129,7 @@ func TestDecisionStore_RecentToleratesUncommittedTail(t *testing.T) {
 	if len(recent) != 2 || recent[0].Input != "好的" || recent[1].Input != "恢复后" {
 		t.Fatalf("尾部恢复后应可继续追加，得到: %+v", recent)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, decisionsFile))
+	raw, err := os.ReadFile(filepath.Join(s.Dir(), decisionsFile))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,7 +34,7 @@ func TestV2ControllerUsesHostStore(t *testing.T) {
 	}
 	cfg := bootstrap.Config{
 		Provider: "proxy", ModelName: "default-model", Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
-		OutputDir: filepath.Join(workspace, "output", "novel"), ProjectDir: workspace, Style: "default",
+		OutputDir: filepath.Join(workspace, "output"), ProjectDir: workspace, Style: "default",
 	}
 	rt, err := host.New(cfg, assets.Load("default", assets.DefaultLoadOptions(cfg.OutputDir)))
 	if err != nil {
@@ -65,7 +65,7 @@ func TestModelSettingsSelectRolePersistsWorkspaceWithoutSecrets(t *testing.T) {
 	}
 	cfg := bootstrap.Config{
 		Provider: "proxy", ModelName: "default-model", Providers: map[string]bootstrap.ProviderConfig{"proxy": provider},
-		OutputDir: filepath.Join(workspace, "output", "novel"), ProjectDir: workspace, Style: "default",
+		OutputDir: filepath.Join(workspace, "output"), ProjectDir: workspace, Style: "default",
 	}
 	rt, err := host.New(cfg, assets.Load("default", assets.DefaultLoadOptions(cfg.OutputDir)))
 	if err != nil {

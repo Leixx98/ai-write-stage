@@ -371,7 +371,7 @@ func (s *Service) persistOutputs(job *store.ImageJob, generated []GeneratedOutpu
 			output.MIME = "image/png"
 		}
 		ext := extensionForMIME(output.MIME)
-		rel := filepath.ToSlash(filepath.Join("meta/image-generation/outputs", job.JobID, fmt.Sprintf("%03d%s", index, ext)))
+		rel := filepath.ToSlash(filepath.Join(store.NovelDirName, "meta/image-generation/outputs", job.JobID, fmt.Sprintf("%03d%s", index, ext)))
 		path := filepath.Join(s.root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err

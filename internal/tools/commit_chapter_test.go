@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -83,8 +84,7 @@ func TestCommitChapterRejectsInvalidNestedFields(t *testing.T) {
 }
 
 func TestCommitChapterRejectsNonPendingRewrite(t *testing.T) {
-	dir := t.TempDir()
-	store := store.NewStore(dir)
+	store := store.NewStore(t.TempDir())
 	if err := store.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestCommitChapterRejectsNonPendingRewrite(t *testing.T) {
 		t.Fatal("expected commit to be rejected during rewrite flow")
 	}
 
-	if _, err := os.Stat(dir + "/chapters/03.md"); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(store.Dir(), "chapters", "03.md")); !os.IsNotExist(err) {
 		t.Fatalf("chapter should not be persisted, stat err=%v", err)
 	}
 
@@ -138,8 +138,7 @@ func TestCommitChapterRejectsNonPendingRewrite(t *testing.T) {
 }
 
 func TestCommitChapterAllowsPendingRewrite(t *testing.T) {
-	dir := t.TempDir()
-	store := store.NewStore(dir)
+	store := store.NewStore(t.TempDir())
 	if err := store.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -176,7 +175,7 @@ func TestCommitChapterAllowsPendingRewrite(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	if _, err := os.Stat(dir + "/chapters/02.md"); err != nil {
+	if _, err := os.Stat(filepath.Join(store.Dir(), "chapters", "02.md")); err != nil {
 		t.Fatalf("chapter should be persisted: %v", err)
 	}
 
@@ -841,8 +840,7 @@ func TestCommitChapterAllowsTitleOnlyRewrite(t *testing.T) {
 // 章号越出 layered_outline 的 commit 必须硬失败，而不是 slog.Warn 放行。
 // 这是阻止"裁定误判后 writer 一路裸跑"的物理刹车（《凡骨》ch204..347 案例）。
 func TestCommitChapterLayeredRejectsOutOfRangeChapter(t *testing.T) {
-	dir := t.TempDir()
-	s := store.NewStore(dir)
+	s := store.NewStore(t.TempDir())
 	if err := s.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -888,7 +886,7 @@ func TestCommitChapterLayeredRejectsOutOfRangeChapter(t *testing.T) {
 	}
 
 	// 章节文件不应落盘、Progress 不应推进
-	if _, statErr := os.Stat(dir + "/chapters/02.md"); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(filepath.Join(s.Dir(), "chapters", "02.md")); !os.IsNotExist(statErr) {
 		t.Fatalf("chapter 2 should not be persisted, stat err=%v", statErr)
 	}
 	progress, _ := s.Progress.Load()

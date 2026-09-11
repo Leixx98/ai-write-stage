@@ -44,7 +44,7 @@ func TestFailureFactsKeepPartialStateAndWarnings(t *testing.T) {
 	if err := st.Progress.Init("test", 3); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(dir, "premise.md"), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Join(st.Dir(), "premise.md"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 

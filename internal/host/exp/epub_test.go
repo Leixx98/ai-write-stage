@@ -129,11 +129,11 @@ func TestRenderEPUB_StructuralInvariants(t *testing.T) {
 }
 
 func TestRunEPUBEmbedsChapterImages(t *testing.T) {
-	s, dir := newTestStore(t, "带图小说", []int{1})
+	s, _ := newTestStore(t, "带图小说", []int{1})
 	if err := s.Drafts.SaveFinalChapter(1, "正文。\n\n![单元插图](../drafts/01.units/001.png)"); err != nil {
 		t.Fatal(err)
 	}
-	imagePath := filepath.Join(dir, "drafts", "01.units", "001.png")
+	imagePath := filepath.Join(s.Dir(), "drafts", "01.units", "001.png")
 	if err := os.MkdirAll(filepath.Dir(imagePath), 0o755); err != nil {
 		t.Fatal(err)
 	}

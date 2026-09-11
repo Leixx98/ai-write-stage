@@ -222,28 +222,28 @@ func (s *GalgameStore) NewPlayID(characterName, playName string, createdAt time.
 }
 
 func (s *GalgameStore) playDir(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id))
+	return filepath.ToSlash(filepath.Join("plays", id))
 }
 func (s *GalgameStore) playMetaPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "meta.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "meta.json"))
 }
 func (s *GalgameStore) playProgressPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "progress.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "progress.json"))
 }
 func (s *GalgameStore) playOutlinePath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "outline.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "outline.json"))
 }
 func (s *GalgameStore) playBeatPath(id string, ordinal int) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "beats", fmt.Sprintf("%03d.json", ordinal)))
+	return filepath.ToSlash(filepath.Join("plays", id, "beats", fmt.Sprintf("%03d.json", ordinal)))
 }
 func (s *GalgameStore) playWriterSessionPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "writer_session.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "writer_session.json"))
 }
 func (s *GalgameStore) playSpinePath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "spine.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "spine.json"))
 }
 func (s *GalgameStore) playLedgerPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/plays", id, "facts.json"))
+	return filepath.ToSlash(filepath.Join("plays", id, "facts.json"))
 }
 
 func (s *GalgameStore) SavePlay(meta PlayMeta) error {
@@ -297,7 +297,7 @@ func (s *GalgameStore) LoadPlay(id string) (PlayMeta, error) {
 }
 
 func (s *GalgameStore) ListPlays() ([]PlayMeta, error) {
-	entries, err := os.ReadDir(filepath.Join(s.io.dir, "galgame/plays"))
+	entries, err := os.ReadDir(filepath.Join(s.io.dir, "plays"))
 	if os.IsNotExist(err) {
 		return []PlayMeta{}, nil
 	}
@@ -423,7 +423,7 @@ func (s *GalgameStore) ListBeats(id string) ([]PlayBeat, error) {
 	if !safeGalgameID(id) {
 		return nil, fmt.Errorf("invalid play id")
 	}
-	dir := filepath.Join(s.io.dir, "galgame", "plays", id, "beats")
+	dir := filepath.Join(s.io.dir, "plays", id, "beats")
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return []PlayBeat{}, nil

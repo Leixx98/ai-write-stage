@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 func TestResolveRootUsesEnv(t *testing.T) {
@@ -75,17 +77,17 @@ func TestScanNamedWorkspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	named := filepath.Join(root, DirName, "边城")
-	if err := os.MkdirAll(filepath.Join(named, "meta"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(named, store.NovelDirName, "meta"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	progress := `{"novel_name":"边城往事","phase":"writing","completed_chapters":[1,2]}`
-	if err := os.WriteFile(filepath.Join(named, "meta", "progress.json"), []byte(progress), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(named, store.NovelDirName, "meta", "progress.json"), []byte(progress), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "output", "novel", "meta"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "output", store.NovelDirName, "meta"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "output", "novel", "meta", "progress.json"), []byte(`{"novel_name":"旧书"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "output", store.NovelDirName, "meta", "progress.json"), []byte(`{"novel_name":"旧书"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(root, DirName, "noise"), 0o755); err != nil {

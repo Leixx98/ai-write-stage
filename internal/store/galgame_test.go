@@ -15,7 +15,7 @@ func TestDeleteSessionRemovesImages(t *testing.T) {
 	if err := tavern.SaveSession(session); err != nil {
 		t.Fatal(err)
 	}
-	img := filepath.Join(dir, "galgame", "sessions", "session_1", "images", "img_1.png")
+	img := filepath.Join(dir, TavernDirName, "sessions", "session_1", "images", "img_1.png")
 	if err := os.MkdirAll(filepath.Dir(img), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -25,10 +25,10 @@ func TestDeleteSessionRemovesImages(t *testing.T) {
 	if err := tavern.DeleteSession("session_1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "galgame", "sessions", "session_1.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, TavernDirName, "sessions", "session_1.json")); !os.IsNotExist(err) {
 		t.Fatalf("session json still exists: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "galgame", "sessions", "session_1")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, TavernDirName, "sessions", "session_1")); !os.IsNotExist(err) {
 		t.Fatalf("session images dir still exists: %v", err)
 	}
 }
@@ -73,20 +73,20 @@ func TestAppendTavernLogRejectsEscapeAndWritesJSONL(t *testing.T) {
 	if err := tavern.AppendText("../escape.log", "nope"); err == nil {
 		t.Fatal("path escape should fail")
 	}
-	if err := tavern.AppendJSONL("galgame/sessions/sess_1/calls.jsonl", map[string]any{"event": "start"}); err != nil {
+	if err := tavern.AppendJSONL("sessions/sess_1/calls.jsonl", map[string]any{"event": "start"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := tavern.AppendText("galgame/runtime.log", "index line"); err != nil {
+	if err := tavern.AppendText("runtime.log", "index line"); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, "galgame", "sessions", "sess_1", "calls.jsonl"))
+	raw, err := os.ReadFile(filepath.Join(dir, TavernDirName, "sessions", "sess_1", "calls.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(raw), `"event":"start"`) {
 		t.Fatalf("jsonl = %s", raw)
 	}
-	index, err := os.ReadFile(filepath.Join(dir, "galgame", "runtime.log"))
+	index, err := os.ReadFile(filepath.Join(dir, TavernDirName, "runtime.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,17 +98,17 @@ func TestAppendTavernLogRejectsEscapeAndWritesJSONL(t *testing.T) {
 func TestReadTextMissingAndAppendRaw(t *testing.T) {
 	dir := t.TempDir()
 	tavern := Open(dir, dir).Tavern
-	got, err := tavern.ReadText("galgame/plays/rain/stream.log")
+	got, err := tavern.ReadText("plays/rain/stream.log")
 	if err != nil || got != "" {
 		t.Fatalf("missing = %q %v", got, err)
 	}
-	if err := tavern.AppendRaw("galgame/plays/rain/stream.log", "[thinking]\n先"); err != nil {
+	if err := tavern.AppendRaw("plays/rain/stream.log", "[thinking]\n先"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tavern.AppendRaw("galgame/plays/rain/stream.log", "想"); err != nil {
+	if err := tavern.AppendRaw("plays/rain/stream.log", "想"); err != nil {
 		t.Fatal(err)
 	}
-	got, err = tavern.ReadText("galgame/plays/rain/stream.log")
+	got, err = tavern.ReadText("plays/rain/stream.log")
 	if err != nil || got != "[thinking]\n先想" {
 		t.Fatalf("raw = %q %v", got, err)
 	}

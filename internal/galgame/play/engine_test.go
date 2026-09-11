@@ -47,7 +47,7 @@ func waitUntil(ctx context.Context, cond func() bool) error {
 func testRichStation(id, pressure string) store.PlayStation {
 	return store.PlayStation{
 		ID: id, Title: id, Pressure: pressure,
-		Summary: pressure + " 的现场。冲突被摊开。局势转向。",
+		Summary:    pressure + " 的现场。冲突被摊开。局势转向。",
 		MustHappen: []string{pressure},
 		Forks: []store.PlayFork{
 			{Tint: "默认推进"},
@@ -301,12 +301,12 @@ func TestEngineWritesPlayRuntimeLog(t *testing.T) {
 		if progress.GateOrdinal != 4 {
 			return false
 		}
-		body, readErr := os.ReadFile(filepath.Join(dir, "galgame", "plays", playID, "runtime.log"))
+		body, readErr := os.ReadFile(filepath.Join(dir, store.TavernDirName, "plays", playID, "runtime.log"))
 		return readErr == nil && strings.Contains(string(body), "等待玩家选项")
 	}); err != nil {
 		t.Fatal(err)
 	}
-	body, err := os.ReadFile(filepath.Join(dir, "galgame", "plays", playID, "runtime.log"))
+	body, err := os.ReadFile(filepath.Join(dir, store.TavernDirName, "plays", playID, "runtime.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,12 +316,12 @@ func TestEngineWritesPlayRuntimeLog(t *testing.T) {
 			t.Fatalf("runtime.log missing %q:\n%s", want, text)
 		}
 	}
-	index, err := os.ReadFile(filepath.Join(dir, "galgame", "runtime.log"))
+	index, err := os.ReadFile(filepath.Join(dir, store.TavernDirName, "runtime.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(index), "play="+playID) {
-		t.Fatalf("galgame/runtime.log missing play index:\n%s", index)
+		t.Fatalf("tavern/runtime.log missing play index:\n%s", index)
 	}
 }
 

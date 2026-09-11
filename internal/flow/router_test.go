@@ -16,7 +16,7 @@ func TestLoadStateReturnsProgressReadError(t *testing.T) {
 	if err := st.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "meta", "progress.json"), []byte("{"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Dir(), "meta", "progress.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := LoadState(st); err == nil {

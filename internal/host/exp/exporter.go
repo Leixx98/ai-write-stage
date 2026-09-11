@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Leixx98/ai-write-stage/internal/domain"
+	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
 // Run 执行一次导出。同步返回，IO 量小（本地文件读写）。
@@ -102,6 +103,9 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 		name := strings.TrimSpace(progress.NovelName)
 		if name == "" {
 			name = filepath.Base(deps.Store.Dir())
+			if name == store.NovelDirName {
+				name = filepath.Base(filepath.Dir(deps.Store.Dir()))
+			}
 		}
 		outPath = filepath.Join(deps.Store.Dir(), sanitizeFileName(name)+"."+string(opts.Format))
 	}

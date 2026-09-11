@@ -59,16 +59,16 @@ func TestWriteRoutesChatAndPlay(t *testing.T) {
 	if len(sink.text[IndexRel]) != 2 {
 		t.Fatalf("index lines = %d", len(sink.text[IndexRel]))
 	}
-	if len(sink.text["galgame/sessions/sess_1/runtime.log"]) != 1 {
+	if len(sink.text["sessions/sess_1/runtime.log"]) != 1 {
 		t.Fatalf("chat runtime missing: %+v", sink.text)
 	}
-	if len(sink.jsonl["galgame/sessions/sess_1/calls.jsonl"]) != 1 {
+	if len(sink.jsonl["sessions/sess_1/calls.jsonl"]) != 1 {
 		t.Fatalf("chat jsonl missing: %+v", sink.jsonl)
 	}
-	if len(sink.text["galgame/plays/play_1/runtime.log"]) != 1 {
+	if len(sink.text["plays/play_1/runtime.log"]) != 1 {
 		t.Fatalf("play runtime missing: %+v", sink.text)
 	}
-	if len(sink.jsonl["galgame/plays/play_1/calls.jsonl"]) != 1 {
+	if len(sink.jsonl["plays/play_1/calls.jsonl"]) != 1 {
 		t.Fatalf("play jsonl missing: %+v", sink.jsonl)
 	}
 }
@@ -93,7 +93,7 @@ func TestHeartbeatThenFinish(t *testing.T) {
 	stop()
 	Finish(sink, call, nil)
 	var heartbeats int
-	for _, rec := range sink.jsonl["galgame/plays/rain/calls.jsonl"] {
+	for _, rec := range sink.jsonl["plays/rain/calls.jsonl"] {
 		got := rec.(Record)
 		if got.Event == EventHeartbeat {
 			heartbeats++
@@ -166,7 +166,7 @@ func TestMarkFirstTokenWritesOnce(t *testing.T) {
 	MarkFirstToken(sink, call)
 	Finish(sink, call, nil)
 	var first int
-	for _, rec := range sink.jsonl["galgame/sessions/sess_1/calls.jsonl"] {
+	for _, rec := range sink.jsonl["sessions/sess_1/calls.jsonl"] {
 		got := rec.(Record)
 		if got.Event == EventFirstToken {
 			first++
@@ -190,7 +190,7 @@ func TestRepairedWritesRuntimeLine(t *testing.T) {
 	Start(sink, call)
 	Repaired(sink, call, []string{"trailing_comma"}, 12, 11)
 	Finish(sink, call, nil)
-	joined := strings.Join(sink.text["galgame/plays/rain/runtime.log"], "\n")
+	joined := strings.Join(sink.text["plays/rain/runtime.log"], "\n")
 	if !strings.Contains(joined, "REPAIR") || !strings.Contains(joined, "trailing_comma") {
 		t.Fatalf("runtime = %s", joined)
 	}
@@ -202,7 +202,7 @@ func TestTranscriptWritesThinkingAndOutput(t *testing.T) {
 	tr.Begin("play_planner", "c1")
 	tr.Feed(agentcore.StreamEvent{Type: agentcore.StreamEventThinkingDelta, Delta: "先想"})
 	tr.Feed(agentcore.StreamEvent{Type: agentcore.StreamEventTextDelta, Delta: `{"ok":true}`})
-	got := sink.raw["galgame/plays/rain/stream.log"]
+	got := sink.raw["plays/rain/stream.log"]
 	if !strings.Contains(got, "play_planner") || !strings.Contains(got, "[thinking]\n先想") || !strings.Contains(got, "[output]\n{\"ok\":true}") {
 		t.Fatalf("transcript = %q", got)
 	}
@@ -217,7 +217,7 @@ func TestTranscriptFillsMissingThinking(t *testing.T) {
 			agentcore.ThinkingBlock(`{"segment_id":"meet"}`),
 		},
 	}}, true, true)
-	got := sink.raw["galgame/plays/rain/stream.log"]
+	got := sink.raw["plays/rain/stream.log"]
 	if !strings.Contains(got, "[thinking]\n{\"segment_id\":\"meet\"}") {
 		t.Fatalf("transcript = %q", got)
 	}

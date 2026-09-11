@@ -194,5 +194,5 @@ func safeGalgameRel(rel string) bool {
 	if rel == "" || strings.Contains(rel, "..") {
 		return false
 	}
-	return strings.HasPrefix(rel, "galgame/")
+	return strings.HasPrefix(rel, "characters/") || strings.HasPrefix(rel, "sessions/") || strings.HasPrefix(rel, "plays/") || rel == "runtime.log"
 }

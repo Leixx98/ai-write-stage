@@ -110,7 +110,7 @@ func TestContextToolWarnsWhenUserRulesSnapshotIsCorrupt(t *testing.T) {
 	if err := st.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "meta", "user_rules.json"), []byte("{"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Dir(), "meta", "user_rules.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := newTestContextTool(st, References{}, "default").Execute(context.Background(), json.RawMessage(`{}`))
@@ -146,10 +146,10 @@ func TestContextToolReportsWarningsForCorruptedState(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "outline.json"), []byte("{invalid"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(store.Dir(), "outline.json"), []byte("{invalid"), 0o644); err != nil {
 		t.Fatalf("write outline.json: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "meta", "progress.json"), []byte("{invalid"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(store.Dir(), "meta", "progress.json"), []byte("{invalid"), 0o644); err != nil {
 		t.Fatalf("write progress.json: %v", err)
 	}
 

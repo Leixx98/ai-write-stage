@@ -169,7 +169,7 @@ func TestResumeSummary(t *testing.T) {
 	if err := os.WriteFile(src, []byte("第一章\n正文\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ws, _, err := Ingest(dir, src, Intent{})
+	ws, _, err := Ingest(st.Dir(), src, Intent{})
 	if err != nil {
 		t.Fatalf("Ingest: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestResumeStatusPublishedIsTerminal(t *testing.T) {
 	if err := os.WriteFile(src, []byte("第一章\n正文\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ws, _, err := Ingest(dir, src, Intent{})
+	ws, _, err := Ingest(st.Dir(), src, Intent{})
 	if err != nil {
 		t.Fatalf("Ingest: %v", err)
 	}

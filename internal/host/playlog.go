@@ -99,7 +99,7 @@ func (b *playLogBroker) unsubscribe(id int) {
 // runtime.log → 事件面板；stream.log → 模型回复面板；其余文件不广播。
 func parsePlayLogRel(rel string) (string, string, bool) {
 	rel = filepath.ToSlash(rel)
-	rest, ok := strings.CutPrefix(rel, "galgame/plays/")
+	rest, ok := strings.CutPrefix(rel, "plays/")
 	if !ok {
 		return "", "", false
 	}

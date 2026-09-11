@@ -38,8 +38,8 @@ type Store struct {
 }
 
 // Roots is the process-wide workspace: novel facts, image media, and tavern.
-// All three point at the existing on-disk layout; Open does not move files.
 type Roots struct {
+	Workspace   string
 	Facts       *Store
 	Images      *ImageStore
 	ImageConfig *ImageConfigStore
@@ -47,47 +47,51 @@ type Roots struct {
 	Tavern      *GalgameStore
 }
 
-// NewStore 创建状态管理器，dir 为小说输出根目录。
-func NewStore(dir string) *Store {
-	return Open(dir, "").Facts
+// NewStore creates the novel-facts store for a workspace root. The returned
+// Store.Dir is workspaceDir/novel; callers that already hold a Store should
+// reuse it instead of passing Store.Dir back into NewStore.
+func NewStore(workspaceDir string) *Store {
+	return Open(workspaceDir, "").Facts
 }
 
 // NewStoreForProject creates novel facts for a workspace. Image-generation
 // configuration is machine-global and is not stored in the project.
-func NewStoreForProject(dir, projectDir string) *Store {
-	return Open(dir, projectDir).Facts
+func NewStoreForProject(workspaceDir, projectDir string) *Store {
+	return Open(workspaceDir, projectDir).Facts
 }
 
-// Open builds the three composition roots for one book directory.
-func Open(dir, projectDir string) *Roots {
-	io := newIO(dir)
+// Open builds the three composition roots for one workspace directory.
+func Open(workspaceDir, projectDir string) *Roots {
+	novel := NovelDir(workspaceDir)
+	io := newIO(novel)
 	configIO := newIO(imageGenerationConfigDir())
 	outline := NewOutlineStore(io)
 	facts := &Store{
-		dir:         dir,
-		Progress:    NewProgressStore(newIO(dir)),
+		dir:         novel,
+		Progress:    NewProgressStore(newIO(novel)),
 		Outline:     outline,
-		Drafts:      NewDraftStore(newIO(dir)),
-		Summaries:   NewSummaryStore(newIO(dir), outline),
-		RunMeta:     NewRunMetaStore(newIO(dir)),
-		UserRules:   NewUserRulesStore(newIO(dir)),
-		Signals:     NewSignalStore(newIO(dir)),
-		Runtime:     NewRuntimeStore(newIO(dir)),
-		Characters:  NewCharacterStore(newIO(dir), outline),
-		Cast:        NewCastStore(newIO(dir)),
-		World:       NewWorldStore(newIO(dir)),
+		Drafts:      NewDraftStore(newIO(novel)),
+		Summaries:   NewSummaryStore(newIO(novel), outline),
+		RunMeta:     NewRunMetaStore(newIO(novel)),
+		UserRules:   NewUserRulesStore(newIO(novel)),
+		Signals:     NewSignalStore(newIO(novel)),
+		Runtime:     NewRuntimeStore(newIO(novel)),
+		Characters:  NewCharacterStore(newIO(novel), outline),
+		Cast:        NewCastStore(newIO(novel)),
+		World:       NewWorldStore(newIO(novel)),
 		Checkpoints: NewCheckpointStore(io),
-		Sessions:    NewSessionStore(newIO(dir)),
-		Usage:       NewUsageStore(newIO(dir)),
-		Simulation:  NewSimulationStore(newIO(dir)),
-		Decisions:   NewDecisionStore(newIO(dir)),
+		Sessions:    NewSessionStore(newIO(novel)),
+		Usage:       NewUsageStore(newIO(novel)),
+		Simulation:  NewSimulationStore(newIO(novel)),
+		Decisions:   NewDecisionStore(newIO(novel)),
 	}
 	return &Roots{
+		Workspace:   workspaceDir,
 		Facts:       facts,
 		Images:      NewImageStore(io),
 		ImageConfig: NewImageConfigStore(configIO),
 		ComfyUI:     NewComfyUIStore(configIO),
-		Tavern:      NewGalgameStore(io),
+		Tavern:      NewGalgameStore(newIO(TavernDir(workspaceDir))),
 	}
 }
 

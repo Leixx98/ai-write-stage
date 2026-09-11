@@ -70,7 +70,7 @@ func (c *v2Controller) unit(w http.ResponseWriter, r *http.Request, rest string)
 		envelopeErr(w, 404, codeNotFound, fmt.Errorf("image job not found"))
 		return
 	}
-	base := filepath.Join(c.rt.Dir(), "drafts", fmt.Sprintf("%02d.units", ch), fmt.Sprintf("%03d", ord))
+	base := filepath.Join(c.rt.Store().Dir(), "drafts", fmt.Sprintf("%02d.units", ch), fmt.Sprintf("%03d", ord))
 	for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp"} {
 		path := base + ext
 		if _, err := os.Stat(path); err == nil {

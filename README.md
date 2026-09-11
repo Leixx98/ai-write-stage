@@ -247,27 +247,29 @@ Arbiter 用默认模型，不单独开角色。上下文窗口按「模型专属
 
 ```
 workspaces/边城/
-├── chapters/           # 终稿
-├── summaries/          # 章摘要
-├── drafts/             # 草稿与 unit
-├── reviews/            # 上游遗留评审结构
-├── timeline.jsonl
-└── meta/
-    ├── premise.md / outline.json / characters.json / world_rules.json
-    ├── layered_outline.json / compass.json
-    ├── progress.json / checkpoints.jsonl / decisions.jsonl
-    ├── comfyui/workflows/
-    ├── images/jobs/
-    └── runtime/tasks/
-
-galgame/
-├── characters/
-├── sessions/{id}/images/
-└── plays/{id}/
-    ├── meta.json / progress.json / outline.json
-    ├── spine.json / facts.json
-    ├── beats/ / writer_session.json
-    └── runtime.log
+├── .ainovel/           # 工作区配置
+├── novel/              # 小说事实与产物
+│   ├── chapters/       # 终稿
+│   ├── summaries/      # 章摘要
+│   ├── drafts/         # 草稿与 unit
+│   ├── reviews/        # 上游遗留评审结构
+│   ├── timeline.jsonl
+│   └── meta/
+│       ├── premise.md / outline.json / characters.json / world_rules.json
+│       ├── layered_outline.json / compass.json
+│       ├── progress.json / checkpoints.jsonl / decisions.jsonl
+│       ├── comfyui/workflows/
+│       ├── images/jobs/
+│       └── runtime/tasks/
+└── tavern/             # 酒馆对话与剧场
+    ├── characters/
+    ├── sessions/{id}/images/
+    ├── runtime.log
+    └── plays/{id}/
+        ├── meta.json / progress.json / outline.json
+        ├── spine.json / facts.json
+        ├── beats/ / writer_session.json
+        └── runtime.log
 ```
 
 再次打开同一工作区会读 `progress.json` + checkpoint 续跑。文件写入是 temp + fsync + rename。未完成的出图作业重启后可再触发。

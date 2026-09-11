@@ -240,6 +240,9 @@ func TestPlayBeatsQueueWhileAnotherIsRunning(t *testing.T) {
 	if finished := waitTerminal(t, roots, first.JobID); finished.Status != "completed" {
 		t.Fatalf("first job=%+v", finished)
 	}
+	if finished := waitTerminal(t, roots, second.JobID); finished.Status != "completed" {
+		t.Fatalf("second job=%+v", finished)
+	}
 }
 
 func TestChatMessagesQueueWhileAnotherIsRunning(t *testing.T) {
@@ -282,13 +285,13 @@ func TestProviderCapabilityRejectsUnsupportedProfileFields(t *testing.T) {
 
 func TestImagePathUsesSceneIdentity(t *testing.T) {
 	root := t.TempDir()
-	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.SceneNovel, Chapter: 3, Ordinal: 2}), filepath.Join(root, "drafts", "03.units", "002.png"); got != want {
+	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.SceneNovel, Chapter: 3, Ordinal: 2}), filepath.Join(root, store.NovelDirName, "drafts", "03.units", "002.png"); got != want {
 		t.Fatalf("novel path=%q want=%q", got, want)
 	}
-	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.SceneChat, SceneID: "session", SessionID: "session", JobID: "job"}), filepath.Join(root, "galgame", "sessions", "session", "images", "job.png"); got != want {
+	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.SceneChat, SceneID: "session", SessionID: "session", JobID: "job"}), filepath.Join(root, store.TavernDirName, "sessions", "session", "images", "job.png"); got != want {
 		t.Fatalf("chat path=%q want=%q", got, want)
 	}
-	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.ScenePlay, SceneID: "play", PlayID: "play", Ordinal: 2}), filepath.Join(root, "galgame", "plays", "play", "images", "002.png"); got != want {
+	if got, want := ImagePath(root, store.ImageJob{Scene: imagejob.ScenePlay, SceneID: "play", PlayID: "play", Ordinal: 2}), filepath.Join(root, store.TavernDirName, "plays", "play", "images", "002.png"); got != want {
 		t.Fatalf("play path=%q want=%q", got, want)
 	}
 }

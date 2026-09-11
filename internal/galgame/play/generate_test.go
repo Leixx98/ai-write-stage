@@ -296,7 +296,7 @@ func TestGeneratorWritesStreamTranscript(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := tavern.ReadText("galgame/plays/rain/stream.log")
+	got, err := tavern.ReadText("plays/rain/stream.log")
 	if err != nil {
 		t.Fatal(err)
 	}

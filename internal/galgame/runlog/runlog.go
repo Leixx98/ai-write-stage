@@ -31,7 +31,7 @@ const (
 	EventCorrect    = "correction"
 	EventRepair     = "repair"
 
-	IndexRel = "galgame/runtime.log"
+	IndexRel = "runtime.log"
 )
 
 type Sink interface {
@@ -361,12 +361,12 @@ func scopedRel(rec Record, name string) (string, bool) {
 		if !safeID(rec.SessionID) {
 			return "", false
 		}
-		return filepath.ToSlash(filepath.Join("galgame/sessions", rec.SessionID, name)), true
+		return filepath.ToSlash(filepath.Join("sessions", rec.SessionID, name)), true
 	case ModePlay:
 		if !safeID(rec.PlayID) {
 			return "", false
 		}
-		return filepath.ToSlash(filepath.Join("galgame/plays", rec.PlayID, name)), true
+		return filepath.ToSlash(filepath.Join("plays", rec.PlayID, name)), true
 	default:
 		return "", false
 	}

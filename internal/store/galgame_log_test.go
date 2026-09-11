@@ -17,7 +17,7 @@ func TestTavernLogRotationKeepsActiveFileBounded(t *testing.T) {
 	withTestLogCap(t, 120)
 	s := NewGalgameStore(newIO(t.TempDir()))
 	line := strings.Repeat("a", 50)
-	rel := "galgame/plays/p1/runtime.log"
+	rel := "plays/p1/runtime.log"
 	for i := 0; i < 6; i++ {
 		if err := s.AppendText(rel, line); err != nil {
 			t.Fatal(err)
@@ -55,7 +55,7 @@ func TestTavernLogObserverSeesOffsetsAndEpochs(t *testing.T) {
 	s.SetLogObserver(func(rel string, epoch int, off int64, data []byte) {
 		got = append(got, entry{rel, epoch, off, string(data)})
 	})
-	rel := "galgame/plays/p1/runtime.log"
+	rel := "plays/p1/runtime.log"
 	appends := []string{strings.Repeat("x", 32), "second-line", strings.Repeat("y", 60)}
 	for _, line := range appends {
 		if err := s.AppendText(rel, line); err != nil {
@@ -79,7 +79,7 @@ func TestTavernLogObserverSeesOffsetsAndEpochs(t *testing.T) {
 
 func TestReadLogTailSnapsToRuneBoundaryAndReportsPosition(t *testing.T) {
 	s := NewGalgameStore(newIO(t.TempDir()))
-	rel := "galgame/plays/p1/stream.log"
+	rel := "plays/p1/stream.log"
 	text := "这是一个较长的中文流式文本"
 	if err := s.AppendRaw(rel, text); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestReadLogTailSnapsToRuneBoundaryAndReportsPosition(t *testing.T) {
 		t.Fatalf("tail %q not a non-empty suffix of %q", tail, text)
 	}
 	// 不存在的文件：空文本 + 零位置，不算错误。
-	missing, epoch2, end2, err := s.ReadLogTail("galgame/plays/p1/missing.log", 10)
+	missing, epoch2, end2, err := s.ReadLogTail("plays/p1/missing.log", 10)
 	if err != nil || missing != "" || epoch2 != 0 || end2 != 0 {
 		t.Fatalf("missing = %q %d %d %v", missing, epoch2, end2, err)
 	}

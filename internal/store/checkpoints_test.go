@@ -169,10 +169,10 @@ func TestCheckpointStore_RestoreFromDisk(t *testing.T) {
 
 func TestStoreInitRejectsCorruptCheckpointLog(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "meta"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(NovelDir(dir), "meta"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, checkpointsFile), []byte("{\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(NovelDir(dir), checkpointsFile), []byte("{\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := NewStore(dir).Init(); err == nil {

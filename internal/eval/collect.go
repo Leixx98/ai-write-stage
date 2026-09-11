@@ -90,7 +90,7 @@ func Collect(dir string, runtimeErr error) Collected {
 	}
 	style := collectStyle(s, prog, check)
 	usage := collectUsage(s, check)
-	toolCalls := countToolCalls(dir, check)
+	toolCalls := countToolCalls(s.Dir(), check)
 
 	errStr := ""
 	if runtimeErr != nil {

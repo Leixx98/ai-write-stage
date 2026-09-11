@@ -103,7 +103,7 @@ func TestTimeline_AppendIsIdempotent(t *testing.T) {
 	}
 
 	// 跨重启仍从 JSONL 重建去重索引，commit Saga 重放不能产生重复记录。
-	s2 := NewStore(s.Dir())
+	s2 := NewStore(filepath.Dir(s.Dir()))
 	if err := s2.World.AppendTimelineEvents([]domain.TimelineEvent{event}); err != nil {
 		t.Fatalf("append duplicate after restart: %v", err)
 	}
@@ -145,10 +145,10 @@ func TestTimeline_MigratesLegacyAndAppendsProjection(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append with migration: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "timeline.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(s.Dir(), "timeline.json")); !os.IsNotExist(err) {
 		t.Fatalf("legacy timeline.json should be removed, err=%v", err)
 	}
-	before, err := os.ReadFile(filepath.Join(dir, "timeline.jsonl"))
+	before, err := os.ReadFile(filepath.Join(s.Dir(), "timeline.jsonl"))
 	if err != nil {
 		t.Fatalf("read timeline.jsonl: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestTimeline_MigratesLegacyAndAppendsProjection(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append jsonl: %v", err)
 	}
-	after, err := os.ReadFile(filepath.Join(dir, "timeline.jsonl"))
+	after, err := os.ReadFile(filepath.Join(s.Dir(), "timeline.jsonl"))
 	if err != nil {
 		t.Fatalf("read appended timeline.jsonl: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestTimeline_MigratesLegacyAndAppendsProjection(t *testing.T) {
 	if err != nil || len(loaded) != 3 {
 		t.Fatalf("load migrated timeline: got (%+v, %v)", loaded, err)
 	}
-	markdown, err := os.ReadFile(filepath.Join(dir, "timeline.md"))
+	markdown, err := os.ReadFile(filepath.Join(s.Dir(), "timeline.md"))
 	if err != nil {
 		t.Fatalf("read timeline.md: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestTimeline_RepairsUncommittedJSONLTail(t *testing.T) {
 		t.Fatalf("close jsonl: %v", err)
 	}
 
-	s2 := NewStore(s.Dir())
+	s2 := NewStore(filepath.Dir(s.Dir()))
 	if err := s2.World.AppendTimelineEvents([]domain.TimelineEvent{{Chapter: 2, Event: "重放记录"}}); err != nil {
 		t.Fatalf("append after partial tail: %v", err)
 	}
@@ -209,7 +209,10 @@ func TestTimeline_RepairsUncommittedJSONLTail(t *testing.T) {
 
 func TestTimeline_RejectsCorruptCommittedJSONLRecord(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "timeline.jsonl"), []byte("{broken}\n"), 0o644); err != nil {
+	if err := os.MkdirAll(NovelDir(dir), 0o755); err != nil {
+		t.Fatalf("mkdir novel: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(NovelDir(dir), "timeline.jsonl"), []byte("{broken}\n"), 0o644); err != nil {
 		t.Fatalf("write corrupt jsonl: %v", err)
 	}
 	s := NewStore(dir)
@@ -426,10 +429,10 @@ func TestStateChanges_MigratesLegacyAndRemainsIdempotent(t *testing.T) {
 	if err := s.World.AppendStateChanges([]domain.StateChange{change}); err != nil {
 		t.Fatalf("append with migration: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "meta", "state_changes.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(s.Dir(), "meta", "state_changes.json")); !os.IsNotExist(err) {
 		t.Fatalf("legacy state_changes.json should be removed, err=%v", err)
 	}
-	before, err := os.ReadFile(filepath.Join(dir, "meta", "state_changes.jsonl"))
+	before, err := os.ReadFile(filepath.Join(s.Dir(), "meta", "state_changes.jsonl"))
 	if err != nil {
 		t.Fatalf("read state_changes.jsonl: %v", err)
 	}
@@ -440,7 +443,7 @@ func TestStateChanges_MigratesLegacyAndRemainsIdempotent(t *testing.T) {
 	if err := s.World.AppendStateChanges([]domain.StateChange{next}); err != nil {
 		t.Fatalf("append jsonl: %v", err)
 	}
-	after, err := os.ReadFile(filepath.Join(dir, "meta", "state_changes.jsonl"))
+	after, err := os.ReadFile(filepath.Join(s.Dir(), "meta", "state_changes.jsonl"))
 	if err != nil {
 		t.Fatalf("read appended state_changes.jsonl: %v", err)
 	}

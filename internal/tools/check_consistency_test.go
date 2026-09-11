@@ -19,7 +19,7 @@ func TestCheckConsistencyReturnsPartialFactsWithWarnings(t *testing.T) {
 	if err := st.Drafts.SaveDraft(1, "可供检查的章节草稿"); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "world_rules.json"), []byte("{"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Dir(), "world_rules.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

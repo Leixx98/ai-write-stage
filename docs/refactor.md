@@ -31,7 +31,7 @@ store.Open → Roots.Facts / Roots.Media / Roots.Tavern
 Web HTTP   → /api/v2/* ；SSE → /api/v2/events、/api/v2/stream
 ```
 
-酒馆新图：`galgame/sessions/{session_id}/images/{job_id}.png`。角色/会话文件名：`{角色名}_{时间}` / `{角色名}_{会话名}_{时间}`。
+酒馆新图：`tavern/sessions/{session_id}/images/{job_id}.png`。角色/会话文件名：`{角色名}_{时间}` / `{角色名}_{会话名}_{时间}`。
 
 ## 已完成的阶段
 

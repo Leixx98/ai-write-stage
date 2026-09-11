@@ -18,14 +18,14 @@ func TestSaveFoundationStopsOnCorruptProgress(t *testing.T) {
 	if err := st.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "meta", "progress.json"), []byte("{"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Dir(), "meta", "progress.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	args, _ := json.Marshal(map[string]any{"type": "premise", "content": "# 测试"})
 	if _, err := NewSaveFoundationTool(st).Execute(context.Background(), args); err == nil {
 		t.Fatal("progress 损坏时必须在写入 premise 前失败")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "premise.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(st.Dir(), "premise.md")); !os.IsNotExist(err) {
 		t.Fatalf("失败调用不应写 premise，stat err=%v", err)
 	}
 }

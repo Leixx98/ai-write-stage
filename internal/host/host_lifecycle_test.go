@@ -19,7 +19,7 @@ func TestInterventionStopsWhenPersistenceFails(t *testing.T) {
 	if err := st.RunMeta.Init("default", "test", "model"); err != nil {
 		t.Fatalf("RunMeta.Init: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "meta", "run.json"), []byte("{"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Dir(), "meta", "run.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	h := &Host{store: st, events: make(chan Event, 4)}

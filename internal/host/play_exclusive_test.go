@@ -407,10 +407,10 @@ func TestReplanPlayHonorsExclusiveWork(t *testing.T) {
 func TestPlayLogReturnsRuntimeAndStream(t *testing.T) {
 	h := newPlayHost(t)
 	id := seedPlay(t, h, store.PlayIdle)
-	if err := h.roots.Tavern.AppendText("galgame/plays/"+id+"/runtime.log", "START play"); err != nil {
+	if err := h.roots.Tavern.AppendText("plays/"+id+"/runtime.log", "START play"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.roots.Tavern.AppendRaw("galgame/plays/"+id+"/stream.log", "[thinking]\n先想"); err != nil {
+	if err := h.roots.Tavern.AppendRaw("plays/"+id+"/stream.log", "[thinking]\n先想"); err != nil {
 		t.Fatal(err)
 	}
 	log, err := h.PlayLog(id)

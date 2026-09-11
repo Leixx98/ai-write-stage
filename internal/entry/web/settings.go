@@ -413,7 +413,7 @@ func (c *v2Controller) workflowSettings(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *v2Controller) settingsPath(name string) string {
-	return filepath.Join(c.rt.Dir(), "meta", "web", name+".json")
+	return filepath.Join(c.rt.Store().Dir(), "meta", "web", name+".json")
 }
 func (c *v2Controller) saveSettings(name string, value map[string]any) error {
 	return c.saveSettingsValue(name, value)

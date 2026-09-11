@@ -135,13 +135,13 @@ func truncateRunes(s string, n int) string {
 	return s
 }
 func (s *GalgameStore) characterPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/characters", id+".json"))
+	return filepath.ToSlash(filepath.Join("characters", id+".json"))
 }
 func (s *GalgameStore) sessionPath(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/sessions", id+".json"))
+	return filepath.ToSlash(filepath.Join("sessions", id+".json"))
 }
 func (s *GalgameStore) sessionDir(id string) string {
-	return filepath.ToSlash(filepath.Join("galgame/sessions", id))
+	return filepath.ToSlash(filepath.Join("sessions", id))
 }
 
 func (s *GalgameStore) SaveCharacter(c GalgameCharacter) error {
@@ -169,7 +169,7 @@ func (s *GalgameStore) LoadCharacter(id string) (GalgameCharacter, error) {
 	return c, err
 }
 func (s *GalgameStore) ListCharacters() ([]GalgameCharacter, error) {
-	files, err := os.ReadDir(filepath.Join(s.io.dir, "galgame/characters"))
+	files, err := os.ReadDir(filepath.Join(s.io.dir, "characters"))
 	if os.IsNotExist(err) {
 		return []GalgameCharacter{}, nil
 	}
@@ -217,7 +217,7 @@ func (s *GalgameStore) LoadSession(id string) (GalgameSession, error) {
 	return v, err
 }
 func (s *GalgameStore) ListSessions() ([]GalgameSession, error) {
-	files, err := os.ReadDir(filepath.Join(s.io.dir, "galgame/sessions"))
+	files, err := os.ReadDir(filepath.Join(s.io.dir, "sessions"))
 	if os.IsNotExist(err) {
 		return []GalgameSession{}, nil
 	}

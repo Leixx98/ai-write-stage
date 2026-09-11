@@ -145,7 +145,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 
 	var fileLogErr error
 	if opts.logFile != "" {
-		logCleanup, fileLogErr = runtimelog.SetupFile(cfg.OutputDir, opts.logFile, opts.logAlsoStderr, opts.logAttrs...)
+		logCleanup, fileLogErr = runtimelog.SetupFile(storepkg.NovelDir(cfg.OutputDir), opts.logFile, opts.logAlsoStderr, opts.logAttrs...)
 		if fileLogErr != nil {
 			logCleanup = nil
 			slog.Warn("文件日志不可用，继续使用当前进程日志", "module", "host", "file", opts.logFile, "err", fileLogErr)
@@ -191,7 +191,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 		slog.Warn("usage 加载失败，将尝试从 sessions 回填", "module", "usage", "err", loadErr)
 	}
 	if !loaded {
-		if n, err := usage.ReplaySessions(cfg.OutputDir); err != nil {
+		if n, err := usage.ReplaySessions(store.Dir()); err != nil {
 			slog.Warn("usage replay 失败", "module", "usage", "err", err)
 		} else if n > 0 {
 			slog.Info("usage 从 session 回填完成", "module", "usage", "messages", n)
@@ -1089,7 +1089,7 @@ func (h *Host) Done() <-chan struct{}      { return h.done }
 // Closed is closed exactly once when the Host is shutting down. Unlike Done,
 // it is not signaled when an Engine run pauses or ends.
 func (h *Host) Closed() <-chan struct{} { return h.closed }
-func (h *Host) Dir() string             { return h.store.Dir() }
+func (h *Host) Dir() string             { return h.cfg.OutputDir }
 func (h *Host) ProjectDir() string      { return h.cfg.ProjectDir }
 
 // Store returns the Host's existing store. Entry points reuse this pointer
