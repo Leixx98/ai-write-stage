@@ -329,6 +329,37 @@ func TestBuildRequestReasoningModelConstraints(t *testing.T) {
 	if wire.ReasoningEffort != "xhigh" || wire.TopP != nil {
 		t.Fatalf("reasoning_effort/top_p = %q/%v", wire.ReasoningEffort, wire.TopP)
 	}
+
+	wire, err = provider.buildRequest(&litellm.Request{
+		Model:    "gpt-4.1",
+		Messages: []litellm.Message{litellm.UserText("hi")},
+		Thinking: &litellm.Thinking{Mode: litellm.ThinkingDisabled},
+	}, false)
+	if err != nil {
+		t.Fatalf("official chat model should ignore thinking off: %v", err)
+	}
+	if wire.ReasoningEffort != "" || wire.EnableThinking != nil || wire.ChatTemplateKwargs != nil {
+		t.Fatalf("official disable should be omitted, got effort=%q thinking=%v kwargs=%v", wire.ReasoningEffort, wire.EnableThinking, wire.ChatTemplateKwargs)
+	}
+
+	compat, err := New(Config{APIKey: "test", BaseURL: "https://api-inference.modelscope.cn/v1"})
+	if err != nil {
+		t.Fatalf("compat provider: %v", err)
+	}
+	wire, err = compat.buildRequest(&litellm.Request{
+		Model:    "inclusionAI/Ling-3.0-flash",
+		Messages: []litellm.Message{litellm.UserText("hi")},
+		Thinking: &litellm.Thinking{Mode: litellm.ThinkingDisabled},
+	}, false)
+	if err != nil {
+		t.Fatalf("compat thinking off: %v", err)
+	}
+	if wire.EnableThinking == nil || *wire.EnableThinking {
+		t.Fatalf("compat enable_thinking = %v, want false", wire.EnableThinking)
+	}
+	if on, _ := wire.ChatTemplateKwargs["enable_thinking"].(bool); on {
+		t.Fatalf("compat chat_template_kwargs = %#v", wire.ChatTemplateKwargs)
+	}
 }
 
 func TestChatRetriesWhenRetryPolicyIsConfigured(t *testing.T) {

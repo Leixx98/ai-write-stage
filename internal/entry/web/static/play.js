@@ -1,6 +1,6 @@
 /* Galgame play / visual-novel mode. */
 (() => {
-  const playState = { plays: [], play: null, view: null, beats: [], viewOrdinal: 0, polling: 0, logSource: null, logReconnect: 0, advancing: false, choosing: false };
+  const playState = { plays: [], play: null, view: null, beats: [], viewOrdinal: 0, polling: 0, logSource: null, logReconnect: 0, advancing: false, choosing: false, replanning: false };
 
   function character() { return window.Galgame?.getState?.()?.character; }
   function stage() { return document.querySelector('.galgame-stage'); }
@@ -606,6 +606,33 @@
     }
   }
 
+  async function replanPlay() {
+    if (playState.replanning) return;
+    if (!playState.play) {
+      return notify('请先选择或新建剧场局', 'galgame-settings-msg', 'error');
+    }
+    const instruction = fieldValue('galgame-replan-instruction');
+    if (!instruction) {
+      return notify('请先写下规划方向', 'galgame-settings-msg', 'error');
+    }
+    const button = $('galgame-replan-play');
+    playState.replanning = true;
+    if (button) button.disabled = true;
+    try {
+      playState.view = await api(`/api/v2/galgame/plays/${encodeURIComponent(playState.play.id)}/replan`, { method: 'POST', body: JSON.stringify({ instruction }) });
+      playState.play = playState.view.play;
+      playState.beats = [];
+      followLive();
+      await refreshPlayView();
+      notify('后续细纲已按方向改写', 'galgame-settings-msg', 'success');
+    } catch (error) {
+      notify(error.message, 'galgame-settings-msg', 'error');
+    } finally {
+      playState.replanning = false;
+      if (button) button.disabled = false;
+    }
+  }
+
   async function refreshPlayView() {
     if (!playState.play) return;
     playState.view = await api(`/api/v2/galgame/plays/${encodeURIComponent(playState.play.id)}`);
@@ -711,6 +738,7 @@
     $('galgame-save-play')?.addEventListener('click', savePlay);
     $('galgame-start-play')?.addEventListener('click', startPlay);
     $('galgame-pause-play')?.addEventListener('click', pausePlay);
+    $('galgame-replan-play')?.addEventListener('click', replanPlay);
     $('galgame-play-prev')?.addEventListener('click', (event) => {
       event.stopPropagation();
       reviewPrev();

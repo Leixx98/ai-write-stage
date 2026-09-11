@@ -128,6 +128,28 @@ func (c *v2Controller) galgamePlay(w http.ResponseWriter, r *http.Request, path 
 			return
 		}
 		envelope(w, 200, 0, view, "")
+	case "replan":
+		if r.Method != http.MethodPost {
+			envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))
+			return
+		}
+		var req struct {
+			Instruction string `json:"instruction"`
+		}
+		if err := decodeBody(r, &req); err != nil {
+			envelopeErr(w, 400, codeInvalidRequest, err)
+			return
+		}
+		if err := c.rt.ReplanPlay(id, req.Instruction); err != nil {
+			envelopeErr(w, 409, codeConflict, err)
+			return
+		}
+		view, err := c.rt.PlayView(id)
+		if err != nil {
+			envelopeErr(w, 500, codeConflict, err)
+			return
+		}
+		envelope(w, 200, 0, view, "")
 	case "beats":
 		if r.Method != http.MethodGet {
 			envelopeErr(w, 405, codeInvalidRequest, fmt.Errorf("method not allowed"))

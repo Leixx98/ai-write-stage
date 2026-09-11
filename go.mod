@@ -17,3 +17,5 @@ require (
 )
 
 replace github.com/voocel/litellm => ./third-party/litellm
+
+replace github.com/voocel/agentcore => ./third-party/agentcore

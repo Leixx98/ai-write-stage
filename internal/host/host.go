@@ -76,6 +76,8 @@ type Host struct {
 	playPlanner     play.PlannerFunc
 	playWriter      play.WriterFunc
 	playSpine       play.SpineFunc
+	playReviseNext  play.ReviseNextFunc
+	playReplan      play.ReplanFunc
 	playLog         *playLogBroker // 剧场日志增量按 play id 分发给 SSE 订阅者
 	imageSvc        *imagesvc.Service
 	closeOnce       sync.Once
@@ -1564,7 +1566,7 @@ func (h *Host) InheritDefaultModel(role string) error {
 
 // concreteThinkingRoles 是可应用推理强度的具体角色（与 agents.ApplyThinking 路由一致）。
 // 调 default 时按各角色 ResolveReasoningEffort 逐个重新应用。
-var concreteThinkingRoles = []string{"architect", "chapter_planner", "writer", "editor"}
+var concreteThinkingRoles = []string{"architect", "chapter_planner", "writer"}
 
 // CurrentThinking returns the raw effective reasoning level for a role.
 func (h *Host) CurrentThinking(role string) string {
@@ -1585,8 +1587,7 @@ func (h *Host) AvailableThinking(role string) []agentcore.ThinkingLevel {
 // 钳制只发生在这条“生效路径”上，不回写配置——存储始终保留用户的原始意图。
 func (h *Host) resolveThinkingForRoleLocked(role string) agentcore.ThinkingLevel {
 	parsed, _ := agents.ParseThinkingLevel(h.cfg.ResolveReasoningEffort(role))
-	resolved, _ := agents.ResolveThinkingForModel(h.models.ForRole(role), parsed)
-	return resolved
+	return agents.EffectiveThinking(h.models.ForRole(role), parsed)
 }
 
 // applyThinkingLocked 把生效强度下发给 live agent；每个角色各按自己的模型钳制。

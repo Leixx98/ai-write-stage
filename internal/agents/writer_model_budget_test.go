@@ -58,15 +58,23 @@ func TestWriterBudgetModelOverridesLargerProviderMaxTokens(t *testing.T) {
 	}
 }
 
-func TestWriterBudgetModelPreservesLargeCloudWindowOutputSetting(t *testing.T) {
+func TestWriterBudgetModelCapsLargeWindowUnitOutput(t *testing.T) {
 	capture := &writerBudgetCaptureModel{}
 	model := newWriterBudgetModel(capture, func() int { return 200000 })
 	_, err := model.Generate(context.Background(), []agentcore.Message{agentcore.UserMsg("重写整章")}, nil, agentcore.WithMaxTokens(12000))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if capture.config.MaxTokens != 12000 {
-		t.Fatalf("large cloud Writer max_tokens = %d, want unchanged 12000", capture.config.MaxTokens)
+	if capture.config.MaxTokens != 6000 {
+		t.Fatalf("large-window unit Writer max_tokens = %d, want cap 6000", capture.config.MaxTokens)
+	}
+}
+
+func TestWriterSummaryModelBypassesUnitBudgetWrapper(t *testing.T) {
+	base := &writerBudgetCaptureModel{}
+	budgeted := newWriterBudgetModel(base, func() int { return 8192 })
+	if got := writerSummaryModel(budgeted); got != base {
+		t.Fatalf("summary model = %T, want unwrapped base model", got)
 	}
 }
 

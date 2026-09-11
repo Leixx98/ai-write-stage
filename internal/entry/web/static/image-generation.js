@@ -141,8 +141,6 @@
     document.body.dataset.imageNovelEnabled = String(enabled('novel'));
     document.body.dataset.imageChatEnabled = String(enabled('chat'));
     document.body.dataset.imagePlayEnabled = String(enabled('play'));
-    const novelPlaceholder = $('image-placeholder');
-    if (novelPlaceholder) novelPlaceholder.hidden = !enabled('novel');
     const chatPlaceholder = $('galgame-image-placeholder');
     const chatStatus = $('galgame-image-status');
     if (chatPlaceholder && !$('galgame-image')?.src) chatPlaceholder.hidden = !enabled(isPlayModeSafe() ? 'play' : 'chat');

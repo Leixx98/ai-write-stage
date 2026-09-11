@@ -13,7 +13,6 @@ const MAX_STREAM_ROUNDS = 32;
 const MAX_STREAM_CHARS = 256 * 1024;
 const STREAM_SEPARATOR = '\n\n';
 const STATE_REFRESH_DELAY_MS = 150;
-const IMAGE_RETRY_DELAY_MS = 3000;
 const expandedChapters = new Set();
 const streamView = $('stream');
 let streamRounds = [''];
@@ -77,7 +76,7 @@ const commandRoutes = {
 };
 const UI_TEXT = {
   modelNotConfigured: '模型未配置', ready: '就绪', status: '状态', events: '事件',
-  streamingOutput: '流式输出', details: '详情', unitImagePreview: '单元图片预览',
+  streamingOutput: '流式输出', details: '详情',
   chapter: '章节', untitled: '未命名', none: '暂无', work: '作品', agents: '智能体',
   outline: '大纲', premise: '故事前提', characters: '角色', event: '事件', error: '错误',
   resultsHere: '结果将在这里显示', noOutputs: '暂无输出', output: '输出', image: '图片',
@@ -134,7 +133,6 @@ function renderState(state = {}) {
     return `<button type="button" class="chapter-row${chapter.Chapter === state.CurrentChapter ? ' chapter-current' : ''}${open ? ' chapter-open' : ''}" data-chapter="${esc(number)}" aria-expanded="${open ? 'true' : 'false'}"><span>${ui('chapter')} ${esc(number)}</span><strong>${esc(chapter.Title || ui('untitled'))}</strong><small>${esc(chapter.CoreEvent || '')}</small>${extras.join('')}</button>`;
   }).join('');
   $('detail').innerHTML = `<h3>${ui('work')}</h3><p>${esc(state.NovelName || ui('untitled'))}</p><h3>${ui('agents')}</h3><p>${esc((state.Agents || []).map((a) => a.Name || a.Role).filter(Boolean).join(', ') || ui('none'))}</p><h3>${ui('outline')}</h3><div class="chapters">${chapters || `<p>${ui('none')}</p>`}</div><h3>${ui('premise')}</h3><p>${esc(state.Premise || ui('none'))}</p><h3>${ui('characters')}</h3><p>${esc((state.Characters || []).join(', ') || ui('none'))}</p>`;
-  updateUnitImage(state);
 }
 async function refresh() {
   try {
@@ -421,28 +419,68 @@ function toggleWorkspaceMenu() {
   menu.hidden = !menu.hidden;
   button.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
 }
-function updateUnitImage(state) {
-  const image = $('unit-image');
-  const placeholder = $('image-placeholder');
-  if (!state.CurrentChapter || !state.CurrentUnit) {
-    image.hidden = true;
-    placeholder.hidden = false;
+function isCompletedNovelImage(job = {}) {
+  const scene = String(job.scene || '');
+  const trigger = String(job.trigger || '');
+  const status = String(job.status || '');
+  const chapter = Number(job.chapter || 0);
+  const ordinal = Number(job.ordinal || 0);
+  return (scene === 'novel' || trigger === 'unit') && status === 'completed' && chapter > 0 && ordinal > 0;
+}
+function collectNovelImages(jobs = []) {
+  const latest = new Map();
+  for (const job of Array.isArray(jobs) ? jobs : []) {
+    if (!isCompletedNovelImage(job)) continue;
+    latest.set(`${job.chapter}:${job.ordinal}`, job);
+  }
+  return [...latest.values()].sort((a, b) => (a.chapter - b.chapter) || (a.ordinal - b.ordinal));
+}
+function unitImageSrc(job) {
+  return `/api/v2/units/${encodeURIComponent(job.chapter)}/${encodeURIComponent(job.ordinal)}/image`;
+}
+function renderImageBrowser(jobs) {
+  const list = $('image-browser-list');
+  if (!list) return;
+  const images = collectNovelImages(jobs);
+  if (!images.length) {
+    list.innerHTML = `<p class="image-browser-empty">暂无已生成图片</p>`;
     return;
   }
-  const src = `/api/v2/units/${encodeURIComponent(state.CurrentChapter)}/${encodeURIComponent(state.CurrentUnit)}/image`;
-  const now = Date.now();
-  const sameUnit = image.dataset.unitSrc === src;
-  const lastAttempt = Number(image.dataset.lastAttempt || 0);
-  if (sameUnit && (!image.hidden || now - lastAttempt < IMAGE_RETRY_DELAY_MS)) return;
-  if (!sameUnit) {
-    image.hidden = true;
-    placeholder.hidden = false;
-  }
-  image.dataset.unitSrc = src;
-  image.dataset.lastAttempt = String(now);
-  image.onload = () => { image.hidden = false; $('image-placeholder').hidden = true; };
-  image.onerror = () => { image.hidden = true; $('image-placeholder').hidden = false; };
+  list.innerHTML = images.map((job) => {
+    const src = unitImageSrc(job);
+    const label = `第 ${esc(job.chapter)} 章 · 第 ${esc(job.ordinal)} 节`;
+    return `<figure class="image-browser-item" data-src="${esc(src)}"><img src="${esc(src)}" alt="${label}" loading="lazy"><figcaption>${label}</figcaption></figure>`;
+  }).join('');
+}
+function closeImageLightbox() {
+  const lightbox = $('image-lightbox');
+  const image = $('image-lightbox-img');
+  if (lightbox) lightbox.hidden = true;
+  if (image) image.removeAttribute('src');
+}
+function openImageLightbox(src) {
+  const lightbox = $('image-lightbox');
+  const image = $('image-lightbox-img');
+  if (!lightbox || !image || !src) return;
   image.src = src;
+  lightbox.hidden = false;
+}
+function closeImageBrowser() {
+  closeImageLightbox();
+  const browser = $('image-browser');
+  if (browser) browser.hidden = true;
+}
+async function openImageBrowser() {
+  const browser = $('image-browser');
+  const list = $('image-browser-list');
+  if (!browser || !list) return;
+  list.innerHTML = `<p class="image-browser-empty">正在加载图片...</p>`;
+  browser.hidden = false;
+  try {
+    renderImageBrowser(await api('/api/v2/image-jobs'));
+  } catch (error) {
+    list.innerHTML = `<p class="image-browser-empty">${esc(error.message || '图片列表加载失败')}</p>`;
+  }
 }
 function showView(name) {
   document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active-view', view.id === name));
@@ -634,8 +672,33 @@ document.addEventListener('click', (event) => {
   const switcher = $('workspace-switcher');
   if (switcher && !switcher.contains(event.target)) closeWorkspaceMenu();
 });
+$('image-browser-open')?.addEventListener('click', () => { openImageBrowser(); });
+$('image-browser-close')?.addEventListener('click', closeImageBrowser);
+$('image-browser')?.addEventListener('click', (event) => {
+  if (event.target.closest('.image-browser-item')) return;
+  if (event.target.closest('#image-browser-close')) return;
+  closeImageBrowser();
+});
+$('image-browser-list')?.addEventListener('click', (event) => {
+  const item = event.target.closest('.image-browser-item');
+  if (!item || !$('image-browser-list').contains(item)) return;
+  event.stopPropagation();
+  openImageLightbox(item.dataset.src);
+});
+$('image-lightbox')?.addEventListener('click', (event) => {
+  if (event.target.id === 'image-lightbox-img') return;
+  closeImageLightbox();
+});
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if ($('image-lightbox') && !$('image-lightbox').hidden) {
+      closeImageLightbox();
+      return;
+    }
+    if ($('image-browser') && !$('image-browser').hidden) {
+      closeImageBrowser();
+      return;
+    }
     closeExportMenu();
     closeWorkspaceMenu();
   }

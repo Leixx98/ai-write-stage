@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/agents"
 	"github.com/Leixx98/ai-write-stage/internal/imagejob"
 	"github.com/voocel/agentcore"
 )
@@ -29,14 +30,11 @@ func (h *Host) GenerateImagePrompt(ctx context.Context, request imagejob.PromptR
 	model := h.models.ForRole("prompter")
 	thinking := h.resolveThinkingForRoleLocked("prompter")
 	h.mu.Unlock()
+	opts := append([]agentcore.CallOption{agentcore.WithMaxTokens(16384), agentcore.WithJSONMode()}, agents.ThinkingCallOptions(thinking)...)
 	response, err := model.Generate(ctx, []agentcore.Message{
 		agentcore.SystemMsg(systemPrompt),
 		agentcore.UserMsg(userPrompt),
-	}, nil,
-		agentcore.WithThinking(thinking),
-		agentcore.WithMaxTokens(16384),
-		agentcore.WithJSONMode(),
-	)
+	}, nil, opts...)
 	if err != nil {
 		return "", fmt.Errorf("Prompter generate: %w", err)
 	}

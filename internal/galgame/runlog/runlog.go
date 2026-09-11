@@ -241,7 +241,6 @@ func Retry(sink Sink, call *Call, attempt int, delay time.Duration, err error) {
 	rec := call.Snapshot()
 	rec.Event = EventRetry
 	rec.Attempt = attempt
-	rec.ElapsedMS = rec.ElapsedMS
 	if err != nil {
 		rec.Error = err.Error()
 	}

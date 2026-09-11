@@ -46,6 +46,32 @@ type architectTurn struct {
 	Pacing            store.PlayPacing         `json:"pacing"`
 	CurrentStation    store.PlayStation        `json:"current_station"`
 	RemainingStations []store.PlayStation      `json:"remaining_stations"`
+	Threads           []store.PlayThread       `json:"threads"`
+	Facts             []store.PlayFact         `json:"facts"`
+	ChoiceHistory     []store.PlayChoiceRecord `json:"choice_history"`
+	RecentBeats       []PromptBeat             `json:"recent_beats"`
+}
+
+type reviseTurn struct {
+	Density       store.PlayDensity        `json:"density"`
+	Pacing        store.PlayPacing         `json:"pacing"`
+	Choice        store.PlayChoice         `json:"choice"`
+	Facts         []store.PlayFact         `json:"facts"`
+	ChoiceHistory []store.PlayChoiceRecord `json:"choice_history"`
+	RecentBeats   []PromptBeat             `json:"recent_beats"`
+	NextStation   store.PlayStation        `json:"next_station"`
+	Threads       []store.PlayThread       `json:"threads"`
+	Throughline   string                   `json:"throughline,omitempty"`
+}
+
+type replanTurn struct {
+	Density           store.PlayDensity        `json:"density"`
+	Pacing            store.PlayPacing         `json:"pacing"`
+	Instruction       string                   `json:"instruction"`
+	Throughline       string                   `json:"throughline,omitempty"`
+	KeptStations      []store.PlayStation      `json:"kept_stations"`
+	RemainingStations []store.PlayStation      `json:"remaining_stations"`
+	Threads           []store.PlayThread       `json:"threads"`
 	Facts             []store.PlayFact         `json:"facts"`
 	ChoiceHistory     []store.PlayChoiceRecord `json:"choice_history"`
 	RecentBeats       []PromptBeat             `json:"recent_beats"`
@@ -168,11 +194,16 @@ func architectRequest(prompt string, in ArchitectInput) (string, string, error) 
 	if remaining == nil {
 		remaining = []store.PlayStation{}
 	}
+	threads := in.Threads
+	if threads == nil {
+		threads = []store.PlayThread{}
+	}
 	payload, err := marshalTurn(architectTurn{
 		Density:           store.NormalizePlayDensity(string(in.Density)),
 		Pacing:            store.NormalizePlayPacing(string(in.Pacing)),
 		CurrentStation:    in.CurrentStation,
 		RemainingStations: remaining,
+		Threads:           threads,
 		Facts:             facts,
 		ChoiceHistory:     history,
 		RecentBeats:       slimBeats(in.RecentBeats),
@@ -200,6 +231,83 @@ func plannerRequest(prompt string, in PlannerInput) (string, string, error) {
 		Facts:          facts,
 		LastStation:    in.LastStation,
 		Architect:      in.Architect,
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return system, payload, nil
+}
+
+func reviseRequest(prompt string, in ReviseNextInput) (string, string, error) {
+	system, err := attachStaticContext(withPlayHints(prompt, in.Density, in.Pacing), sharedCard(in.Character, in.Premise, in.UserPersona))
+	if err != nil {
+		return "", "", err
+	}
+	history := in.ChoiceHistory
+	if history == nil {
+		history = []store.PlayChoiceRecord{}
+	}
+	facts := in.Facts
+	if facts == nil {
+		facts = []store.PlayFact{}
+	}
+	threads := in.Threads
+	if threads == nil {
+		threads = []store.PlayThread{}
+	}
+	payload, err := marshalTurn(reviseTurn{
+		Density:       store.NormalizePlayDensity(string(in.Density)),
+		Pacing:        store.NormalizePlayPacing(string(in.Pacing)),
+		Choice:        in.Choice,
+		Facts:         facts,
+		ChoiceHistory: history,
+		RecentBeats:   slimBeats(in.RecentBeats),
+		NextStation:   in.NextStation,
+		Threads:       threads,
+		Throughline:   strings.TrimSpace(in.Throughline),
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return system, payload, nil
+}
+
+func replanRequest(prompt string, in ReplanInput) (string, string, error) {
+	system, err := attachStaticContext(withPlayHints(prompt, in.Density, in.Pacing), sharedCard(in.Character, in.Premise, in.UserPersona))
+	if err != nil {
+		return "", "", err
+	}
+	history := in.ChoiceHistory
+	if history == nil {
+		history = []store.PlayChoiceRecord{}
+	}
+	facts := in.Facts
+	if facts == nil {
+		facts = []store.PlayFact{}
+	}
+	threads := in.Threads
+	if threads == nil {
+		threads = []store.PlayThread{}
+	}
+	kept := in.KeptStations
+	if kept == nil {
+		kept = []store.PlayStation{}
+	}
+	remaining := in.RemainingStations
+	if remaining == nil {
+		remaining = []store.PlayStation{}
+	}
+	payload, err := marshalTurn(replanTurn{
+		Density:           store.NormalizePlayDensity(string(in.Density)),
+		Pacing:            store.NormalizePlayPacing(string(in.Pacing)),
+		Instruction:       strings.TrimSpace(in.Instruction),
+		Throughline:       strings.TrimSpace(in.Throughline),
+		KeptStations:      kept,
+		RemainingStations: remaining,
+		Threads:           threads,
+		Facts:             facts,
+		ChoiceHistory:     history,
+		RecentBeats:       slimBeats(in.RecentBeats),
 	})
 	if err != nil {
 		return "", "", err

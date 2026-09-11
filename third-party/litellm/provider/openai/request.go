@@ -24,7 +24,10 @@ func (p *Provider) buildRequest(req *litellm.Request, stream bool) (*chatRequest
 		return nil, fmt.Errorf("openai: %w", err)
 	}
 	if req.Thinking != nil && req.Thinking.Mode != litellm.ThinkingUnspecified && !p.isReasoningModel(req.Model) {
-		return nil, fmt.Errorf("openai: thinking is only supported for reasoning chat models")
+		if req.Thinking.Mode != litellm.ThinkingDisabled {
+			return nil, fmt.Errorf("openai: thinking is only supported for reasoning chat models")
+		}
+		p.applyCompatThinkingOff(out)
 	}
 	if p.isReasoningModel(req.Model) {
 		out.MaxCompletionTokens = req.MaxTokens
@@ -74,6 +77,22 @@ func (p *Provider) buildRequest(req *litellm.Request, stream bool) (*chatRequest
 	}
 	out.Messages = messages
 	return out, nil
+}
+
+func (p *Provider) applyCompatThinkingOff(out *chatRequest) {
+	if p == nil || out == nil || isOfficialOpenAI(p.cfg.BaseURL) {
+		return
+	}
+	off := false
+	out.EnableThinking = &off
+	out.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
+}
+
+func isOfficialOpenAI(baseURL string) bool {
+	if strings.TrimSpace(baseURL) == "" {
+		return true
+	}
+	return isOfficialBaseURL(baseURL)
 }
 
 func (p *Provider) isReasoningModel(model string) bool {

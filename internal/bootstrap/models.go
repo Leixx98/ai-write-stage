@@ -264,6 +264,43 @@ func (ms *ModelSet) ResolveContextWindow(provider, model string) (int, ContextWi
 	return ms.config.ResolveContextWindow(provider, model)
 }
 
+// SafeContextWindowForRole returns a window that every model eligible for the
+// role can accept. Requests prepared against this value remain valid after a
+// request-level fallback switches to a smaller model.
+func (ms *ModelSet) SafeContextWindowForRole(role string) int {
+	if ms == nil {
+		return 0
+	}
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	effectiveRole := role
+	provider, model := "", ""
+	if selected, ok := ms.models[role]; ok {
+		provider, model = selected.Current()
+	} else if role == "chapter_planner" {
+		if selected, ok := ms.models["architect"]; ok {
+			provider, model = selected.Current()
+			effectiveRole = "architect"
+		}
+	}
+	if provider == "" || model == "" {
+		provider, model = ms.Default.Current()
+		effectiveRole = ""
+	}
+	window, _ := ms.config.ResolveContextWindow(provider, model)
+	if effectiveRole == "" {
+		return window
+	}
+	for _, fallback := range ms.config.Roles[effectiveRole].Fallbacks {
+		candidate, _ := ms.config.ResolveContextWindow(fallback.Provider, fallback.Model)
+		if candidate > 0 && (window <= 0 || candidate < window) {
+			window = candidate
+		}
+	}
+	return window
+}
+
 // ApplyPrepared 提交一个已成功构建的候选 ModelSet。已有 SwappableModel 的地址
 // 保持不变，因此已装配的 Worker/Arbiter 会在下一次请求自动使用新客户端。
 func (ms *ModelSet) ApplyPrepared(candidate *ModelSet) {
@@ -430,7 +467,7 @@ func (m *failoverModel) Generate(ctx context.Context, messages []agentcore.Messa
 		return resp, nil
 	}
 
-	next, reason, ok := m.pickFallback(current, err, requestsJSONSchema(opts))
+	next, reason, ok := m.pickFallback(current, err, requestsJSONSchema(opts), len(tools) > 0)
 	if !ok {
 		return nil, err
 	}
@@ -451,7 +488,7 @@ func (m *failoverModel) GenerateStream(ctx context.Context, messages []agentcore
 		source, resp, err := m.startAttempt(ctx, current, messages, tools, opts...)
 		if err != nil {
 			if !fallbackUsed {
-				if next, reason, ok := m.pickFallback(current, err, requestsJSONSchema(opts)); ok {
+				if next, reason, ok := m.pickFallback(current, err, requestsJSONSchema(opts), len(tools) > 0); ok {
 					fallbackUsed = true
 					m.reportFailover(current, next, reason, err)
 					current = next
@@ -475,7 +512,7 @@ func (m *failoverModel) GenerateStream(ctx context.Context, messages []agentcore
 			switch ev.Type {
 			case agentcore.StreamEventError:
 				if ev.Err != nil && !forwarded && !fallbackUsed {
-					if next, reason, ok := m.pickFallback(current, ev.Err, requestsJSONSchema(opts)); ok {
+					if next, reason, ok := m.pickFallback(current, ev.Err, requestsJSONSchema(opts), len(tools) > 0); ok {
 						fallbackUsed = true
 						m.reportFailover(current, next, reason, ev.Err)
 						current = next
@@ -543,7 +580,7 @@ func (m *failoverModel) currentTarget() modelTarget {
 	}
 }
 
-func (m *failoverModel) pickFallback(current modelTarget, err error, requireJSONSchema bool) (modelTarget, string, bool) {
+func (m *failoverModel) pickFallback(current modelTarget, err error, requireJSONSchema, requireTools bool) (modelTarget, string, bool) {
 	if err == nil || current.model == nil {
 		return modelTarget{}, "", false
 	}
@@ -567,6 +604,9 @@ func (m *failoverModel) pickFallback(current modelTarget, err error, requireJSON
 			continue
 		}
 		if requireJSONSchema && !supportsJSONSchema(target) {
+			continue
+		}
+		if requireTools && !target.model.SupportsTools() {
 			continue
 		}
 		return target, reason, true

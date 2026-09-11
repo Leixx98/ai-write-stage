@@ -315,7 +315,7 @@ func (h *Host) ChoosePlay(id, choiceID string) (storepkg.PlayProgress, error) {
 	h.mu.Unlock()
 	engine := running
 	if engine == nil || engine.PlayID() != id {
-		engine = play.New(play.Config{Store: h.roots.Tavern, PlayID: id})
+		engine = h.newPlayEngine(id)
 	}
 	progress, err := engine.Choose(choiceID)
 	if err != nil {
@@ -342,6 +342,7 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 	cfg := play.Config{Store: h.roots.Tavern, PlayID: id, TextAhead: play.DefaultTextAhead, StartImage: h.startPlayImage}
 	if h.playArchitect != nil && h.playPlanner != nil && h.playWriter != nil {
 		cfg.Spine, cfg.Architect, cfg.Planner, cfg.Writer = h.playSpine, h.playArchitect, h.playPlanner, h.playWriter
+		cfg.ReviseNext, cfg.Replan = h.playReviseNext, h.playReplan
 		return play.New(cfg)
 	}
 	h.mu.Lock()
@@ -369,6 +370,8 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 		ArchitectPrompt:   h.bundle.Prompts.PlayArchitect,
 		PlannerPrompt:     h.bundle.Prompts.PlayPlanner,
 		WriterPrompt:      h.bundle.Prompts.PlayWriter,
+		RevisePrompt:      h.bundle.Prompts.PlayRevise,
+		ReplanPrompt:      h.bundle.Prompts.PlayReplan,
 		Density:           density,
 		Pacing:            pacing,
 		ArchitectThinking: archThink,
@@ -380,7 +383,50 @@ func (h *Host) newPlayEngine(id string) *play.Engine {
 		Sink:              h.roots.Tavern,
 	}
 	cfg.Spine, cfg.Architect, cfg.Planner, cfg.Writer = gen.Spine, gen.Architect, gen.Planner, gen.Writer
+	cfg.ReviseNext, cfg.Replan = gen.ReviseNext, gen.Replan
 	return play.New(cfg)
+}
+
+func (h *Host) ReplanPlay(id, instruction string) error {
+	id = strings.TrimSpace(id)
+	instruction = strings.TrimSpace(instruction)
+	if id == "" {
+		return fmt.Errorf("play id is required")
+	}
+	if instruction == "" {
+		return fmt.Errorf("instruction is required")
+	}
+	if h == nil || h.roots == nil || h.roots.Tavern == nil {
+		return fmt.Errorf("tavern store is unavailable")
+	}
+	h.mu.Lock()
+	running := h.playEngine
+	h.mu.Unlock()
+	wasLive := running != nil && running.PlayID() == id
+	if wasLive {
+		if err := h.PausePlay(); err != nil {
+			return err
+		}
+	}
+	replanErr := func() error {
+		if err := h.acquireExclusive("剧场改纲"); err != nil {
+			return err
+		}
+		defer h.releaseExclusive()
+		engine := h.newPlayEngine(id)
+		return engine.Replan(context.Background(), instruction)
+	}()
+	if wasLive {
+		restartErr := h.StartPlay(id)
+		if replanErr != nil {
+			if restartErr != nil {
+				return fmt.Errorf("剧场改纲失败: %v; 恢复运行失败: %w", replanErr, restartErr)
+			}
+			return replanErr
+		}
+		return restartErr
+	}
+	return replanErr
 }
 
 func (h *Host) startPlayImage(_ context.Context, playID string, beat *storepkg.PlayBeat) error {

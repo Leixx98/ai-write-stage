@@ -220,16 +220,36 @@ func loadWriterRestoreState(s *store.Store) (*writerStoreSummaryState, error) {
 		state.warn("recent_summaries", err)
 	}
 	loadLayeredSummariesForStoreState(s, progress, chapter, state)
-	if isEmptySummarySection(state.chapterPlan) &&
-		isEmptySummarySection(state.writingProgress) &&
-		isEmptySummarySection(state.currentOutline) &&
-		isEmptySummarySection(state.snapshots) &&
-		isEmptySummarySection(state.pendingReviews) &&
-		isEmptySummarySection(state.recentSummaries) &&
-		isEmptySummarySection(state.foreshadow) {
+	if !hasWriterRestoreState(state) {
 		return nil, nil
 	}
 	return state, nil
+}
+
+func hasWriterRestoreState(state *writerStoreSummaryState) bool {
+	if state == nil {
+		return false
+	}
+	values := []any{
+		state.chapterPlan,
+		state.writingProgress,
+		state.currentOutline,
+		state.snapshots,
+		state.pendingReviews,
+		state.recentSummaries,
+		state.foreshadow,
+		state.currentArcSummary,
+		state.currentVolSummary,
+		state.timeline,
+		state.styleRules,
+		state.warnings,
+	}
+	for _, value := range values {
+		if !isEmptySummarySection(value) {
+			return true
+		}
+	}
+	return false
 }
 
 type writerStoreSection struct {

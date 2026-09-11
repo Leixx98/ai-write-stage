@@ -45,6 +45,34 @@ func TestRepairPlannerCardsFixesCGChoice(t *testing.T) {
 	}
 }
 
+func TestPrepareSpineKeepsStationDetail(t *testing.T) {
+	got := prepareSpine(testRichSpine())
+	if got.Throughline == "" || len(got.Threads) != 1 || len(got.Stations) != 3 {
+		t.Fatalf("spine = %+v", got)
+	}
+	station := got.Stations[1]
+	if station.Summary == "" || len(station.MustHappen) == 0 || len(station.Forks) != 2 || station.Status != store.StationPending {
+		t.Fatalf("station = %+v", station)
+	}
+}
+
+func TestReplanFromIndexSkipsCurrentChoice(t *testing.T) {
+	spine := prepareSpine(testRichSpine())
+	spine.Stations[0].Status = store.StationActive
+	if got := replanFromIndex(spine, true); got != 1 {
+		t.Fatalf("awaiting choice from = %d", got)
+	}
+	if got := replanFromIndex(spine, false); got != 0 {
+		t.Fatalf("paused from = %d", got)
+	}
+	spine.Stations[0].Status = store.StationDone
+	spine.Stations[1].Status = store.StationSkipped
+	spine.Stations[2].Status = store.StationSkipped
+	if got := replanFromIndex(spine, false); got != 1 {
+		t.Fatalf("skipped from = %d", got)
+	}
+}
+
 func TestCapWriterTurns(t *testing.T) {
 	turns := []store.PlayWriterTurn{{Text: "1"}, {Text: "2"}, {Text: "3"}, {Text: "4"}}
 	got := capWriterTurns(turns, 2)

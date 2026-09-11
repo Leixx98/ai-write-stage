@@ -165,8 +165,9 @@ func TestOverrideVoice_SharesAssemblyPath(t *testing.T) {
 	if strings.Contains(got, voicePlaceholder) {
 		t.Fatal("占位符必须被消耗")
 	}
-	// 协议部分不受 voice 覆盖影响
-	if !strings.Contains(got, "## 执行协议") {
+	// 固定流程与硬约束不受 voice 覆盖影响。
+	if !strings.Contains(got, "## 固定流程") || !strings.Contains(got, "## 硬约束") ||
+		!strings.Contains(got, "write_chapter_unit") {
 		t.Fatal("协议模板不得被 voice 覆盖破坏")
 	}
 }

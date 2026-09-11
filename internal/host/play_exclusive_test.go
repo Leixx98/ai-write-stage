@@ -2,8 +2,10 @@ package host
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Leixx98/ai-write-stage/internal/galgame/play"
 	"github.com/Leixx98/ai-write-stage/internal/store"
@@ -60,11 +62,19 @@ func TestUpdatePlayPersistsImageProfileWithoutResettingRuntimeState(t *testing.T
 
 func attachFakePlay(h *Host) {
 	h.playSpine = func(context.Context, play.SpineInput) (play.SpineOutput, error) {
-		return play.SpineOutput{Stations: []store.PlayStation{
-			{ID: "meet", Pressure: "第一次必须表态"},
-			{ID: "cost", Pressure: "代价开始反噬"},
-			{ID: "end", Pressure: "必须做终局决定"},
-		}}, nil
+		station := func(id, pressure string) store.PlayStation {
+			return store.PlayStation{
+				ID: id, Title: id, Pressure: pressure,
+				Summary:    pressure + " 的现场。冲突被摊开。局势转向。",
+				MustHappen: []string{pressure},
+				Forks:      []store.PlayFork{{Tint: "默认推进"}, {Tint: "另一条近处分叉"}},
+			}
+		}
+		return play.SpineOutput{
+			Throughline: "雨夜必须兑现重逢的代价",
+			Stations:    []store.PlayStation{station("meet", "第一次必须表态"), station("cost", "代价开始反噬"), station("end", "必须做终局决定")},
+			Threads:     []store.PlayThread{{ID: "secret", Hint: "她跟踪过玩家", Status: store.ThreadOpen}},
+		}, nil
 	}
 	h.playArchitect = func(_ context.Context, in play.ArchitectInput) (play.ArchitectOutput, error) {
 		return play.ArchitectOutput{SegmentID: in.CurrentStation.ID, Goal: in.CurrentStation.Pressure}, nil
@@ -86,6 +96,22 @@ func attachFakePlay(h *Host) {
 		}
 		return play.WriterOutput{Speaker: in.Card.Speaker, Text: text}, nil
 	}
+}
+
+func waitForPlay(t *testing.T, h *Host, id string, ready func(store.PlayMeta, store.PlayProgress) bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		meta, metaErr := h.roots.Tavern.LoadPlay(id)
+		progress, progressErr := h.roots.Tavern.LoadProgress(id)
+		if metaErr == nil && progressErr == nil && ready(meta, progress) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	meta, _ := h.roots.Tavern.LoadPlay(id)
+	progress, _ := h.roots.Tavern.LoadProgress(id)
+	t.Fatalf("timeout waiting for play: meta=%+v progress=%+v", meta, progress)
 }
 
 func TestPlayActiveErrorBlocksContinue(t *testing.T) {
@@ -176,6 +202,205 @@ func TestPausedPlayDoesNotBlockNovel(t *testing.T) {
 	seedPlay(t, h, store.PlayPaused)
 	if err := h.playActiveError(); err != nil {
 		t.Fatalf("paused play should not block novel: %v", err)
+	}
+}
+
+func TestReplanPlayKeepsFactsAndPlayedBeats(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayPaused)
+	attachFakePlay(h)
+	station := func(id, pressure string) store.PlayStation {
+		return store.PlayStation{
+			ID: id, Title: id, Pressure: pressure,
+			Summary: pressure + " 的现场。", MustHappen: []string{pressure},
+			Forks: []store.PlayFork{{Tint: "默认"}, {Tint: "分叉"}},
+		}
+	}
+	if err := h.roots.Tavern.SaveSpine(id, store.PlaySpine{
+		Throughline: "兑现重逢",
+		Stations: []store.PlayStation{
+			station("meet", "第一次必须表态"),
+			station("cost", "代价开始反噬"),
+			station("end", "必须做终局决定"),
+		},
+		Threads: []store.PlayThread{{ID: "secret", Hint: "跟踪", Status: store.ThreadOpen}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	spine, _ := h.roots.Tavern.LoadSpine(id)
+	spine.Stations[0].Status = store.StationDone
+	spine.Stations[1].Status = store.StationActive
+	if err := h.roots.Tavern.SaveSpine(id, spine); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.roots.Tavern.SaveLedger(id, store.PlayLedger{Facts: []store.PlayFact{{ID: "left"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.roots.Tavern.SaveProgress(id, store.PlayProgress{PlayHead: 4, WriteHead: 6, ChoiceHistory: []store.PlayChoiceRecord{{Ordinal: 4, ChoiceID: "leave", SetFacts: []string{"left"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 6; i++ {
+		if err := h.roots.Tavern.SaveBeat(id, store.PlayBeat{Ordinal: i, Text: "拍", CG: store.PlayCGKeep}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.playReplan = func(_ context.Context, in play.ReplanInput) (play.ReplanOutput, error) {
+		tail := make([]store.PlayStation, 0, len(in.RemainingStations))
+		for _, item := range in.RemainingStations {
+			item.Summary = "按指令改走暗线。"
+			item.MustHappen = []string{"暗线"}
+			item.Forks = []store.PlayFork{{Tint: "降温"}, {Tint: "摊牌"}}
+			tail = append(tail, item)
+		}
+		return play.ReplanOutput{Throughline: in.Throughline, Stations: tail, Threads: in.Threads}, nil
+	}
+	if err := h.ReplanPlay(id, "改走暗线"); err != nil {
+		t.Fatal(err)
+	}
+	beats, err := h.roots.Tavern.ListBeats(id)
+	if err != nil || len(beats) != 4 {
+		t.Fatalf("beats = %d %v", len(beats), err)
+	}
+	ledger, err := h.roots.Tavern.LoadLedger(id)
+	if err != nil || len(ledger.Facts) != 1 || ledger.Facts[0].ID != "left" {
+		t.Fatalf("facts = %+v %v", ledger, err)
+	}
+	got, err := h.roots.Tavern.LoadSpine(id)
+	if err != nil || !strings.Contains(got.Stations[1].Summary, "暗线") {
+		t.Fatalf("spine = %+v %v", got, err)
+	}
+}
+
+func TestReplanLiveChoiceKeepsGateAndCurrentStation(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayIdle)
+	attachFakePlay(h)
+	h.playReplan = func(_ context.Context, in play.ReplanInput) (play.ReplanOutput, error) {
+		if len(in.KeptStations) != 1 || in.KeptStations[0].ID != "meet" {
+			t.Fatalf("kept stations = %+v", in.KeptStations)
+		}
+		tail := append([]store.PlayStation{}, in.RemainingStations...)
+		for i := range tail {
+			tail[i].Summary = "当前选项之后改走暗线。"
+			tail[i].MustHappen = []string{"暗线推进"}
+			tail[i].Forks = []store.PlayFork{{Tint: "默认"}, {Tint: "摊牌"}}
+		}
+		return play.ReplanOutput{Throughline: in.Throughline, Stations: tail, Threads: in.Threads}, nil
+	}
+	if err := h.StartPlay(id); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.PausePlay() })
+	waitForPlay(t, h, id, func(_ store.PlayMeta, progress store.PlayProgress) bool {
+		return progress.GateOrdinal != 0
+	})
+	before, err := h.roots.Tavern.LoadSpine(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ReplanPlay(id, "后续改走暗线"); err != nil {
+		t.Fatal(err)
+	}
+	waitForPlay(t, h, id, func(meta store.PlayMeta, progress store.PlayProgress) bool {
+		return meta.Status == store.PlayAwaitingChoice && progress.GateOrdinal != 0
+	})
+	after, err := h.roots.Tavern.LoadSpine(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Stations[0].Summary != before.Stations[0].Summary {
+		t.Fatalf("current choice station changed: before=%q after=%q", before.Stations[0].Summary, after.Stations[0].Summary)
+	}
+	if !strings.Contains(after.Stations[1].Summary, "暗线") {
+		t.Fatalf("next station was not replanned: %+v", after.Stations[1])
+	}
+}
+
+func TestReplanFailureRestartsLivePlay(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayIdle)
+	attachFakePlay(h)
+	h.playReplan = func(context.Context, play.ReplanInput) (play.ReplanOutput, error) {
+		return play.ReplanOutput{}, fmt.Errorf("temporary model failure")
+	}
+	if err := h.StartPlay(id); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.PausePlay() })
+	waitForPlay(t, h, id, func(_ store.PlayMeta, progress store.PlayProgress) bool {
+		return progress.GateOrdinal != 0
+	})
+	if err := h.ReplanPlay(id, "改走暗线"); err == nil || !strings.Contains(err.Error(), "temporary model failure") {
+		t.Fatalf("replan error = %v", err)
+	}
+	waitForPlay(t, h, id, func(meta store.PlayMeta, progress store.PlayProgress) bool {
+		return meta.Status == store.PlayAwaitingChoice && progress.GateOrdinal != 0
+	})
+	h.mu.Lock()
+	running := h.playEngine
+	h.mu.Unlock()
+	if running == nil || running.PlayID() != id {
+		t.Fatal("live play was not restarted after replan failure")
+	}
+}
+
+func TestChooseStalePlayRevisesNextStation(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayAwaitingChoice)
+	attachFakePlay(h)
+	spineOut, err := h.playSpine(context.Background(), play.SpineInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spine := store.PlaySpine{Throughline: spineOut.Throughline, Stations: spineOut.Stations, Threads: spineOut.Threads}
+	spine.Stations[0].Status = store.StationActive
+	if err := h.roots.Tavern.SaveSpine(id, spine); err != nil {
+		t.Fatal(err)
+	}
+	choice := store.PlayChoice{ID: "a", Label: "A", Consequence: "a", SetFacts: []string{"chose_a"}}
+	if err := h.roots.Tavern.SaveBeat(id, store.PlayBeat{Ordinal: 1, SegmentID: "meet", Kind: store.BeatChoice, Text: "选择", Choices: []store.PlayChoice{choice}, CG: store.PlayCGKeep}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.roots.Tavern.SaveProgress(id, store.PlayProgress{PlayHead: 1, WriteHead: 1, GateOrdinal: 1, SegmentID: "meet"}); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	h.playReviseNext = func(_ context.Context, in play.ReviseNextInput) (play.ReviseNextOutput, error) {
+		called = true
+		next := in.NextStation
+		next.Summary = "重启后仍按选择修订。"
+		return play.ReviseNextOutput{NextStation: next}, nil
+	}
+	if _, err := h.ChoosePlay(id, "a"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.PausePlay() })
+	if !called {
+		t.Fatal("stale play choice did not invoke next-station revision")
+	}
+	got, err := h.roots.Tavern.LoadSpine(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Stations[1].Summary != "重启后仍按选择修订。" {
+		t.Fatalf("next station summary = %q", got.Stations[1].Summary)
+	}
+}
+
+func TestReplanPlayHonorsExclusiveWork(t *testing.T) {
+	h := newPlayHost(t)
+	id := seedPlay(t, h, store.PlayPaused)
+	h.exclusive = "导入"
+	called := false
+	h.playReplan = func(context.Context, play.ReplanInput) (play.ReplanOutput, error) {
+		called = true
+		return play.ReplanOutput{}, nil
+	}
+	if err := h.ReplanPlay(id, "改走暗线"); err == nil || !strings.Contains(err.Error(), "导入") {
+		t.Fatalf("exclusive error = %v", err)
+	}
+	if called {
+		t.Fatal("replan ran while another exclusive operation was active")
 	}
 }
 

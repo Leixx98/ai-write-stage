@@ -66,11 +66,10 @@ func validateSpineStations(stations []store.PlayStation) error {
 	}
 	seen := map[string]bool{}
 	for i, station := range stations {
-		id := strings.TrimSpace(station.ID)
-		pressure := strings.TrimSpace(station.Pressure)
-		if id == "" || pressure == "" {
-			return fmt.Errorf("stations[%d]: id and pressure are required", i)
+		if err := validateStationDetail(station, i); err != nil {
+			return err
 		}
+		id := strings.TrimSpace(station.ID)
 		if seen[id] {
 			return fmt.Errorf("stations[%d]: duplicate id %q", i, id)
 		}
@@ -79,20 +78,244 @@ func validateSpineStations(stations []store.PlayStation) error {
 	return nil
 }
 
-func prepareSpine(stations []store.PlayStation) store.PlaySpine {
-	out := make([]store.PlayStation, 0, len(stations))
-	for _, station := range stations {
+func validateSpine(spine store.PlaySpine) error {
+	if strings.TrimSpace(spine.Throughline) == "" {
+		return fmt.Errorf("throughline is required")
+	}
+	if err := validateSpineStations(spine.Stations); err != nil {
+		return err
+	}
+	return validateThreads(spine.Threads)
+}
+
+func validateStationDetail(station store.PlayStation, i int) error {
+	id := strings.TrimSpace(station.ID)
+	pressure := strings.TrimSpace(station.Pressure)
+	if id == "" || pressure == "" {
+		return fmt.Errorf("stations[%d]: id and pressure are required", i)
+	}
+	if strings.TrimSpace(station.Title) == "" {
+		return fmt.Errorf("stations[%d]: title is required", i)
+	}
+	if strings.TrimSpace(station.Summary) == "" {
+		return fmt.Errorf("stations[%d]: summary is required", i)
+	}
+	if len(nonEmptyStrings(station.MustHappen)) == 0 {
+		return fmt.Errorf("stations[%d]: must_happen is required", i)
+	}
+	if n := len(station.Forks); n < 2 || n > 3 {
+		return fmt.Errorf("stations[%d]: forks needs 2 or 3 items", i)
+	}
+	for j, fork := range station.Forks {
+		if strings.TrimSpace(fork.Tint) == "" {
+			return fmt.Errorf("stations[%d].forks[%d]: tint is required", i, j)
+		}
+	}
+	return nil
+}
+
+func validateThreads(threads []store.PlayThread) error {
+	if len(threads) == 0 {
+		return fmt.Errorf("threads cannot be empty")
+	}
+	seen := map[string]bool{}
+	for i, thread := range threads {
+		id := strings.TrimSpace(thread.ID)
+		if id == "" || strings.TrimSpace(thread.Hint) == "" {
+			return fmt.Errorf("threads[%d]: id and hint are required", i)
+		}
+		if seen[id] {
+			return fmt.Errorf("threads[%d]: duplicate id %q", i, id)
+		}
+		seen[id] = true
+		if err := validateThreadStatus(thread.Status); err != nil {
+			return fmt.Errorf("threads[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func validateThreadUpdates(threads []store.PlayThread) error {
+	seen := map[string]bool{}
+	for i, thread := range threads {
+		id := strings.TrimSpace(thread.ID)
+		if id == "" {
+			return fmt.Errorf("threads[%d]: id is required", i)
+		}
+		if seen[id] {
+			return fmt.Errorf("threads[%d]: duplicate id %q", i, id)
+		}
+		seen[id] = true
+		if thread.Status != "" {
+			if err := validateThreadStatus(thread.Status); err != nil {
+				return fmt.Errorf("threads[%d]: %w", i, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateThreadStatus(status store.PlayThreadStatus) error {
+	switch status {
+	case "", store.ThreadOpen, store.ThreadPlanted, store.ThreadPaid, store.ThreadDropped:
+		return nil
+	default:
+		return fmt.Errorf("invalid status %q", status)
+	}
+}
+
+func nonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			out = append(out, strings.TrimSpace(value))
+		}
+	}
+	return out
+}
+
+func prepareSpine(out SpineOutput) store.PlaySpine {
+	stations := make([]store.PlayStation, 0, len(out.Stations))
+	for _, station := range out.Stations {
 		status := station.Status
 		if status == "" {
 			status = store.StationPending
 		}
-		out = append(out, store.PlayStation{
-			ID:       strings.TrimSpace(station.ID),
-			Pressure: strings.TrimSpace(station.Pressure),
-			Status:   status,
+		stations = append(stations, store.PlayStation{
+			ID:         strings.TrimSpace(station.ID),
+			Title:      strings.TrimSpace(station.Title),
+			Pressure:   strings.TrimSpace(station.Pressure),
+			Summary:    strings.TrimSpace(station.Summary),
+			MustHappen: nonEmptyStrings(station.MustHappen),
+			Forks:      prepareForks(station.Forks),
+			Seeds:      nonEmptyStrings(station.Seeds),
+			Payoffs:    nonEmptyStrings(station.Payoffs),
+			Status:     status,
 		})
 	}
-	return store.PlaySpine{Stations: out}
+	return store.PlaySpine{
+		Throughline: strings.TrimSpace(out.Throughline),
+		Stations:    stations,
+		Threads:     prepareThreads(out.Threads),
+	}
+}
+
+func prepareForks(forks []store.PlayFork) []store.PlayFork {
+	out := make([]store.PlayFork, 0, len(forks))
+	for _, fork := range forks {
+		out = append(out, store.PlayFork{
+			IfFacts: normalizeFacts(fork.IfFacts),
+			Tint:    strings.TrimSpace(fork.Tint),
+		})
+	}
+	return out
+}
+
+func prepareThreads(threads []store.PlayThread) []store.PlayThread {
+	out := make([]store.PlayThread, 0, len(threads))
+	seen := map[string]bool{}
+	for _, thread := range threads {
+		id := strings.TrimSpace(thread.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		status := thread.Status
+		if status == "" {
+			status = store.ThreadOpen
+		}
+		out = append(out, store.PlayThread{
+			ID:       id,
+			Hint:     strings.TrimSpace(thread.Hint),
+			Status:   status,
+			PlantAt:  strings.TrimSpace(thread.PlantAt),
+			PayoffAt: strings.TrimSpace(thread.PayoffAt),
+		})
+	}
+	if out == nil {
+		out = []store.PlayThread{}
+	}
+	return out
+}
+
+func applyThreadUpdates(existing []store.PlayThread, updates []store.PlayThread) []store.PlayThread {
+	if existing == nil {
+		existing = []store.PlayThread{}
+	}
+	index := map[string]int{}
+	for i, thread := range existing {
+		index[thread.ID] = i
+	}
+	for _, update := range prepareThreads(updates) {
+		if i, ok := index[update.ID]; ok {
+			if update.Status != "" {
+				existing[i].Status = update.Status
+			}
+			if update.Hint != "" {
+				existing[i].Hint = update.Hint
+			}
+			if update.PlantAt != "" {
+				existing[i].PlantAt = update.PlantAt
+			}
+			if update.PayoffAt != "" {
+				existing[i].PayoffAt = update.PayoffAt
+			}
+			continue
+		}
+		index[update.ID] = len(existing)
+		existing = append(existing, update)
+	}
+	return existing
+}
+
+func applyStationDetail(dst *store.PlayStation, src store.PlayStation) {
+	if dst == nil {
+		return
+	}
+	prepared := prepareSpine(SpineOutput{Stations: []store.PlayStation{src}})
+	if len(prepared.Stations) == 0 {
+		return
+	}
+	next := prepared.Stations[0]
+	dst.Title = next.Title
+	dst.Pressure = next.Pressure
+	dst.Summary = next.Summary
+	dst.MustHappen = next.MustHappen
+	dst.Forks = next.Forks
+	dst.Seeds = next.Seeds
+	dst.Payoffs = next.Payoffs
+}
+
+func nextPendingStation(spine store.PlaySpine) (store.PlayStation, int, bool) {
+	for i, station := range spine.Stations {
+		if station.Status == store.StationPending || station.Status == "" {
+			return station, i, true
+		}
+	}
+	return store.PlayStation{}, -1, false
+}
+
+func firstSkippedIndex(spine store.PlaySpine) int {
+	for i, station := range spine.Stations {
+		if station.Status == store.StationSkipped {
+			return i
+		}
+	}
+	return -1
+}
+
+func replanFromIndex(spine store.PlaySpine, awaitingChoice bool) int {
+	_, idx, ok := currentStation(spine)
+	if ok && awaitingChoice {
+		if idx+1 < len(spine.Stations) {
+			return idx + 1
+		}
+		return firstSkippedIndex(spine)
+	}
+	if ok {
+		return idx
+	}
+	return firstSkippedIndex(spine)
 }
 
 func currentStation(spine store.PlaySpine) (store.PlayStation, int, bool) {

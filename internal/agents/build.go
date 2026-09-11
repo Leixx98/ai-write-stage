@@ -78,9 +78,29 @@ func ResolveThinkingForModel(model agentcore.ChatModel, level agentcore.Thinking
 	return llm.ThinkingPolicyFor(model).Resolve(level)
 }
 
+// EffectiveThinking 是酒馆/剧场/写作实际下发的推理强度。
+// 用户显式关闭时必须原样转发：OpenAI 兼容网关里不少推理模型（Ling / Qwen 等）
+// 能力表写成 SupportNo，默认却会思考；把 off 钳成 Auto 等于继续用模型默认。
+func EffectiveThinking(model agentcore.ChatModel, level agentcore.ThinkingLevel) agentcore.ThinkingLevel {
+	level = agentcore.NormalizeThinkingLevel(level)
+	if level == agentcore.ThinkingOff {
+		return agentcore.ThinkingOff
+	}
+	resolved, _ := ResolveThinkingForModel(model, level)
+	return resolved
+}
+
+func ThinkingCallOptions(level agentcore.ThinkingLevel) []agentcore.CallOption {
+	level = agentcore.NormalizeThinkingLevel(level)
+	if level == "" {
+		return nil
+	}
+	return []agentcore.CallOption{agentcore.WithThinking(level)}
+}
+
 func AvailableThinkingForModel(model agentcore.ChatModel) []agentcore.ThinkingLevel {
 	if cp, ok := model.(llm.CapabilityProvider); ok && cp.Capabilities().Thinking.Supported == llm.SupportNo {
-		return []agentcore.ThinkingLevel{agentcore.ThinkingAuto}
+		return []agentcore.ThinkingLevel{agentcore.ThinkingAuto, agentcore.ThinkingOff}
 	}
 	return llm.ThinkingPolicyFor(model).Available
 }
@@ -96,8 +116,7 @@ func roleThinking(cfg bootstrap.Config, role string) agentcore.ThinkingLevel {
 }
 
 func resolvedRoleThinking(model agentcore.ChatModel, cfg bootstrap.Config, role string) agentcore.ThinkingLevel {
-	resolved, _ := ResolveThinkingForModel(model, roleThinking(cfg, role))
-	return resolved
+	return EffectiveThinking(model, roleThinking(cfg, role))
 }
 
 // BuildWorkers 组装 Worker(architect_short/long、chapter_planner、writer)为可程序化
@@ -119,7 +138,7 @@ func BuildWorkers(
 	contextTool := tools.NewContextTool(store, bundle.References, cfg.Style, styleStats)
 	readChapter := tools.NewReadChapterTool(store)
 	resolveWriterContextWindow := func() int {
-		return roleContextWindow(models, "writer")
+		return models.SafeContextWindowForRole("writer")
 	}
 
 	architectTools := []agentcore.Tool{
@@ -149,13 +168,15 @@ func BuildWorkers(
 		)
 	}
 
-	architectModel := models.ForRoleWithFailover("architect", reportFailover)
-	chapterPlannerRole := "chapter_planner"
-	if _, _, explicit := models.CurrentSelection(chapterPlannerRole); !explicit {
-		chapterPlannerRole = "architect"
-	}
-	chapterPlannerModel := models.ForRoleWithFailover(chapterPlannerRole, reportFailover)
-	writerModel := models.ForRoleWithFailover("writer", reportFailover)
+	architectModel := newDynamicRoleModel(func() agentcore.ChatModel {
+		return models.ForRoleWithFailover("architect", reportFailover)
+	})
+	chapterPlannerModel := newDynamicRoleModel(func() agentcore.ChatModel {
+		return models.ForRoleWithFailover("chapter_planner", reportFailover)
+	})
+	writerBaseModel := newDynamicRoleModel(func() agentcore.ChatModel {
+		return models.ForRoleWithFailover("writer", reportFailover)
+	})
 
 	// Writer 的 ContextManager 由工厂每次调用重建，窗口随模型 swap 动态跟随（见下方工厂）。
 	writerProvider, writerModelName, _ := models.CurrentSelection("writer")
@@ -191,7 +212,7 @@ func BuildWorkers(
 	architectStopGuardFactory := func(_, _ string) agentcore.StopGuard {
 		return guard.NewArchitectStopGuard(store, onGuardBlock)
 	}
-	architectThinking, _ := ResolveThinkingForModel(architectModel, roleThinking(cfg, "architect"))
+	architectThinking := EffectiveThinking(architectModel, roleThinking(cfg, "architect"))
 	architectShort := subagent.Config{
 		Name:             "architect_short",
 		Description:      "短篇规划师：为单卷、单冲突、高密度故事生成紧凑设定与扁平大纲",
@@ -228,11 +249,11 @@ func BuildWorkers(
 		Name:             "chapter_planner",
 		Description:      "章节执行规划师：按 Writer 当前上下文预算把大纲章拆成场景卡和写作片段卡",
 		Model:            chapterPlannerModel,
-		SystemPrompt:     bundle.Prompts.ChapterPlanner + "\n\n## Writer 动态预算\n\n" + tools.WriterPlanningBudgetForContext(resolveWriterContextWindow()).Instruction(),
+		SystemPrompt:     bundle.Prompts.ChapterPlanner,
 		Tools:            chapterPlannerTools,
 		MaxTurns:         8,
 		MaxRetries:       subagentMaxRetries,
-		ThinkingLevel:    resolvedRoleThinking(chapterPlannerModel, cfg, chapterPlannerRole),
+		ThinkingLevel:    resolvedRoleThinking(chapterPlannerModel, cfg, "chapter_planner"),
 		StopAfterTools:   []string{"plan_chapter"},
 		OnMessage:        onMsg,
 		CacheLastMessage: "ephemeral",
@@ -248,7 +269,7 @@ func BuildWorkers(
 	restore := &ctxpack.WriterRestorePack{}
 	restore.Refresh(store)
 
-	writerModel = newWriterBudgetModel(writerModel, resolveWriterContextWindow)
+	writerModel := newWriterBudgetModel(writerBaseModel, resolveWriterContextWindow)
 	writer := subagent.Config{
 		Name:                "writer",
 		Description:         "本地创作者：按云端章节计划一次只写一个 writing unit",
@@ -272,7 +293,7 @@ func BuildWorkers(
 			window := resolveWriterContextWindow()
 			keepRecent, summaryBudget := writerContextBudgets(window)
 			return newContextManager(contextManagerConfig{
-				Model:         model,
+				SummaryModel:  writerSummaryModel(model),
 				ContextWindow: window,
 				ReserveTokens: bootstrap.CompactReserveTokens(window),
 				Agent:         "writer",
@@ -305,22 +326,29 @@ func BuildWorkers(
 	applyThinking := func(role string, level agentcore.ThinkingLevel) {
 		switch role {
 		case "architect":
-			level, _ = ResolveThinkingForModel(models.ForRole("architect"), level)
+			level = EffectiveThinking(architectModel, level)
 			runner.SetThinkingLevel("architect_short", level)
 			runner.SetThinkingLevel("architect_long", level)
-			if chapterPlannerRole == "architect" {
+			if _, _, explicit := models.CurrentSelection("chapter_planner"); !explicit {
 				runner.SetThinkingLevel("chapter_planner", level)
 			}
 		case "chapter_planner":
-			level, _ = ResolveThinkingForModel(chapterPlannerModel, level)
+			level = EffectiveThinking(chapterPlannerModel, level)
 			runner.SetThinkingLevel("chapter_planner", level)
 		case "writer":
-			level, _ = ResolveThinkingForModel(models.ForRole(role), level)
+			level = EffectiveThinking(writerBaseModel, level)
 			runner.SetThinkingLevel(role, level)
 		}
 	}
 
 	return runner, restore, applyThinking
+}
+
+func writerSummaryModel(model agentcore.ChatModel) agentcore.ChatModel {
+	if budgeted, ok := model.(*writerBudgetModel); ok {
+		return budgeted.inner
+	}
+	return model
 }
 
 type saveFoundationResult struct {

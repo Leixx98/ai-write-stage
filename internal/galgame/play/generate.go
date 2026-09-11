@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Leixx98/ai-write-stage/internal/agents"
 	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
 	"github.com/Leixx98/ai-write-stage/internal/llmcontract"
 	"github.com/Leixx98/ai-write-stage/internal/llmretry"
@@ -31,10 +32,42 @@ type ArchitectInput struct {
 	Pacing            store.PlayPacing
 	CurrentStation    store.PlayStation
 	RemainingStations []store.PlayStation
+	Threads           []store.PlayThread
 	Facts             []store.PlayFact
 	ChoiceHistory     []store.PlayChoiceRecord
 	RecentBeats       []store.PlayBeat
 	LastGoal          string
+}
+
+type ReviseNextInput struct {
+	Character     store.GalgameCharacter
+	Premise       string
+	UserPersona   string
+	Density       store.PlayDensity
+	Pacing        store.PlayPacing
+	Choice        store.PlayChoice
+	Facts         []store.PlayFact
+	ChoiceHistory []store.PlayChoiceRecord
+	RecentBeats   []store.PlayBeat
+	NextStation   store.PlayStation
+	Threads       []store.PlayThread
+	Throughline   string
+}
+
+type ReplanInput struct {
+	Character         store.GalgameCharacter
+	Premise           string
+	UserPersona       string
+	Density           store.PlayDensity
+	Pacing            store.PlayPacing
+	Instruction       string
+	Throughline       string
+	KeptStations      []store.PlayStation
+	RemainingStations []store.PlayStation
+	Threads           []store.PlayThread
+	Facts             []store.PlayFact
+	ChoiceHistory     []store.PlayChoiceRecord
+	RecentBeats       []store.PlayBeat
 }
 
 type PlannerInput struct {
@@ -65,6 +98,8 @@ type Generator struct {
 	ArchitectPrompt   string
 	PlannerPrompt     string
 	WriterPrompt      string
+	RevisePrompt      string
+	ReplanPrompt      string
 	Density           store.PlayDensity
 	Pacing            store.PlayPacing
 	ArchitectThinking agentcore.ThinkingLevel
@@ -104,6 +139,52 @@ func (g Generator) Planner(ctx context.Context, in PlannerInput) (PlannerOutput,
 			return err
 		}
 		return validatePlannerAgainstArchitect(*out, in.Architect, in.LastStation, in.Pacing)
+	})
+}
+
+func (g Generator) ReviseNext(ctx context.Context, in ReviseNextInput) (ReviseNextOutput, error) {
+	system, payload, err := reviseRequest(g.RevisePrompt, in)
+	if err != nil {
+		return ReviseNextOutput{}, err
+	}
+	return execute(ctx, g, g.ArchitectModel, reviseContract, system, payload, nil, func(out *ReviseNextOutput) error {
+		if err := out.Validate(); err != nil {
+			return err
+		}
+		if strings.TrimSpace(out.NextStation.ID) != strings.TrimSpace(in.NextStation.ID) {
+			return fmt.Errorf("next_station.id must stay %q", in.NextStation.ID)
+		}
+		return nil
+	})
+}
+
+func (g Generator) Replan(ctx context.Context, in ReplanInput) (ReplanOutput, error) {
+	system, payload, err := replanRequest(g.ReplanPrompt, in)
+	if err != nil {
+		return ReplanOutput{}, err
+	}
+	kept := map[string]bool{}
+	for _, station := range in.KeptStations {
+		kept[strings.TrimSpace(station.ID)] = true
+	}
+	maxTail := maxSpineStations - len(in.KeptStations)
+	if maxTail < 1 {
+		maxTail = 1
+	}
+	return execute(ctx, g, g.ArchitectModel, replanContract, system, payload, nil, func(out *ReplanOutput) error {
+		if err := out.Validate(); err != nil {
+			return err
+		}
+		if len(out.Stations) > maxTail {
+			return fmt.Errorf("stations exceed remaining capacity %d", maxTail)
+		}
+		for i, station := range out.Stations {
+			id := strings.TrimSpace(station.ID)
+			if kept[id] {
+				return fmt.Errorf("stations[%d]: id %q already kept", i, id)
+			}
+		}
+		return nil
 	})
 }
 
@@ -156,7 +237,7 @@ func execute[T any](ctx context.Context, g Generator, model agentcore.ChatModel,
 	gotThinking, gotText := false, false
 	stopHB := runlog.Heartbeat(g.Sink, call, runlog.HeartbeatInterval)
 	defer stopHB()
-	options := []agentcore.CallOption{agentcore.WithThinking(thinking), agentcore.WithMaxTokens(playMaxTokens)}
+	options := append([]agentcore.CallOption{agentcore.WithMaxTokens(playMaxTokens)}, agents.ThinkingCallOptions(thinking)...)
 	if key := playCacheKey(g.PlayID, contract.Name); key != "" {
 		options = append(options, agentcore.WithCallPromptCacheKey(key))
 	}
@@ -227,7 +308,7 @@ func execute[T any](ctx context.Context, g Generator, model agentcore.ChatModel,
 
 func (g Generator) thinking(name string) agentcore.ThinkingLevel {
 	switch name {
-	case spineContract.Name, architectContract.Name:
+	case spineContract.Name, architectContract.Name, reviseContract.Name, replanContract.Name:
 		return g.ArchitectThinking
 	case plannerContract.Name:
 		return g.PlannerThinking

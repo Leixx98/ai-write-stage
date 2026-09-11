@@ -22,6 +22,8 @@ type SpineFunc func(context.Context, SpineInput) (SpineOutput, error)
 type ArchitectFunc func(context.Context, ArchitectInput) (ArchitectOutput, error)
 type PlannerFunc func(context.Context, PlannerInput) (PlannerOutput, error)
 type WriterFunc func(context.Context, WriterInput) (WriterOutput, error)
+type ReviseNextFunc func(context.Context, ReviseNextInput) (ReviseNextOutput, error)
+type ReplanFunc func(context.Context, ReplanInput) (ReplanOutput, error)
 type ImageStartFunc func(context.Context, string, *store.PlayBeat) error
 
 type Config struct {
@@ -32,6 +34,8 @@ type Config struct {
 	Architect  ArchitectFunc
 	Planner    PlannerFunc
 	Writer     WriterFunc
+	ReviseNext ReviseNextFunc
+	Replan     ReplanFunc
 	StartImage ImageStartFunc
 }
 
@@ -43,6 +47,8 @@ type Engine struct {
 	architect  ArchitectFunc
 	planner    PlannerFunc
 	writer     WriterFunc
+	reviseNext ReviseNextFunc
+	replan     ReplanFunc
 	startImage ImageStartFunc
 	wake       chan struct{}
 	mu         sync.Mutex
@@ -61,6 +67,8 @@ func New(cfg Config) *Engine {
 		architect:  cfg.Architect,
 		planner:    cfg.Planner,
 		writer:     cfg.Writer,
+		reviseNext: cfg.ReviseNext,
+		replan:     cfg.Replan,
 		startImage: cfg.StartImage,
 		wake:       make(chan struct{}, 1),
 	}
@@ -237,8 +245,8 @@ func (e *Engine) ensureSpine(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	prepared := prepareSpine(out.Stations)
-	if err := validateSpineStations(prepared.Stations); err != nil {
+	prepared := prepareSpine(out)
+	if err := validateSpine(prepared); err != nil {
 		return err
 	}
 	if err := e.store.SaveSpine(e.playID, prepared); err != nil {
@@ -315,7 +323,7 @@ func (e *Engine) planNextSegmentOnce(ctx context.Context, progress store.PlayPro
 	e.note(fmt.Sprintf("开始规划当前站 station=%s density=%s pacing=%s facts=%d last=%t", station.ID, store.NormalizePlayDensity(string(meta.Density)), store.NormalizePlayPacing(string(meta.Pacing)), len(ledger.Facts), lastStation))
 	arch, err := e.architect(ctx, ArchitectInput{
 		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density, Pacing: meta.Pacing,
-		CurrentStation: station, RemainingStations: remainingStations(spine, station.ID),
+		CurrentStation: station, RemainingStations: remainingStations(spine, station.ID), Threads: spine.Threads,
 		Facts: ledger.Facts, ChoiceHistory: progress.ChoiceHistory, RecentBeats: recent,
 	})
 	if err != nil {
@@ -529,31 +537,45 @@ func (e *Engine) Advance() (store.PlayProgress, error) {
 
 func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	progress, selected, err := e.commitChoice(choiceID)
+	e.mu.Unlock()
+	if err != nil {
+		return progress, err
+	}
+	if !selected.Ending {
+		e.reviseNextBestEffort(selected)
+	}
+	e.Wake()
+	return progress, nil
+}
+
+func (e *Engine) commitChoice(choiceID string) (store.PlayProgress, store.PlayChoice, error) {
 	choiceID = strings.TrimSpace(choiceID)
 	if choiceID == "" {
-		return store.PlayProgress{}, fmt.Errorf("choice_id is required")
+		return store.PlayProgress{}, store.PlayChoice{}, fmt.Errorf("choice_id is required")
 	}
 	progress, err := e.store.LoadProgress(e.playID)
 	if err != nil {
-		return progress, err
+		return progress, store.PlayChoice{}, err
 	}
 	if progress.GateOrdinal == 0 {
-		return progress, fmt.Errorf("play is not awaiting a choice")
+		return progress, store.PlayChoice{}, fmt.Errorf("play is not awaiting a choice")
 	}
 	beat, err := e.store.LoadBeat(e.playID, progress.GateOrdinal)
 	if err != nil {
-		return progress, err
+		return progress, store.PlayChoice{}, err
 	}
-	var selected *store.PlayChoice
-	for i := range beat.Choices {
-		if beat.Choices[i].ID == choiceID {
-			selected = &beat.Choices[i]
+	var selected store.PlayChoice
+	found := false
+	for _, choice := range beat.Choices {
+		if choice.ID == choiceID {
+			selected = choice
+			found = true
 			break
 		}
 	}
-	if selected == nil {
-		return progress, fmt.Errorf("unknown choice_id %q", choiceID)
+	if !found {
+		return progress, store.PlayChoice{}, fmt.Errorf("unknown choice_id %q", choiceID)
 	}
 	facts := normalizeFacts(selected.SetFacts)
 	progress.ChoiceHistory = append(progress.ChoiceHistory, store.PlayChoiceRecord{
@@ -565,18 +587,18 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 		progress.PlayHead = beat.Ordinal
 	}
 	if err := e.store.SaveProgress(e.playID, progress); err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	ledger, err := e.store.LoadLedger(e.playID)
 	if err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	if err := e.store.SaveLedger(e.playID, applyFacts(ledger, facts)); err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	spine, err := e.store.LoadSpine(e.playID)
 	if err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	if stationID := strings.TrimSpace(beat.SegmentID); stationID != "" {
 		spine = markStation(spine, stationID, store.StationDone)
@@ -585,25 +607,234 @@ func (e *Engine) Choose(choiceID string) (store.PlayProgress, error) {
 		spine = skipPending(spine)
 	}
 	if err := e.store.SaveSpine(e.playID, spine); err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	if err := e.store.SaveOutline(e.playID, store.PlayOutline{}); err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	meta, err := e.store.LoadPlay(e.playID)
 	if err != nil {
-		return progress, err
+		return progress, selected, err
 	}
 	if meta.Status == store.PlayAwaitingChoice {
 		meta.Status = store.PlayRunning
 		meta.LastError = ""
 		if err := e.store.SavePlay(meta); err != nil {
-			return progress, err
+			return progress, selected, err
 		}
 	}
-	e.Wake()
 	e.note(fmt.Sprintf("玩家选择 choice=%s label=%s facts=%s ending=%t gate=%d", selected.ID, selected.Label, strings.Join(facts, ","), selected.Ending, beat.Ordinal))
-	return progress, nil
+	return progress, selected, nil
+}
+
+func (e *Engine) reviseNextBestEffort(choice store.PlayChoice) {
+	if e == nil || e.reviseNext == nil {
+		return
+	}
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	next, idx, ok := nextPendingStation(spine)
+	if !ok {
+		return
+	}
+	meta, err := e.store.LoadPlay(e.playID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	progress, err := e.store.LoadProgress(e.playID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	ledger, err := e.store.LoadLedger(e.playID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	character, err := e.store.LoadCharacter(meta.CharacterID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	beats, err := e.store.ListBeats(e.playID)
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		return
+	}
+	profile := profileFor(meta.Density, meta.Pacing)
+	e.setStage(StagePlanning)
+	out, err := e.reviseNext(context.Background(), ReviseNextInput{
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density, Pacing: meta.Pacing,
+		Choice: choice, Facts: ledger.Facts, ChoiceHistory: progress.ChoiceHistory, RecentBeats: tailBeats(beats, profile.RecentBeats),
+		NextStation: next, Threads: spine.Threads, Throughline: spine.Throughline,
+	})
+	if err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		e.setStage("")
+		return
+	}
+	if strings.TrimSpace(out.NextStation.ID) != next.ID {
+		e.note("轻改下一站失败，沿用原细纲: next_station id mismatch")
+		e.setStage("")
+		return
+	}
+	if err := validateStationDetail(out.NextStation, 0); err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		e.setStage("")
+		return
+	}
+	applyStationDetail(&spine.Stations[idx], out.NextStation)
+	spine.Threads = applyThreadUpdates(spine.Threads, out.Threads)
+	if err := e.store.SaveSpine(e.playID, spine); err != nil {
+		e.note("轻改下一站失败，沿用原细纲: " + err.Error())
+		e.setStage("")
+		return
+	}
+	e.note(fmt.Sprintf("已轻改下一站 station=%s", next.ID))
+	e.setStage("")
+}
+
+func (e *Engine) Replan(ctx context.Context, instruction string) error {
+	instruction = strings.TrimSpace(instruction)
+	if instruction == "" {
+		return fmt.Errorf("instruction is required")
+	}
+	if e == nil || e.replan == nil {
+		return fmt.Errorf("play replan is unavailable")
+	}
+	meta, err := e.store.LoadPlay(e.playID)
+	if err != nil {
+		return err
+	}
+	if meta.Status == store.PlayRunning {
+		return fmt.Errorf("pause play before replan")
+	}
+	spine, err := e.store.LoadSpine(e.playID)
+	if err != nil {
+		return err
+	}
+	if len(spine.Stations) == 0 {
+		return fmt.Errorf("play spine is empty")
+	}
+	progress, err := e.store.LoadProgress(e.playID)
+	if err != nil {
+		return err
+	}
+	awaitingChoice := progress.GateOrdinal != 0
+	from := replanFromIndex(spine, awaitingChoice)
+	if from < 0 || from >= len(spine.Stations) {
+		return fmt.Errorf("没有可改的后续站")
+	}
+	ledger, err := e.store.LoadLedger(e.playID)
+	if err != nil {
+		return err
+	}
+	character, err := e.store.LoadCharacter(meta.CharacterID)
+	if err != nil {
+		return err
+	}
+	beats, err := e.store.ListBeats(e.playID)
+	if err != nil {
+		return err
+	}
+	kept := append([]store.PlayStation{}, spine.Stations[:from]...)
+	remaining := append([]store.PlayStation{}, spine.Stations[from:]...)
+	profile := profileFor(meta.Density, meta.Pacing)
+	e.setStage(StagePlanning)
+	e.note(fmt.Sprintf("开始按方向改后续细纲 from=%s instruction=%s", remaining[0].ID, instruction))
+	out, err := e.replan(ctx, ReplanInput{
+		Character: character, Premise: meta.Premise, UserPersona: meta.UserPersona, Density: meta.Density, Pacing: meta.Pacing,
+		Instruction: instruction, Throughline: spine.Throughline, KeptStations: kept, RemainingStations: remaining,
+		Threads: spine.Threads, Facts: ledger.Facts, ChoiceHistory: progress.ChoiceHistory, RecentBeats: tailBeats(beats, profile.RecentBeats),
+	})
+	if err != nil {
+		e.setStage("")
+		return err
+	}
+	prepared := prepareSpine(SpineOutput{Throughline: out.Throughline, Stations: out.Stations, Threads: out.Threads})
+	if len(prepared.Stations) == 0 {
+		e.setStage("")
+		return fmt.Errorf("replan returned no stations")
+	}
+	if len(kept)+len(prepared.Stations) > maxSpineStations {
+		e.setStage("")
+		return fmt.Errorf("replan exceeds %d stations", maxSpineStations)
+	}
+	seen := map[string]bool{}
+	for _, station := range kept {
+		seen[station.ID] = true
+	}
+	current, currentIdx, hasCurrent := currentStation(spine)
+	for i := range prepared.Stations {
+		if seen[prepared.Stations[i].ID] {
+			e.setStage("")
+			return fmt.Errorf("duplicate station id %q", prepared.Stations[i].ID)
+		}
+		seen[prepared.Stations[i].ID] = true
+		if !awaitingChoice && hasCurrent && currentIdx == from && i == 0 {
+			prepared.Stations[i].Status = current.Status
+			if prepared.Stations[i].Status == "" {
+				prepared.Stations[i].Status = store.StationActive
+			}
+			continue
+		}
+		prepared.Stations[i].Status = store.StationPending
+	}
+	if strings.TrimSpace(prepared.Throughline) != "" {
+		spine.Throughline = prepared.Throughline
+	}
+	if len(prepared.Threads) > 0 {
+		spine.Threads = prepared.Threads
+	}
+	spine.Stations = append(kept, prepared.Stations...)
+	keep := progress.PlayHead
+	if awaitingChoice {
+		if progress.WriteHead > keep {
+			keep = progress.WriteHead
+		}
+		if progress.GateOrdinal > keep {
+			keep = progress.GateOrdinal
+		}
+	}
+	if err := e.store.TruncateBeatsAfter(e.playID, keep); err != nil {
+		e.setStage("")
+		return err
+	}
+	progress.WriteHead = keep
+	if !awaitingChoice {
+		progress.GateOrdinal = 0
+		progress.SegmentID = ""
+	}
+	if err := e.store.SaveProgress(e.playID, progress); err != nil {
+		e.setStage("")
+		return err
+	}
+	if err := e.store.SaveOutline(e.playID, store.PlayOutline{}); err != nil {
+		e.setStage("")
+		return err
+	}
+	if err := e.store.SaveWriterSession(e.playID, store.PlayWriterSession{}); err != nil {
+		e.setStage("")
+		return err
+	}
+	if err := e.store.SaveSpine(e.playID, spine); err != nil {
+		e.setStage("")
+		return err
+	}
+	if meta.Status == store.PlayCompleted {
+		meta.Status = store.PlayPaused
+	}
+	meta.LastError = ""
+	meta.Stage = ""
+	if err := e.store.SavePlay(meta); err != nil {
+		return err
+	}
+	e.note(fmt.Sprintf("后续细纲已改写 from=%s stations=%d", prepared.Stations[0].ID, len(prepared.Stations)))
+	return nil
 }
 
 func (e *Engine) note(message string) {

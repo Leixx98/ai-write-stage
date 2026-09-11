@@ -84,14 +84,44 @@ const (
 	StationSkipped PlayStationStatus = "skipped"
 )
 
+type PlayThreadStatus string
+
+const (
+	ThreadOpen    PlayThreadStatus = "open"
+	ThreadPlanted PlayThreadStatus = "planted"
+	ThreadPaid    PlayThreadStatus = "paid"
+	ThreadDropped PlayThreadStatus = "dropped"
+)
+
+type PlayThread struct {
+	ID       string           `json:"id"`
+	Hint     string           `json:"hint"`
+	Status   PlayThreadStatus `json:"status,omitempty"`
+	PlantAt  string           `json:"plant_at,omitempty"`
+	PayoffAt string           `json:"payoff_at,omitempty"`
+}
+
+type PlayFork struct {
+	IfFacts []string `json:"if_facts,omitempty"`
+	Tint    string   `json:"tint"`
+}
+
 type PlayStation struct {
-	ID       string            `json:"id"`
-	Pressure string            `json:"pressure"`
-	Status   PlayStationStatus `json:"status,omitempty"`
+	ID         string            `json:"id"`
+	Title      string            `json:"title,omitempty"`
+	Pressure   string            `json:"pressure"`
+	Summary    string            `json:"summary,omitempty"`
+	MustHappen []string          `json:"must_happen,omitempty"`
+	Forks      []PlayFork        `json:"forks,omitempty"`
+	Seeds      []string          `json:"seeds,omitempty"`
+	Payoffs    []string          `json:"payoffs,omitempty"`
+	Status     PlayStationStatus `json:"status,omitempty"`
 }
 
 type PlaySpine struct {
-	Stations []PlayStation `json:"stations"`
+	Throughline string        `json:"throughline,omitempty"`
+	Stations    []PlayStation `json:"stations"`
+	Threads     []PlayThread  `json:"threads,omitempty"`
 }
 
 type PlayFact struct {
@@ -441,6 +471,30 @@ func (s *GalgameStore) ListBeatsFrom(id string, from int) ([]PlayBeat, error) {
 	return out, nil
 }
 
+func (s *GalgameStore) TruncateBeatsAfter(id string, keepOrdinal int) error {
+	if !safeGalgameID(id) {
+		return fmt.Errorf("invalid play id")
+	}
+	if keepOrdinal < 0 {
+		return fmt.Errorf("keep ordinal must be >= 0")
+	}
+	beats, err := s.ListBeats(id)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, beat := range beats {
+		if beat.Ordinal <= keepOrdinal {
+			continue
+		}
+		if err := s.io.RemoveFile(s.playBeatPath(id, beat.Ordinal)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *GalgameStore) SaveWriterSession(id string, session PlayWriterSession) error {
 	if !safeGalgameID(id) {
 		return fmt.Errorf("invalid play id")
@@ -478,6 +532,9 @@ func (s *GalgameStore) SaveSpine(id string, spine PlaySpine) error {
 	if spine.Stations == nil {
 		spine.Stations = []PlayStation{}
 	}
+	if spine.Threads == nil {
+		spine.Threads = []PlayThread{}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.io.WriteJSON(s.playSpinePath(id), spine)
@@ -497,6 +554,9 @@ func (s *GalgameStore) LoadSpine(id string) (PlaySpine, error) {
 	}
 	if spine.Stations == nil {
 		spine.Stations = []PlayStation{}
+	}
+	if spine.Threads == nil {
+		spine.Threads = []PlayThread{}
 	}
 	return spine, nil
 }

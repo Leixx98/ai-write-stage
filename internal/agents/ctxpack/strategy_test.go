@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/Leixx98/ai-write-stage/internal/domain"
 	storepkg "github.com/Leixx98/ai-write-stage/internal/store"
@@ -22,10 +23,15 @@ func TestStoreSummaryCompactApplyUsesPersistentStoreData(t *testing.T) {
 	})
 
 	msgs := []agentcore.AgentMessage{
-		agentcore.UserMsg(strings.Repeat("旧上下文", 80)),
+		agentcore.UserMsg(strings.Repeat("旧上下文", 1600)),
 		agentcore.Message{
 			Role:    agentcore.RoleAssistant,
-			Content: []agentcore.ContentBlock{agentcore.TextBlock(strings.Repeat("旧回复", 80))},
+			Content: []agentcore.ContentBlock{agentcore.TextBlock(strings.Repeat("旧回复", 1600))},
+		},
+		agentcore.UserMsg(strings.Repeat("中段承接", 80)),
+		agentcore.Message{
+			Role:    agentcore.RoleAssistant,
+			Content: []agentcore.ContentBlock{agentcore.TextBlock("已完成中段状态确认。")},
 		},
 		agentcore.UserMsg("继续写第三章，注意承接第二章结尾。"),
 		agentcore.Message{
@@ -36,8 +42,8 @@ func TestStoreSummaryCompactApplyUsesPersistentStoreData(t *testing.T) {
 
 	out, result, err := strategy.Apply(context.Background(), msgs, msgs, corecontext.Budget{
 		Tokens:    corecontext.EstimateTotal(msgs),
-		Window:    128,
-		Threshold: 32,
+		Window:    8192,
+		Threshold: 4096,
 	})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -72,6 +78,36 @@ func TestStoreSummaryCompactApplyUsesPersistentStoreData(t *testing.T) {
 	}
 	if result.Info == nil || result.Info.CompactedCount <= 0 {
 		t.Fatalf("expected compaction info, got %+v", result.Info)
+	}
+}
+
+func TestWriterRestoreStateRecognizesEveryRenderableSection(t *testing.T) {
+	cases := map[string]func(*writerStoreSummaryState){
+		"arc summary":    func(s *writerStoreSummaryState) { s.currentArcSummary = &domain.ArcSummary{Summary: "弧摘要"} },
+		"volume summary": func(s *writerStoreSummaryState) { s.currentVolSummary = &domain.VolumeSummary{Summary: "卷摘要"} },
+		"timeline":       func(s *writerStoreSummaryState) { s.timeline = []domain.TimelineEvent{{Event: "事件"}} },
+		"style rules":    func(s *writerStoreSummaryState) { s.styleRules = &domain.WritingStyleRules{Prose: []string{"短句"}} },
+		"warnings":       func(s *writerStoreSummaryState) { s.warnings = []string{"读取失败"} },
+	}
+	for name, seed := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := &writerStoreSummaryState{}
+			seed(state)
+			if !hasWriterRestoreState(state) {
+				t.Fatalf("%s should keep the restore state", name)
+			}
+		})
+	}
+}
+
+func TestTruncateJSONToTokensIsUTF8SafeAndBounded(t *testing.T) {
+	text := []byte(strings.Repeat(`{"剧情":"雨夜重逢"}`, 100))
+	got := truncateJSONToTokens(text, 40)
+	if !utf8.ValidString(got) {
+		t.Fatal("truncated JSON is not valid UTF-8")
+	}
+	if tokens := corecontext.EstimateTokens(agentcore.UserMsg(got)); tokens > 40 {
+		t.Fatalf("truncated JSON uses %d tokens, want <= 40", tokens)
 	}
 }
 

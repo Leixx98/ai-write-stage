@@ -167,3 +167,23 @@ func TestResolveContextWindowIsProviderAware(t *testing.T) {
 		t.Fatalf("legacy fallback = %d %s", got, source)
 	}
 }
+
+func TestSafeContextWindowForRoleIncludesFallbacks(t *testing.T) {
+	cfg := Config{
+		Provider: "cloud", ModelName: "large",
+		Providers: map[string]ProviderConfig{
+			"cloud": {Type: "openai", APIKey: "test", Models: []ModelConfig{{Name: "large", ContextWindow: 128000}}},
+			"local": {Type: "openai", APIKey: "test", Models: []ModelConfig{{Name: "small", ContextWindow: 8192}}},
+		},
+		Roles: map[string]RoleConfig{"writer": {
+			Provider: "cloud", Model: "large", Fallbacks: []ModelRef{{Provider: "local", Model: "small"}},
+		}},
+	}
+	models, err := NewModelSet(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := models.SafeContextWindowForRole("writer"); got != 8192 {
+		t.Fatalf("safe writer window = %d, want 8192", got)
+	}
+}

@@ -45,10 +45,7 @@ func (m *writerBudgetModel) limitOptions(messages []agentcore.Message, tools []a
 	if m.contextWindow != nil {
 		window = m.contextWindow()
 	}
-	// Large cloud Writer windows may still execute legacy whole-chapter rewrites;
-	// preserve their provider output setting. The bounded-unit safety layer is
-	// intended for constrained local windows.
-	if window <= 0 || window > 32768 {
+	if window <= 0 {
 		return opts, nil
 	}
 	input := estimateWriterRequestTokens(messages, tools)

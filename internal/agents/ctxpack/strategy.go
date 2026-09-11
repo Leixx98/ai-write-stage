@@ -59,14 +59,6 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
 	}
 
-	summary, ok, err := buildWriterStoreSummaryText(s.store, s.summaryTokenBudget)
-	if err != nil {
-		return nil, corecontext.StrategyResult{Name: s.Name()}, err
-	}
-	if !ok {
-		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
-	}
-
 	cut := findStoreSummaryCutPoint(msgs, s.keepRecentTokens)
 	if cut.isSplitTurn && cut.turnStartIndex > 0 {
 		cut.firstKeptIndex = cut.turnStartIndex
@@ -78,6 +70,23 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 
 	toKeep := append([]agentcore.AgentMessage(nil), msgs[cut.firstKeptIndex:]...)
 	tokensBefore := corecontext.EstimateTotal(msgs)
+	const summaryEnvelopeTokens = 40
+	available := budget.Threshold - corecontext.EstimateTotal(toKeep) - summaryEnvelopeTokens
+	if smaller := tokensBefore - corecontext.EstimateTotal(toKeep) - summaryEnvelopeTokens; smaller < available {
+		available = smaller
+	}
+	if available <= 0 {
+		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
+	}
+	summaryBudget := min(s.summaryTokenBudget, available)
+	summary, ok, err := buildWriterStoreSummaryText(s.store, summaryBudget)
+	if err != nil {
+		return nil, corecontext.StrategyResult{Name: s.Name()}, err
+	}
+	if !ok {
+		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
+	}
+
 	result := make([]agentcore.AgentMessage, 0, 1+len(toKeep))
 	result = append(result, corecontext.ContextSummary{
 		Summary:      summary,

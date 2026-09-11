@@ -144,6 +144,8 @@ type Prompts struct {
 	PlayArchitect string
 	PlayPlanner   string
 	PlayWriter    string
+	PlayRevise    string
+	PlayReplan    string
 }
 
 // Bundle 表示运行所需的静态资源集合。
@@ -299,6 +301,8 @@ func loadPrompts() Prompts {
 		PlayArchitect: mustRead(promptsFS, "prompts/play-architect.md"),
 		PlayPlanner:   mustRead(promptsFS, "prompts/play-planner.md"),
 		PlayWriter:    mustRead(promptsFS, "prompts/play-writer.md"),
+		PlayRevise:    mustRead(promptsFS, "prompts/play-revise.md"),
+		PlayReplan:    mustRead(promptsFS, "prompts/play-replan.md"),
 	}
 }
 

@@ -6,6 +6,27 @@ import (
 	"github.com/Leixx98/ai-write-stage/internal/store"
 )
 
+func TestSpineValidateRequiresDetail(t *testing.T) {
+	out := testRichSpine()
+	if err := out.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	out.Throughline = ""
+	if err := out.Validate(); err == nil {
+		t.Fatal("expected throughline error")
+	}
+	out = testRichSpine()
+	out.Stations[0].Summary = ""
+	if err := out.Validate(); err == nil {
+		t.Fatal("expected summary error")
+	}
+	out = testRichSpine()
+	out.Stations[0].Forks = out.Stations[0].Forks[:1]
+	if err := out.Validate(); err == nil {
+		t.Fatal("expected forks error")
+	}
+}
+
 func TestPlannerValidateRequiresSetFacts(t *testing.T) {
 	out := PlannerOutput{SegmentID: "meet", Cards: []store.PlayBeatCard{
 		{Kind: store.BeatDialogue, CG: store.PlayCGKeep},

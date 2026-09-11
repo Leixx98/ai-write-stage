@@ -105,7 +105,7 @@ type ChapterContract struct {
 	RequiredBeats    []string `json:"required_beats,omitempty"`    // 本章必须落地的推进项
 	ForbiddenMoves   []string `json:"forbidden_moves,omitempty"`   // 本章明确不能发生的推进
 	ContinuityChecks []string `json:"continuity_checks,omitempty"` // 本章需特别核对的连续性点
-	EvaluationFocus  []string `json:"evaluation_focus,omitempty"`  // Editor 需要重点检查的点
+	EvaluationFocus  []string `json:"evaluation_focus,omitempty"`  // 后续人工检查重点
 	EmotionTarget    string   `json:"emotion_target,omitempty"`    // 可选：本章希望读者主要感受到的情绪
 	PayoffPoints     []string `json:"payoff_points,omitempty"`     // 可选：关键章希望回应的情节点/兑现点
 	HookGoal         string   `json:"hook_goal,omitempty"`         // 可选：章末钩子希望驱动的追读欲望
@@ -120,7 +120,7 @@ type ChapterSummary struct {
 	KeyEvents  []string `json:"key_events"`
 }
 
-// ArcSummary 弧级摘要，弧结束时由 Editor 生成。
+// ArcSummary 弧级摘要。
 type ArcSummary struct {
 	Volume    int      `json:"volume"`
 	Arc       int      `json:"arc"`

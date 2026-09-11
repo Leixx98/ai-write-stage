@@ -114,11 +114,15 @@ func TestPlayDensitySpineAndLedger(t *testing.T) {
 	if err != nil || meta.Pacing != PlayPacingPure {
 		t.Fatalf("pure pacing = %+v %v", meta, err)
 	}
-	if err := tavern.SaveSpine(id, PlaySpine{Stations: []PlayStation{{ID: "meet", Pressure: "表态", Status: StationPending}}}); err != nil {
+	if err := tavern.SaveSpine(id, PlaySpine{
+		Throughline: "兑现重逢",
+		Stations:    []PlayStation{{ID: "meet", Title: "重逢", Pressure: "表态", Summary: "车站对质", MustHappen: []string{"表态"}, Forks: []PlayFork{{Tint: "默认"}}, Status: StationPending}},
+		Threads:     []PlayThread{{ID: "secret", Hint: "跟踪", Status: ThreadOpen}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	spine, err := tavern.LoadSpine(id)
-	if err != nil || len(spine.Stations) != 1 || spine.Stations[0].ID != "meet" {
+	if err != nil || spine.Throughline != "兑现重逢" || len(spine.Stations) != 1 || spine.Stations[0].Summary != "车站对质" || len(spine.Threads) != 1 {
 		t.Fatalf("spine = %+v %v", spine, err)
 	}
 	if err := tavern.SaveLedger(id, PlayLedger{Facts: []PlayFact{{ID: "stayed"}}}); err != nil {
@@ -127,6 +131,27 @@ func TestPlayDensitySpineAndLedger(t *testing.T) {
 	ledger, err := tavern.LoadLedger(id)
 	if err != nil || len(ledger.Facts) != 1 || ledger.Facts[0].ID != "stayed" {
 		t.Fatalf("ledger = %+v %v", ledger, err)
+	}
+}
+
+func TestTruncateBeatsAfterKeepsPlayed(t *testing.T) {
+	dir := t.TempDir()
+	tavern := Open(dir, dir).Tavern
+	id := "rain_night"
+	if err := tavern.SavePlay(PlayMeta{ID: id, Name: "雨夜", CharacterID: "c", Premise: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 4; i++ {
+		if err := tavern.SaveBeat(id, PlayBeat{Ordinal: i, Text: "拍", CG: PlayCGKeep}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tavern.TruncateBeatsAfter(id, 2); err != nil {
+		t.Fatal(err)
+	}
+	beats, err := tavern.ListBeats(id)
+	if err != nil || len(beats) != 2 || beats[0].Ordinal != 1 || beats[1].Ordinal != 2 {
+		t.Fatalf("beats = %+v %v", beats, err)
 	}
 }
 

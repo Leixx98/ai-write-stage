@@ -96,7 +96,8 @@ func TestArchitectRequestPutsStationBeforeFacts(t *testing.T) {
 		Character:      testCharacter(),
 		Premise:        "雨夜",
 		UserPersona:    "旅人",
-		CurrentStation: store.PlayStation{ID: "meet", Pressure: "第一次必须表态"},
+		CurrentStation: store.PlayStation{ID: "meet", Pressure: "第一次必须表态", Summary: "码头对质，秘密被摊开。", MustHappen: []string{"承认跟踪"}},
+		Threads:        []store.PlayThread{{ID: "secret", Hint: "跟踪", Status: store.ThreadOpen}},
 		Facts:          []store.PlayFact{{ID: "arrived"}},
 		ChoiceHistory:  []store.PlayChoiceRecord{{Ordinal: 3, ChoiceID: "stay", Label: "留下"}},
 		RecentBeats:    []store.PlayBeat{{Ordinal: 3, Text: "对峙", ImageJobID: "img"}},
@@ -111,8 +112,12 @@ func TestArchitectRequestPutsStationBeforeFacts(t *testing.T) {
 	factsAt := strings.Index(user, "facts")
 	choiceAt := strings.Index(user, "choice_history")
 	beatsAt := strings.Index(user, "recent_beats")
-	if stationAt < 0 || factsAt < 0 || choiceAt < 0 || beatsAt < 0 || !(stationAt < factsAt && factsAt < choiceAt && choiceAt < beatsAt) {
+	threadsAt := strings.Index(user, "threads")
+	if stationAt < 0 || threadsAt < 0 || factsAt < 0 || choiceAt < 0 || beatsAt < 0 || !(stationAt < threadsAt && threadsAt < factsAt && factsAt < choiceAt && choiceAt < beatsAt) {
 		t.Fatalf("turn field order: %s", user)
+	}
+	if !strings.Contains(user, "码头对质") || !strings.Contains(user, "承认跟踪") {
+		t.Fatalf("station detail missing: %s", user)
 	}
 	if strings.Contains(user, "img") || strings.Contains(user, "extensions") {
 		t.Fatalf("volatile field leaked: %s", user)

@@ -10,7 +10,7 @@ import (
 
 // contextManagerConfig 聚合 ContextManager 的全部配置参数。
 type contextManagerConfig struct {
-	Model            agentcore.ChatModel
+	SummaryModel     agentcore.ChatModel
 	ContextWindow    int
 	ReserveTokens    int
 	Agent            string
@@ -49,7 +49,7 @@ func newContextManager(cfg contextManagerConfig) *corecontext.ContextEngine {
 	if cfg.Summary != nil {
 		sc = *cfg.Summary
 	}
-	sc.Model = cfg.Model
+	sc.Model = cfg.SummaryModel
 
 	var tc corecontext.ToolResultMicrocompactConfig
 	if cfg.ToolMicrocompact != nil {

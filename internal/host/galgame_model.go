@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Leixx98/ai-write-stage/internal/agents"
 	"github.com/Leixx98/ai-write-stage/internal/galgame"
 	"github.com/Leixx98/ai-write-stage/internal/galgame/runlog"
 	"github.com/voocel/agentcore"
@@ -45,7 +46,7 @@ func (h *Host) NewGalgameGenerate() galgame.StreamFunc {
 		stopHB := runlog.Heartbeat(sink, call, runlog.HeartbeatInterval)
 		defer stopHB()
 		msgs = galgame.PinPromptCache(msgs)
-		options := []agentcore.CallOption{agentcore.WithThinking(thinking), agentcore.WithMaxTokens(galgame.MaxReplyTokens())}
+		options := append([]agentcore.CallOption{agentcore.WithMaxTokens(galgame.MaxReplyTokens())}, agents.ThinkingCallOptions(thinking)...)
 		if key := galgame.ChatCacheKey(scope.SessionID); key != "" {
 			options = append(options, agentcore.WithCallPromptCacheKey(key))
 		}
